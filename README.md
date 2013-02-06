@@ -12,9 +12,8 @@ Feel free to write comments in this readme about what you've tried and what you'
 
 
 TJ
---
-*Tried: Hough Transform. Was slow/not robust.
-*Working On: Optimizing the radial FWHM of a binary representation of the image
+* Tried: Hough Transform. Was slow/not robust.
+* Working On: Optimizing the radial FWHM of a binary representation of the image
 
 
 
