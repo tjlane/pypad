@@ -1,25 +1,20 @@
 
+import os
+
 import numpy as np
-from scipy import optimize
+from scipy import optimize, interpolate
 from scipy.ndimage import filters
+from scipy.stats.mstats import gmean
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as plt_patches
 
 
 
-def load_example_data():
-    image = np.load('sibeh_image.npz')['arr_0']
+def load_example_data(fname='sibeh_image.npz'):
+    path = os.path.join('..', 'test_data', fname)
+    image = np.load(path)['arr_0']
     return image
-    
-    
-def load_example2():
-    fileID = open('p2sec_p3d_11_1_00010.bin', 'r')
-    fileID.seek(1024)
-    data = np.fromfile(fileID, dtype=np.float32)
-    data2D = np.reshape(data,(2527, 2463))
-    data2D = data2D * (data2D > 0.)
-    return data2D
     
 
 def compute_radii(image, center):
@@ -41,14 +36,18 @@ def compute_radii(image, center):
     return r
     
     
-def bin_intensities_by_radius(image, center, n_bins=1000):
+def bin_intensities_by_radius(image, center, n_bins=None):
 
     r = compute_radii(image, center)
     
+    if n_bins == None:
+        n_bins = max(image.shape) # / 2
+    
     # assume we've got a binary filter applied for now (!)
-    bin_values, bin_edges = np.histogram( r*image, bins=n_bins )
+    bin_values, bin_edges = np.histogram( r * image, bins=n_bins )
     bin_values = bin_values[1:]
     bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+        
     bin_values = smooth(bin_values)
     
     return bin_centers, bin_values
@@ -71,7 +70,7 @@ def find_edges(image, threshold=0.01):
     return image
 
     
-def smooth(x, beta=10.0, window_size=11):
+def smooth(x, beta=10.0, window_size=None):
     """
     Apply a Kaiser window smoothing convolution.
     
@@ -95,6 +94,9 @@ def smooth(x, beta=10.0, window_size=11):
         A smoothed version of `x`.
     """
     
+    if window_size == None:
+        window_size = 20 #len(x) / 20
+    
     # make sure the window size is odd
     if window_size % 2 == 0:
         window_size += 1
@@ -112,45 +114,116 @@ def smooth(x, beta=10.0, window_size=11):
     
     
 def fwhm(vector):
-    
-    # create a spline of x and blue-np.max(blue)/2 
-    
-    spline = UnivariateSpline(x, vector-np.max(vector)/2, s=0)
-    r1, r2 = spline.roots() # find the roots
+    """
+    Compute the full-width half-max of "vector", where "vector" is a single
+    peak.
+    """
 
+    vector -= vector.min()
+    x = np.arange(len(vector))
+    spline = interpolate.UnivariateSpline(x, vector-np.max(vector)/2, s=3)
+
+    roots = spline.roots() # find the roots
+    if not len(roots) == 2:
+        raise RuntimeError('Could not find FWHM of `vector`')
+    r1, r2 = roots
     
-def optimize_center(image, use_edge_mask=True):
+    return r1, r2
+    
+    
+def extract_peak(vector, m_ind=None):
+    """
+    Gets the biggest peak.
+    """
+    
+    if m_ind == None:
+        m_ind = np.argmax(vector)
+    
+    if m_ind == 0:
+        left_index = 0
+    else:
+        left_index = None
+        i = m_ind
+        while not left_index:
+            diff = vector[i-1] - vector[i]
+            if (diff >= 0) or (i-1 == 0):
+                left_index = i
+            i -= 1
+        
+    if m_ind == len(vector):
+        right_index = len(vector)
+    else:
+        right_index = None            
+        i = m_ind
+        while not right_index:
+            diff = vector[i+1] - vector[i]
+            if (diff >= 0) or (i+1 == len(vector)):
+                right_index = i
+            i += 1
+        
+    assert left_index < right_index
+                
+    return vector[left_index:right_index+1]
+    
+    
+def maxima_indices(a):
+    maxima = np.where(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True] == True)[0]
+    return maxima
+    
+    
+def optimize_center(image, use_edge_mask=True, alpha=1e-2):
     
     if use_edge_mask:
         image = find_edges(image)
     
     center_guess = (image.shape[0] / 2., image.shape[1] / 2.)
+    
+    def objective(c):
+        bin_centers, bin_values = bin_intensities_by_radius(image, c)
+        peak = extract_peak(bin_values)
+        try:
+            r,l = fwhm(peak)
+            v = l-r
+        except RuntimeError as e:
+            v = 1e300
+        v += bin_values.max() * alpha
+        return v
+        
     print "Initial guess:", center_guess
+    print "Initial FWHM:", objective(center_guess)
     
     # guess some bounds
     buff = 10.0 # pixel units
     xb = (center_guess[0] - buff, center_guess[0] + buff)
     yb = (center_guess[1] - buff, center_guess[1] + buff)
     
-    def objective(c):
-        bin_centers, bin_values = bin_intensities_by_radius(image, c)
-        return bin_values.max()
-    
     opt_center = optimize.fmin(objective, center_guess)
-    
     print "opt center:", opt_center
     
     return opt_center
     
     
-def plot_center(image, center):
+def plot_center(image, center, use_edge_mask=True):
     
     print "plotting..."
     
-    fig = plt.figure()
-    plt.imshow(image.T)
+    if use_edge_mask:
+        image = find_edges(image)
+    
+    fig = plt.figure(figsize=(15,6))
+    
+    ax = plt.subplot(121)
+    ax.imshow(image.T)
     blob_circ = plt_patches.Circle(center, 15, fill=False, lw=2, ec='red')
-    plt.gca().add_patch(blob_circ)
+    ax.add_patch(blob_circ)
+    
+    bin_centers, bin_values = bin_intensities_by_radius(image, center)
+    ax = plt.subplot(122)
+    ax.plot(bin_centers, bin_values, lw=2)
+    ax.set_xlabel('Radius / Pixel Units')
+    ax.set_ylabel('Radial Average')
+    
+    #plt.savefig('trial.pdf')
     plt.show()
     
     return
@@ -158,25 +231,10 @@ def plot_center(image, center):
     
 def main():
 
-    image = load_example_data()
-    center = (image.shape[0] / 2., image.shape[1] / 2.)
-    
-    image = find_edges(image)
-    print "Smoothed"
-
-    bin_centers, bin_values = bin_intensities_by_radius(image, center)
-    print "initial plot"
-    plt.figure()
-    plt.plot(bin_centers, bin_values, lw=2)
-    plt.show()
-    
-    opt_center = optimize_center(image)
-    plot_center(image, opt_center)
-    
-    bin_centers, bin_values = bin_intensities_by_radius(image, opt_center)
-    plt.figure()
-    plt.plot(bin_centers, bin_values, lw=2)
-    plt.show()
+    for image_file in ['sibeh_image.npz', 'silver_sim.npz', 'ssrl_silver.npz']:
+        image = load_example_data(image_file)
+        opt_center = optimize_center(image, use_edge_mask=True)
+        plot_center(image, opt_center)
     
     return
     
