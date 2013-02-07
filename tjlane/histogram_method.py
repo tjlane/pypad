@@ -1,8 +1,8 @@
 
-import os
+import os, sys
 
 import numpy as np
-from scipy import optimize, interpolate
+from scipy import optimize, interpolate, misc
 from scipy.ndimage import filters
 from scipy.stats.mstats import gmean
 
@@ -95,7 +95,7 @@ def smooth(x, beta=10.0, window_size=None):
     """
     
     if window_size == None:
-        window_size = 20 #len(x) / 20
+        window_size = len(x) / 10
     
     # make sure the window size is odd
     if window_size % 2 == 0:
@@ -118,18 +118,24 @@ def fwhm(vector):
     Compute the full-width half-max of "vector", where "vector" is a single
     peak.
     """
-
+    
     vector -= vector.min()
     x = np.arange(len(vector))
+        
     spline = interpolate.UnivariateSpline(x, vector-np.max(vector)/2, s=3)
-
+    
+    plt.figure()
+    plt.scatter(x, vector)
+    plt.plot(x, spline(x))
+    plt.show()
+    
     roots = spline.roots() # find the roots
     if not len(roots) == 2:
         raise RuntimeError('Could not find FWHM of `vector`')
     r1, r2 = roots
     
     return r1, r2
-    
+   
     
 def extract_peak(vector, m_ind=None):
     """
@@ -148,30 +154,64 @@ def extract_peak(vector, m_ind=None):
             diff = vector[i-1] - vector[i]
             if (diff >= 0) or (i-1 == 0):
                 left_index = i
+                break
             i -= 1
         
-    if m_ind == len(vector):
+    if m_ind+1 == len(vector):
         right_index = len(vector)
     else:
         right_index = None            
         i = m_ind
         while not right_index:
             diff = vector[i+1] - vector[i]
-            if (diff >= 0) or (i+1 == len(vector)):
+            if (diff >= 0) or (i+2 == len(vector)):
                 right_index = i
+                break
             i += 1
         
-    assert left_index < right_index
+    assert left_index <= right_index
                 
     return vector[left_index:right_index+1]
     
     
+def peak_widths(vector):
+    
+    x = np.arange(len(vector))    
+    spline = interpolate.UnivariateSpline(x, vector, s=3)
+    maxima = maxima_indices( spline(x) )
+    ddx = misc.derivative( spline, x, n=2 )
+    inflections = np.where( np.abs(ddx) < 1e-2 )[0]
+    
+    peak_widths = []
+    
+    for m_ind in maxima:
+        diffs = 1.0 / (m_ind - inflections)
+        left  = inflections[np.argmax(diffs)]
+        right = inflections[np.argmin(diffs)]
+        assert right > left
+        width = right - left
+        peak_widths.append(width)
+        
+    peak_widths = np.array(peak_widths)
+    
+    plt.figure()
+    plt.plot(x, vector)
+    plt.vlines(maxima, vector.min(), vector.max(), color='red')
+    plt.vlines(inflections, vector.min(), vector.max())
+    plt.show()
+        
+    return maxima, peak_widths
+    
+    
 def maxima_indices(a):
+    a = smooth(a)
     maxima = np.where(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True] == True)[0]
+    if maxima[-1] == len(a)-1:
+        maxima = maxima[:-1]
     return maxima
     
     
-def optimize_center(image, use_edge_mask=True, alpha=1e-2):
+def optimize_center(image, use_edge_mask=True, alpha=0.1):
     
     if use_edge_mask:
         image = find_edges(image)
@@ -180,14 +220,31 @@ def optimize_center(image, use_edge_mask=True, alpha=1e-2):
     
     def objective(c):
         bin_centers, bin_values = bin_intensities_by_radius(image, c)
-        peak = extract_peak(bin_values)
-        try:
-            r,l = fwhm(peak)
-            v = l-r
-        except RuntimeError as e:
-            v = 1e300
-        v += bin_values.max() * alpha
-        return v
+        
+        # maxima = maxima_indices(bin_values)
+        # obj_values = []
+        
+        # plt.figure()
+        # plt.plot(bin_centers, bin_values, lw=2)
+        # plt.vlines(bin_centers[maxima], bin_values.min(), bin_values.max())
+        # plt.show()
+        
+        # for i,m_ind in enumerate(maxima):
+        #     peak = extract_peak(bin_values, m_ind)
+        #     try:
+        #         r,l = fwhm(peak)
+        #         v = (l-r) + bin_values[m_ind] * alpha
+        #         obj_values.append(v)
+        #     except:
+        #         # if we fail, just don't include that one
+        #         pass
+        
+        max_inds, widths = peak_widths(bin_values)
+        obj = np.mean( (widths - alpha) * bin_values[max_inds] )
+        
+        print "obj:", obj, len(max_inds)
+        
+        return obj
         
     print "Initial guess:", center_guess
     print "Initial FWHM:", objective(center_guess)
@@ -231,7 +288,7 @@ def plot_center(image, center, use_edge_mask=True):
     
 def main():
 
-    for image_file in ['sibeh_image.npz', 'silver_sim.npz', 'ssrl_silver.npz']:
+    for image_file in ['silver_sim.npz', 'sibeh_image.npz', 'ssrl_silver.npz']:
         image = load_example_data(image_file)
         opt_center = optimize_center(image, use_edge_mask=True)
         plot_center(image, opt_center)
