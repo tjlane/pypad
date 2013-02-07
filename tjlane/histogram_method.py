@@ -113,67 +113,6 @@ def smooth(x, beta=10.0, window_size=None):
     return smoothed
     
     
-def fwhm(vector):
-    """
-    Compute the full-width half-max of "vector", where "vector" is a single
-    peak.
-    """
-    
-    vector -= vector.min()
-    x = np.arange(len(vector))
-        
-    spline = interpolate.UnivariateSpline(x, vector-np.max(vector)/2, s=3)
-    
-    plt.figure()
-    plt.scatter(x, vector)
-    plt.plot(x, spline(x))
-    plt.show()
-    
-    roots = spline.roots() # find the roots
-    if not len(roots) == 2:
-        raise RuntimeError('Could not find FWHM of `vector`')
-    r1, r2 = roots
-    
-    return r1, r2
-   
-    
-def extract_peak(vector, m_ind=None):
-    """
-    Gets the biggest peak.
-    """
-    
-    if m_ind == None:
-        m_ind = np.argmax(vector)
-    
-    if m_ind == 0:
-        left_index = 0
-    else:
-        left_index = None
-        i = m_ind
-        while not left_index:
-            diff = vector[i-1] - vector[i]
-            if (diff >= 0) or (i-1 == 0):
-                left_index = i
-                break
-            i -= 1
-        
-    if m_ind+1 == len(vector):
-        right_index = len(vector)
-    else:
-        right_index = None            
-        i = m_ind
-        while not right_index:
-            diff = vector[i+1] - vector[i]
-            if (diff >= 0) or (i+2 == len(vector)):
-                right_index = i
-                break
-            i += 1
-        
-    assert left_index <= right_index
-                
-    return vector[left_index:right_index+1]
-    
-    
 def peak_widths(vector):
     
     x = np.arange(len(vector))    
@@ -220,25 +159,7 @@ def optimize_center(image, use_edge_mask=True, alpha=0.1):
     
     def objective(c):
         bin_centers, bin_values = bin_intensities_by_radius(image, c)
-        
-        # maxima = maxima_indices(bin_values)
-        # obj_values = []
-        
-        # plt.figure()
-        # plt.plot(bin_centers, bin_values, lw=2)
-        # plt.vlines(bin_centers[maxima], bin_values.min(), bin_values.max())
-        # plt.show()
-        
-        # for i,m_ind in enumerate(maxima):
-        #     peak = extract_peak(bin_values, m_ind)
-        #     try:
-        #         r,l = fwhm(peak)
-        #         v = (l-r) + bin_values[m_ind] * alpha
-        #         obj_values.append(v)
-        #     except:
-        #         # if we fail, just don't include that one
-        #         pass
-        
+                
         max_inds, widths = peak_widths(bin_values)
         obj = np.mean( (widths - alpha) * bin_values[max_inds] )
         
