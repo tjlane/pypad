@@ -9,7 +9,7 @@ from scipy.stats.mstats import gmean
 import matplotlib.pyplot as plt
 import matplotlib.patches as plt_patches
 
-
+from odin.math import smooth
 
 def load_example_data(fname='sibeh_image.npz'):
     path = os.path.join('..', 'test_data', fname)
@@ -71,142 +71,6 @@ def find_edges(image, threshold=0.01, minf_size=3, medf_size=10):
     image = filters.median_filter(image, size=medf_size)
             
     return image
-
-    
-def smooth(x, beta=10.0, window_size=None):
-    """
-    Apply a Kaiser window smoothing convolution.
-    
-    Parameters
-    ----------
-    x : ndarray, float
-        The array to smooth.
-        
-    Optional Parameters
-    -------------------
-    beta : float
-        Parameter controlling the strength of the smoothing -- bigger beta 
-        results in a smoother function.
-    window_size : int
-        The size of the Kaiser window to apply, i.e. the number of neighboring
-        points used in the smoothing.
-        
-    Returns
-    -------
-    smoothed : ndarray, float
-        A smoothed version of `x`.
-    """
-    
-    if window_size == None:
-        window_size = len(x) / 20
-    
-    # make sure the window size is odd
-    if window_size % 2 == 0:
-        window_size += 1
-    
-    # apply the smoothing function
-    s = np.r_[x[window_size-1:0:-1], x, x[-1:-window_size:-1]]
-    w = np.kaiser(window_size, beta)
-    y = np.convolve( w/w.sum(), s, mode='valid' )
-    
-    # remove the extra array length convolve adds
-    b = (window_size-1) / 2
-    smoothed = y[b:len(y)-b]
-    
-    return smoothed
-    
-    
-def peak_widths(vector, spacing=1e6):
-    
-    x = np.arange(len(vector)) * ( spacing / float(len(vector)) )
-    spline = interpolate.UnivariateSpline(x, vector, s=3)
-    maxima = maxima_indices( spline(x) )
-    
-    dx  = misc.derivative( spline, x, n=1 )
-    ddx = misc.derivative( spline, x, n=2 )
-    inflections = np.where( (np.abs(ddx) < 5e-7) * (np.abs(dx) > 1e-3) )[0]
-    assert len(inflections) > 1
-    
-    peak_widths = []
-    maxima_location = []
-    
-    for m_ind in maxima:
-        diffs = 1.0 / (m_ind - inflections)
-        left  = inflections[np.argmax(diffs)]
-        right = inflections[np.argmin(diffs)]
-        if right > left:
-            width = right - left
-            peak_widths.append(width)
-            maxima_location.append(m_ind)
-        
-    peak_widths = np.array(peak_widths)
-    maxima_location = np.array(maxima_location, dtype=np.int)
-    
-    # plt.figure()
-    # plt.plot(x, vector)
-    # plt.vlines(x[maxima], vector.min(), vector.max(), color='red')
-    # plt.vlines(x[inflections], vector.min(), vector.max())
-    # plt.show()
-    # sys.exit()
-    
-        
-    return maxima_location, peak_widths
-    
-    
-def peak_widths_v2(vector, window=20):
-    
-    x = np.arange(len(vector))
-    x2 = np.arange(window*2) 
-    spline = interpolate.UnivariateSpline(x, vector, s=3)
-    maxima = maxima_indices( spline(x) )
-    maxima = maxima[ vector[maxima] > vector.mean() ]
-    
-    peak_widths = []
-    real_maxima = []
-    
-    for m_ind in maxima:
-        start = max([0, m_ind-window])
-        end   = min([len(vector)-1, m_ind+window])
-        slc = vector[start:end]
-        
-        spline = interpolate.UnivariateSpline( np.arange(end-start), slc-slc.mean() )
-        
-        roots = spline.roots()
-        if not len(roots) == 2:
-            pass
-        else:
-            real_maxima.append(m_ind)
-            peak_widths.append( roots[1] - roots[0] )
-
-    peak_widths = np.array(peak_widths)
-    assert len(peak_widths) == len(real_maxima)
-    
-    # plt.figure()
-    # plt.plot(x, vector)
-    # plt.vlines(x[maxima], vector.min(), vector.max(), color='red')
-    # plt.show()
-
-    return real_maxima, peak_widths
-
-    
-def peak_widths_v3(vector):
-
-    x = np.arange(len(vector))
-    spline = interpolate.UnivariateSpline(x, vector, s=3)
-    
-    maxima = maxima_indices( spline(x) )
-    ddx = misc.derivative( spline, x, n=2 )
-    
-    peak_widths = ddx[maxima]
-    
-    # plt.figure()
-    # plt.plot(x, vector)
-    # plt.plot(x, ddx * 30)
-    # plt.vlines(maxima, 0.0, peak_widths*10, lw=2, color='red')
-    # plt.show()
-    # sys.exit()
-    
-    return maxima, peak_widths
     
     
 def all_widths(vector, bar=0.1):
@@ -216,7 +80,7 @@ def all_widths(vector, bar=0.1):
     roots = spline.roots()
     
     if len(roots) % 2 == 0:
-        width_sum = np.mean(roots[1::2] - roots[::2])
+        width_sum = np.sum(roots[1::2] - roots[::2])
     elif len(roots) == 0:
         raise RuntimeError('Width finder failed.')
     else:
@@ -235,18 +99,15 @@ def maxima_indices(a):
     return maxima
     
     
-def objective(center, image, alpha=0.5, beta=100.0):
+def objective(center, image, alpha=10.0):
 
     bin_centers, bin_values = bin_intensities_by_radius(image, center)
-    obj = all_widths(bin_values)
+    n_maxima = len(maxima_indices(bin_values))
+    obj = all_widths(bin_values) + alpha * n_maxima
     
     print "obj:", obj
     
     return obj
-    
-
-def objective_help(args):
-    return objective(*args)
     
     
 def optimize_center(image, use_edge_mask=True):
@@ -265,10 +126,6 @@ def optimize_center(image, use_edge_mask=True):
     yb = (center_guess[1] - buff, center_guess[1] + buff)
     
     opt_center = optimize.fmin(objective, center_guess, args=(image,))
-    
-    # opt_center = optimize.fmin_bfgs(objective, center_guess, 
-    #                                 args=(image,))
-    
     
     print "opt center:", opt_center
     
