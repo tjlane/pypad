@@ -14,68 +14,72 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as plt_patches
 
 from odin.math import smooth
-
-def load_example_data(fname='sibeh_image.npz'):
-    path = os.path.join('..', 'test_data', fname)
-    image = np.load(path)['arr_0']
-    return image
     
     
 class AssembledImage(object):
     
-    def __init__(self, images):
+    def __init__(self, images, center_guesses=None, **kwargs):
         """
         init
         """
         
         self.images = images
         
-        # parameters
-        self.n_bins = None
-        self.peak_regulization = 10.0
-        self.threshold = 0.01
-        self.minf_size = 3
-        self.medf_size = 10
-        self.horizontal_cut = 0.1
-        self.use_edge_mask = True
-        self.beta = 10.0
-        self.window_size = 10
+        # parameters -- default values
+        self.n_bins             = None
+        self.peak_regulization  = 10.0
+        self.threshold          = 0.01
+        self.minf_size          = 3
+        self.medf_size          = 10
+        self.horizontal_cut     = 0.1
+        self.use_edge_mask      = True
+        self.beta               = 10.0
+        self.window_size        = 10
+        
+        
+        # parse kwargs into self
+        for key in kwargs:
+            if hasattr(self, key):
+                self.key = kwargs[key]
+            else:
+                raise ValueError('Invalid Parameter: %s' % key)
         
         
         # decide what to do
         if type(self.images) == np.ndarray:
             self._single_image = True
-            self._pixel_center = self.find_center(self.images, 
-                                               use_edge_mask=self.use_edge_mask)
+            
+            if center_guesses:
+                if not type(center_guesses) == tuple:
+                    raise TypeError('`center_guesses` should be tuple if passing'
+                                    ' only one image.')
+            
+            self._fragment_center = self.find_center(self.images, 
+                                              center_guess=center_guesses,
+                                              use_edge_mask=self.use_edge_mask)
             
         elif type(images) == list:
             self._single_image = False
-            self._pixel_center = []
+            self.reconstruct_fragmented(images, center_guesses=center_guesses)
             
-            for image in images:
-                center = self.find_center(image, use_edge_mask=self.use_edge_mask)
-                self._pixel_center.append( center )
+            
+
                 
         else:
             raise TypeError('`images` must be one of {np.ndarray, list}')
             
             
     @property
-    def pixel_center(self):
+    def fragment_centers(self):
         if self._single_image:
-            return self._pixel_center
+            return self._fragment_center
         else:
             raise NotImplementedError()
         return
     
         
     @property
-    def image_corners(self):
-        return
-    
-        
-    @property
-    def image_angles(self):
+    def fragment_corners(self):
         return
     
         
@@ -84,7 +88,7 @@ class AssembledImage(object):
         if self._single_image:
             assembled_image = self.images
         else:
-            pass
+            assembled_image = self._assemble_image(self.images)
         return assembled_image
     
     
@@ -97,7 +101,7 @@ class AssembledImage(object):
         return
         
         
-    def _compute_radii(self, image, center):
+    def _compute_radii(self, center, image):
         """
         Compute the radii of each pixel, in pixel units, with respect to 
         `center`.
@@ -130,7 +134,7 @@ class AssembledImage(object):
         return r
     
     
-    def _bin_intensities_by_radius(self, center, binary_image):
+    def _bin_intensities_by_radius(self, center, binary_image, radii=None):
         """
         Bin binary pixel intensities by their radius.
         
@@ -141,6 +145,10 @@ class AssembledImage(object):
             
         center : tuple
             (x,y) in pixel units.
+            
+        Optional Parameters
+        -------------------
+        radii : ndarray
             
         Returns
         -------
@@ -154,7 +162,11 @@ class AssembledImage(object):
         if not binary_image.dtype == np.bool:
             raise TypeError('`binary_image` must be dtype np.bool')
 
-        r = self._compute_radii(binary_image, center)
+        if radii == None:
+            radii = self._compute_radii(center, binary_image)
+        else:
+            if not radii.shape == binary_image.shape:
+                raise ValueError('`radii` and `binary_image` must have same shape')
     
         if self.n_bins == None:
             n_bins = max(binary_image.shape) / 2
@@ -162,7 +174,7 @@ class AssembledImage(object):
             n_bins = self.n_bins
     
         # assume we've got a binary filter applied for now (!)
-        bin_values, bin_edges = np.histogram( r * binary_image, bins=n_bins )
+        bin_values, bin_edges = np.histogram( radii * binary_image, bins=n_bins )
         bin_values = bin_values[1:]
         bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
         
@@ -247,6 +259,25 @@ class AssembledImage(object):
         if maxima[-1] == len(a)-1:
             maxima = maxima[:-1]
         return maxima
+        
+        
+    def _assemble_image(self, images, centers):
+        """
+        Take `images` and 
+        """
+        
+        raise NotImplementedError()
+        
+        points = self.detector.xyz[:,:2]
+
+        x = np.linspace(points[:,0].min(), points[:,0].max(), num_x)
+        y = np.linspace(points[:,1].min(), points[:,1].max(), num_y)
+        grid_x, grid_y = np.meshgrid(x,y)
+
+        grid_z = interpolate.griddata(points, self.intensities, (grid_x,grid_y), 
+                                      method='nearest')
+        
+        return grid_z
     
     
     def _objective(self, center, image):
@@ -257,13 +288,52 @@ class AssembledImage(object):
         bin_centers, bin_values = self._bin_intensities_by_radius(center, image)
         n_maxima = len(self._maxima_indices(bin_values))
         obj = self._all_widths(bin_values) + self.peak_regulization * n_maxima
-    
+        
         logger.debug("objective value: %f" % obj)
-    
+        
         return obj
     
+        
+    def _multi_image_objective(self, centers, images):
+        """
+        Assemble `images` using `centers`, then evaluate the usual objective
+        function (self._objective) on the assembled image.
+        
+        Parameters
+        ----------
+        centers : ndarray, float
+            An array with the coordinates of each centers.
+        """
+        
+        assert len(centers) == len(images) * 2
+        n_images = len(images)
+        
+        # compute the radii of each image wrt to its center
+        flat_radii  = []
+        flat_images = []
+        for i in range(n_images):
+            flat_images.append( images[i].flatten() )
+            flat_radii.append( self._compute_radii(centers[i*2:i*2+2], images[i]).flatten() )
+            
+        # transform lists into arrays
+        flat_radii  = np.concatenate(flat_radii)
+        flat_images = np.concatenate(flat_images)
+        assert flat_radii.shape == flat_images.shape
+        assert flat_images.dtype == np.bool
+            
+        # bin & evaluate the objective function
+        bin_centers, bin_values = self._bin_intensities_by_radius((0.0, 0.0), 
+                                                flat_images, radii=flat_radii)
+                                                    
+        n_maxima = len(self._maxima_indices(bin_values))
+        obj = self._all_widths(bin_values) + self.peak_regulization * n_maxima
+        
+        logger.debug("multi image objective value: %f" % obj)
+        
+        return obj
+        
     
-    def find_center(self, image, use_edge_mask=True):
+    def find_center(self, image, center_guess=None, use_edge_mask=True):
         """
         Find the center of `image`, which contains one or more concentric rings.
         
@@ -285,7 +355,8 @@ class AssembledImage(object):
         if use_edge_mask:
             image = self._find_edges(image)
     
-        center_guess = (image.shape[0] / 2., image.shape[1] / 2.)
+        if not center_guess:
+            center_guess = (image.shape[0] / 2., image.shape[1] / 2.)
         
         logger.debug("Initial guess for center: %s" % str(center_guess))
         logger.debug("Initial FWHM: %f" % self._objective(center_guess, image))
@@ -297,6 +368,38 @@ class AssembledImage(object):
     
         return opt_center
     
+
+    def reconstruct_fragmented(self, images, center_guesses=None):
+        """
+        Reconstruct a fragmented image of rings (e.g. CSPAD quads) into a 
+        unified image.
+        """
+        
+        if not center_guesses:
+            raise NotImplementedError()
+            
+        binary_images = []
+        for image in images:
+            binary_images.append( self._find_edges(image) )
+
+        # first, get a guess by finding each center individually
+        initial_centers = []
+        for i,bimage in enumerate(binary_images):
+            center = self.find_center(bimage, center_guess=center_guesses[i],
+                                      use_edge_mask=self.use_edge_mask)
+            initial_centers.extend( center )
+        initial_centers = np.array(initial_centers)
+            
+        # next, do a global optimization of the geometry as a function of
+        # all the centers
+        opt_center = optimize.fmin(self._multi_image_objective, 
+                                   initial_centers, args=(binary_images,))
+        
+
+        self._fragment_centers = []
+
+        return
+        
 
     def plot_assembled(self, use_edge_mask=True, fig_name=None):
     
@@ -327,6 +430,12 @@ class AssembledImage(object):
     
         return
         
+        
+def load_example_data(fname='sibeh_image.npz', subdir='assembled'):
+    path = os.path.join('..', 'test_data', subdir, fname)
+    image = np.load(path)['arr_0']
+    return image
+        
 
 def plot_objective_surface(image):
 
@@ -355,15 +464,39 @@ def plot_objective_surface(image):
 
     return (cx, cy)    
     
-def main():
+
+def test_assembled():
 
     for image_file in ['silver_sim.npz', 'cxi0112_image_r096_ev1.npz', 'ssrl_silver.npz', 'sibeh_image.npz']:
-        image = load_example_data(image_file)
+        image = load_example_data(image_file, subdir='assembled')
         ai = AssembledImage(image)
         ai.plot_assembled()
     
     return
     
     
+def test_quads():
+    
+    silver_files = ['silver_sim_bottomleft.npz',  'silver_sim_topleft.npz',
+                    'silver_sim_bottomright.npz', 'silver_sim_topright.npz']
+                    
+                    
+    sibeh_files = ['sibeh_bottomleft.npz', 'sibeh_topleft.npz', 
+                   'sibeh_bottomright.npz', 'sibeh_topright.npz']
+                   
+    center_guesses = [ (1,99), (98,99), (0,3), (99,1) ]
+        
+        
+    images = []
+    for i,f in enumerate(silver_files):
+        images.append(load_example_data(f, subdir='quads'))
+        
+    ai = AssembledImage(images, center_guesses=center_guesses)
+    ai.plot_assembled()
+                   
+    
+    return
+    
+    
 if __name__ == '__main__':
-    main()
+    test_quads()

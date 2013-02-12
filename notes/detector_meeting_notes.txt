@@ -1,0 +1,4 @@
+
+bin by Number of pixels illuminated
+
+plot pixel intensity ratio histogram
