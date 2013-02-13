@@ -82,8 +82,36 @@ def main_alignment_test() :
 
     print 'Start test in main_alignment_test()'
 
-    path_calib = '/reg/d/psdm/cxi/cxi64813/calib/CsPad::CalibV1/CxiDs1.0:Cspad.0'
-    fname, runnum = '/reg/d/psdm/CXI/cxi64813/hdf5/cxi64813-r0058.h5',      58
+    #path_calib = '/reg/d/psdm/CXI/cxi80410/calib/CsPad::CalibV1/CxiDs1.0:Cspad.0'            # 2011-05-25
+    #path_calib = '/reg/d/psdm/CXI/cxi37411/calib/CsPad::CalibV1/CxiDs1.0:Cspad.0'            # 2011-08-10
+    #path_calib = '/reg/d/psdm/CXI/cxi35711/calib/CsPad::CalibV1/CxiDs1.0:Cspad.0'            # 2011-10-18
+    #path_calib = '/reg/neh/home1/dubrovin/LCLS/CSPadAlignment-v01/calib-cxi43312-Dsd'        # 2012-01-12
+    #path_calib = '/reg/neh/home1/dubrovin/LCLS/CSPadAlignment-v01/calib-cxi80410-r1150-Ds1'  # 2012-01-18
+    #path_calib = '/reg/neh/home1/dubrovin/LCLS/CSPadAlignment-v01/calib-cxi39112-r0009-Ds1'  # 2012-02-17
+    #path_calib = '/reg/d/psdm/CXI/cxi39112/calib/CsPad::CalibV1/CxiDs1.0:Cspad.0'            # 2012-02-17
+    #path_calib = '/reg/neh/home1/dubrovin/LCLS/CSPadAlignment-v01/calib-xpp-2012-02-26'      # 2012-02-26
+    #path_calib = '/reg/neh/home1/dubrovin/LCLS/CSPadAlignment-v01/calib-cxi49812-r0073-Ds1'  # 2012-03-08
+    #path_calib = '/reg/d/psdm/CXI/cxi49812/calib/CsPad::CalibV1/CxiDs1.0:Cspad.0'            # 2012-03-08    
+    #path_calib = '/reg/neh/home1/dubrovin/LCLS/CSPadAlignment-v01/calib-cxi49012-r0020-Ds1'  # 2012-03-14
+    #path_calib = '/reg/d/psdm/CXI/cxi49012/calib/CsPad::CalibV1/CxiDs1.0:Cspad.0'            # 2012-03-14    
+    #path_calib = '/reg/d/psdm/XPP/xppcom10/calib/CsPad::CalibV1/XppGon.0:Cspad.0'            # 2012-03-23 check    
+    #path_calib = '/reg/neh/home1/dubrovin/LCLS/CSPadAlignment-v01/calib-xpp-2013-01-24'      # 2013-01-24
+    #path_calib = '/reg/neh/home1/dubrovin/LCLS/CSPadAlignment-v01/calib-cxi64813-r0058-Ds1'   # 2013-01-31
+    #path_calib = '/reg/d/psdm/cxi/cxi64813/calib/CsPad::CalibV1/CxiDs1.0:Cspad.0'
+    path_calib = '/reg/neh/home1/dubrovin/LCLS/CSPadAlignment-v01/calib-xpp-2013-01-29'      # 2013-01-29
+
+
+    #fname, runnum = '/reg/d/psdm/CXI/cxi35711/hdf5/cxi35711-r0009.h5',      9 
+    #fname, runnum = '/reg/d/psdm/CXI/cxi37411/hdf5/cxi37411-r0080.h5',     80
+    #fname, runnum = '/reg/d/psdm/CXI/cxi37411/hdf5/cxi37411-r0039.h5',     39 
+    #fname, runnum = '/reg/d/psdm/CXI/cxi80410/hdf5/cxi80410-r1150.h5',   1150
+    #fname, runnum = '/reg/d/psdm/CXI/cxi39112/hdf5/cxi39112-r0009.h5',      9 
+    #fname, runnum = '/reg/d/psdm/XPP/xppcom10/hdf5/xppcom10-r1437.h5',   1437
+    #fname, runnum = '/reg/d/psdm/CXI/cxi49812/hdf5/cxi49812-r0073.h5',     73
+    #fname, runnum = '/reg/d/psdm/CXI/cxi49012/hdf5/cxi49012-r0020-raw.h5', 20
+    #fname, runnum = '/reg/d/psdm/CXI/cxi80410/hdf5/cxi80410-r0628.h5',    628
+    fname, runnum = '/reg/d/psdm/xpp/xppcom13/hdf5/xppcom13-r0066.h5',     66
+    #fname, runnum = '/reg/d/psdm/CXI/cxi64813/hdf5/cxi64813-r0058.h5',      58
 
     dsname = '/Configure:0000/Run:0000/CalibCycle:0000/CsPad::ElementV2/XppGon.0:Cspad.0/data'
     #dsname = '/Configure:0000/Run:0000/CalibCycle:0000/CsPad::ElementV2/CxiDsd.0:Cspad.0/data'
@@ -92,9 +120,9 @@ def main_alignment_test() :
     event   = 1
 
     print 'Load calibration parameters from', path_calib 
-    calp.calibpars.setCalibParsForPath( run=runnum, path=path_calib )
+    calp.calibpars.setCalibParsForPath ( run=runnum, path=path_calib )
     #calp.calibpars.printCalibPars()
-    #calp.calibpars.printCalibFiles()
+    #calp.calibpars.printCalibFiles ()
     #calp.calibpars.printListOfCalibTypes()
     #cald.calibparsdefault.printListOfCalibTypes()
     #cald.calibparsdefault.printCalibParsDefault()
