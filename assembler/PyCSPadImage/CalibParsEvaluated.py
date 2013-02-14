@@ -141,10 +141,12 @@ class CalibParsEvaluated (object) :
 
             #if self.mode == 'DEFAULT' : coords_in_quad = self.get2x1CentersInQuadForRotN90(quad, quad_rotation_default[quad])
             #else                      :
+            print "quad_rotation:", quad_rotation
             coords_in_quad = self.get2x1CentersInQuadForRotN90(quad, quad_rotation[quad])
 
-            #print 'Quad:', quad
-            #print 'coords_in_quad:\n', coords_in_quad
+            # print 'Quad:', quad
+            # print 'xmin_quad', xmin_quad
+            print 'coords_in_quad:\n', coords_in_quad
 
             xc_glob[quad] = coords_in_quad[0] + xmin_quad[quad]
             yc_glob[quad] = coords_in_quad[1] + ymin_quad[quad]
@@ -183,9 +185,9 @@ class CalibParsEvaluated (object) :
         self.coor_x_max = ccp.cspadconfig.quadDimX
         self.coor_y_max = ccp.cspadconfig.quadDimY
 
-        #print 'self.xcenter =\n', self.xcenter  
-        #print 'self.ycenter =\n', self.ycenter  
-        #print 'self.zcenter =\n', self.zcenter  
+        # print 'self.xcenter =\n', self.xcenter  
+        # print 'self.ycenter =\n', self.ycenter  
+        # print 'self.zcenter =\n', self.zcenter  
 
 #---------------------
 
