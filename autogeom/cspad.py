@@ -14,14 +14,6 @@ import numpy as np
 import scipy.ndimage.interpolation as interp
 import matplotlib.pyplot as plt
 
-# PyAna -- testing only
-# import PyCSPadImage.CalibParsDefault as cald
-# import PyCSPadImage.CalibPars as calp
-# import PyCSPadImage.CalibParsEvaluated as cpe
-# import PyCSPadImage.CSPadConfigPars as ccp
-# import PyCSPadImage.CSPadImageProducer as cip
-# import PyCSPadImage.GlobalMethods as gm # getCSPadArrayFromFile for pedestal subtraction
-
 
 # the expected size of each parameter array
 _array_sizes = { 'center' :         (12, 8),
@@ -536,8 +528,8 @@ def test_assembly_from_dir():
     show_assembled_image( d(raw_image) )
     
     # should be the same as this one
-    ai = pyana_assembly(raw_image, 'example_calibration_dir')
-    show_assembled_image(ai)
+    # ai = pyana_assembly(raw_image, 'example_calibration_dir')
+    # show_assembled_image(ai)
     
     return
     
