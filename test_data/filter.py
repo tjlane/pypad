@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 
 from scipy.ndimage import filters
 
-import assemble, tjlane
 
 
-def find_edges(image, threshold=0.01, minf_size=3, medf_size=10):
+
+def find_edges(image, threshold=0.0025, minf_size=1, medf_size=8):
     """
     Applies an edge filter followed by a noise reduction filter. Very good
     at locating powder rings and filtering everything else out.
@@ -39,14 +39,8 @@ def find_edges(image, threshold=0.01, minf_size=3, medf_size=10):
     return image.astype(np.bool)
     
     
-f = tables.File('hdf5_examples/AgBe/r0003-RawSum.h5')
+f = tables.File('AgBe/r0003-RawSum.h5')
 i = find_edges(f.root.data.data.read())
 
 plt.imshow(i.T)
-plt.show()
-
-i2 = tjlane.load_AgBe()
-ai = assemble.assemble_image_from_dir(i2, 'example_calibration_dir')
-i2f = find_edges(ai)
-plt.imshow(i2f.T, interpolation='nearest')
 plt.show()

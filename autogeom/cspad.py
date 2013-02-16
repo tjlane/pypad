@@ -43,26 +43,17 @@ class CSPad(object):
         """
         doc
         """
-        
-        # --- INTERNALS ------------------------------------------------------
-        # There are some constants that this class needs to know about : what
-        # parameters to expect, what their sizes should be, etc.
 
         self._param_list = _array_sizes.keys()
-
-        # --------------------------------------------------------------------
-        
-        
-        # we'll keep all the parameters in a dictionary called self.params -- 
-        # we could expose them as attributes, but this allows us to be a
-        # little more dynamic. Never know what to expect from PyAna...
         
         self._check_param_dict(param_dict)
-        self.params = param_dict
+        
+        # inject each parameter as an attribute into the class
+        for k,v in param_dict.items():
+            self.__setattr__(k,v)
+        
         self._process_parameters()
-        
         self.small_angle_tilt = True # always true for now
-        
         
         return
     
@@ -78,6 +69,37 @@ class CSPad(object):
             The assembled image.
         """
         return self._assemble_image(raw_image)
+    
+    
+    def get_param(self, param_name):
+        if param_name in self._param_list:
+            return self.__dict__[param_name]
+        else:
+            raise ValueError('No parameter with name: %s' % param_name)
+    
+            
+    def set_param(self, param_name, value):
+        if param_name in self._param_list:
+            if value.shape == _array_sizes[param_name]:
+                self.__dict__[param_name] = value
+            else:
+                raise ValueError('`value` has wrong shape for: %s' % param_name)
+        else:
+            raise ValueError('No parameter with name: %s' % param_name)
+    
+    
+    def set_many_params(self, param_names, param_values):
+        """
+        Here, param_names, param_values are list.
+        """
+        if (type(param_names) == list) and (type(param_values) == list):
+            if len(param_names) == len(param_values):
+                for i,pn in enumerate(param_names):
+                    self.set_param(pn, param_values[i])
+            else:
+                raise ValueError('`param_names` & `param_values` must be same len')
+        else:
+            raise TypeError('`param_names` & `param_values` must be type list')
     
         
     def _check_param_dict(self, param_dict):
@@ -127,25 +149,25 @@ class CSPad(object):
         
         # angle of each section = rotation (nx90 degrees) + tilt (small angles)
         # ... (4 rows (quads) x 8 columns (sections))
-        self.rotation_array = self.params['rotation']
-        self.tilt_array     = self.params['tilt']
+        self.rotation_array = self.rotation
+        self.tilt_array     = self.tilt
         self.section_angles = self.rotation_array + self.tilt_array
         
         # position of sections in each quadrant (quadrant coordinates)
         # ... (3*4 rows (4 quads, 3 xyz coordinates) x 8 columns (sections))
-        centers            = self.params['center']
-        center_corrections = self.params['center_corr']
+        centers            = self.center
+        center_corrections = self.center_corr
         self.section_centers = np.reshape( centers + center_corrections, (3,4,8) )
         
         # quadrant offset parameters (w.r.t. image 0,0 in upper left coner)
         # ... (3 rows (xyz) x 4 columns (quads) )
-        quad_pos      = self.params['offset']
-        quad_pos_corr = self.params['offset_corr']
+        quad_pos      = self.offset
+        quad_pos_corr = self.offset_corr
         quad_position = quad_pos + quad_pos_corr
 
         # ... (3 rows (x,y,z) x 4 columns (section offset, quad offset, 
         # quad gap, quad shift)
-        marg_gap_shift = self.params['marg_gap_shift']
+        marg_gap_shift = self.marg_gap_shift
 
         # break it down (extract each column, make full arrays to be added to 
         # the above ones)
@@ -523,8 +545,8 @@ def pyana_assembly(raw_image, calibration_path, run_number=0):
 def test_assembly_from_dir():
     
     # this one
-    raw_image = get_event_from_npz('npz_examples/cxi64813_r58_evt1.npz')
-    d = CSPad.from_dir('example_calibration_dir')
+    raw_image = get_event_from_npz('../test_data/cxi64813_r58_evt1.npz')
+    d = CSPad.from_dir('../ex_params')
     show_assembled_image( d(raw_image) )
     
     # should be the same as this one
@@ -535,9 +557,9 @@ def test_assembly_from_dir():
     
     
 def test_metrology():
-    raw_image = get_event_from_npz('npz_examples/cxi64813_r58_evt1.npz')
+    raw_image = get_event_from_npz('../test_data/cxi64813_r58_evt1.npz')
     d = CSPad.from_dir('example_calibration_dir')
-    x,y,z = d.coordinate_map(metrology_file="CSPad/cspad_2011-08-10-Metrology.txt")
+    x,y,z = d.coordinate_map(metrology_file="../CSPad/cspad_2011-08-10-Metrology.txt")
     
     plt.imshow(x[0,0,:,:])
     plt.show()
@@ -549,5 +571,5 @@ def test_metrology():
     
 
 if __name__ == "__main__":
-    #test_assembly_from_dir()
+    test_assembly_from_dir()
     #test_metrology()

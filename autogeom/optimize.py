@@ -14,43 +14,83 @@ from scipy.ndimage import filters
 import matplotlib.pyplot as plt
 import matplotlib.patches as plt_patches
 
-from odin.math import smooth
+import cspad
 
-import assemble
+
+def smooth(x, beta=10.0, window_size=11):
+    """
+    Apply a Kaiser window smoothing convolution.
     
+    Parameters
+    ----------
+    x : ndarray, float
+        The array to smooth.
+        
+    Optional Parameters
+    -------------------
+    beta : float
+        Parameter controlling the strength of the smoothing -- bigger beta 
+        results in a smoother function.
+    window_size : int
+        The size of the Kaiser window to apply, i.e. the number of neighboring
+        points used in the smoothing.
+        
+    Returns
+    -------
+    smoothed : ndarray, float
+        A smoothed version of `x`.
+    """
     
-class AssembledImage(object):
+    # make sure the window size is odd
+    if window_size % 2 == 0:
+        window_size += 1
     
-    def __init__(self, raw_image, initial_param_dict=None, params_to_optimize=None,
+    # apply the smoothing function
+    s = np.r_[x[window_size-1:0:-1], x, x[-1:-window_size:-1]]
+    w = np.kaiser(window_size, beta)
+    y = np.convolve( w/w.sum(), s, mode='valid' )
+    
+    # remove the extra array length convolve adds
+    b = (window_size-1) / 2
+    smoothed = y[b:len(y)-b]
+    
+    return smoothed
+
+    
+class Optimizer(object):
+    
+    def __init__(self, initial_cspad=None, params_to_optimize=None,
                  **kwargs):
         """
         init
         """
-        
-        self.raw_image = raw_image
-        
-        if initial_param_dict:
-            assert type(initial_param_dict) == dict
-            self.initial_param_dict = initial_param_dict
+                
+        if initial_cspad:
+            if type(initial_cspad) == dict:
+                self.cspad = cspad.CSPad(initial_cspad)
+            elif isinstance(initial_cspad, cspad.CSPad):
+                self.cspad = initial_cspad
+            else:
+                raise TypeError('`initial_cspad` must be one of {dict, CSPad}')
         else:
             # todo should be psana defaults
             raise NotImplementedError()
-            
-        # add an absolute center to the optimization no matter what
-        self.initial_param_dict['abs_center'] = np.array([1200., 1200.])
-        params_to_optimize.append('abs_center')
         
         # parameters -- default values
         self.n_bins             = None
         self.peak_regulization  = 10.0
         self.threshold          = 0.01
-        self.minf_size          = 3
-        self.medf_size          = 10
+        self.minf_size          = 1
+        self.medf_size          = 8
         self.horizontal_cut     = 0.1
         self.use_edge_mask      = True
         self.beta               = 10.0
         self.window_size        = 10
-        self.params_to_optimize = assemble.essential_params.keys()
+        
+        if params_to_optimize:
+            self.params_to_optimize = params_to_optimize
+        else:
+            raise NotImplementedError()
         
         # parse kwargs into self
         for key in kwargs:
@@ -58,24 +98,25 @@ class AssembledImage(object):
                 self.key = kwargs[key]
             else:
                 raise ValueError('Invalid Parameter: %s' % key)
-                
-                
-        # optimize the geometry
-        self.opt_param_dict = self.optimize_geometry(raw_image)
         
         return
 
     
-    @property
-    def basis_vector_representation(self):
-        raise NotImplementedError()
-        return
-    
-    
-    @property
-    def xyz_representation(self):
-        raise NotImplementedError()
-        return
+    def __call__(self, raw_image, center_guess=None):
+        """
+        Takes a raw_image and produces an optimized CSPad geometry.
+        """
+        
+        # add an absolute center to the optimization no matter what
+        if center_guess:
+            self.abs_center = center_guess
+        else:
+            self.abs_center = np.array([raw_image.shape[0] / 2,
+                                        raw_image.shape[1] / 2 ])
+                                        
+        self.optimize_geometry(raw_image)
+        
+        return self.cspad
     
         
     def _compute_radii(self, center, image):
@@ -179,7 +220,7 @@ class AssembledImage(object):
         
         image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
         image -= image.min()
-    
+        
         assert image.min() == 0
         assert image.max() > 0
     
@@ -222,10 +263,10 @@ class AssembledImage(object):
         else:
             newbar = bar + (1.-bar) / 8.
             width_sum = self._all_widths(vector, newbar)
-    
-        return width_sum
         
+        return width_sum
     
+        
     def _maxima_indices(self, a):
         """
         Return the indicies of all local maxima in `a`.
@@ -237,22 +278,33 @@ class AssembledImage(object):
         return maxima
     
     
-    def _inject_params_into_dict(self, param_dict, list_of_params, param_values):
+    def _unravel_params(self, flat_param_array):
         """
+        We have to pass the parameters to scipys optimization routines as a
+        flat array. This function takes that flat array and returns a dict of
+        arrays of the correct shape -- the shapes that cspad.CSPad expects.
+        
+        Returns
+        -------
+        param_dict : dict
+            Dictionary mapping param_name --> param_value,
+            with param_value an np.ndarray of the shape expected by CSPad
         """
         
-        start = 0
-        for p in list_of_params:
-            param_arr_shape = assemble.geometry_params[p]
+        param_dict = {}
+
+        start = 2 # the first two parameter values are reserved for abs_center
+        for p in self.params_to_optimize:
+            param_arr_shape = cspad._array_sizes[p]
             num_params_expected = np.product( param_arr_shape )
             end = start + num_params_expected
-            param_dict[p] = param_values[start:end].reshape(param_arr_shape)
+            param_dict[p] = flat_param_array[start:end].reshape(param_arr_shape)
             start = end
-        
+
         return param_dict
     
     
-    def _objective(self, param_vals, list_of_params, raw_image):
+    def _objective(self, param_vals, raw_image):
         """
         The objective function for finding a good center. Minimize this.
         
@@ -276,24 +328,26 @@ class AssembledImage(object):
             Makes sense of `params_to_opt` and `list_of_params`
         """
         
-        param_dict_u = self._inject_params_into_dict(self.initial_param_dict, 
-                                                     list_of_params, 
-                                                     param_vals)
+        # un-ravel & inject the param values in the CSPad object
+        param_dict = self._unravel_params(param_vals)
+        self.cspad.set_many_params(param_dict.keys(), param_dict.values())
         
-        assembled_image = assemble.assemble_image_from_params(raw_image, param_dict_u)
+        assembled_image = self.cspad(raw_image)
         
-        plt.imshow(assembled_image.T)
-        plt.show()
-        assembled_image = assembled_image.astype(np.bool)
-        plt.imshow(assembled_image.T)
-        plt.show()
+        # the absolute center will always be the first two elements by convention
+        self.abs_center = param_vals[:2]
         
-        abs_center = self.initial_param_dict['abs_center']
-        bin_centers, bin_values = self._bin_intensities_by_radius(abs_center, assembled_image)
+        bin_centers, bin_values = self._bin_intensities_by_radius(self.abs_center, assembled_image)
         n_maxima = len(self._maxima_indices(bin_values))
         
-        # HERE IS THE OBJECTIVE FUNCTION -- MODIFY TO PLAY
+        # --------- HERE IS THE OBJECTIVE FUNCTION -- MODIFY TO PLAY -----------
+        # TJL: I will think about smart ways to inject other functions in here,
+        # but it may also be good to keep this static, once we have something
+        # nice and robust.
+        
         obj = self._all_widths(bin_values) + self.peak_regulization * n_maxima
+        
+        # ----------------------------------------------------------------------
         
         logger.debug("objective value: %f" % obj)
         
@@ -322,29 +376,21 @@ class AssembledImage(object):
         if self.use_edge_mask:
             raw_image = self._find_edges(raw_image)
 
-        print self.params_to_optimize    
-        print self.initial_param_dict
+        print "Optimizing:", self.params_to_optimize
 
-        initial_guesses = np.concatenate([ self.initial_param_dict[p].flatten() \
+        initial_guesses = np.concatenate([ self.cspad.get_param(p).flatten() \
                                            for p in self.params_to_optimize ])
+                                           
+        # add in the absolute center -- we need to optimize this as well!
+        initial_guesses = np.concatenate([ self.abs_center, initial_guesses ])
 
         # run simplex minimization
-        opt_params = optimize.fmin(self._objective, initial_guesses, 
-                                   args=(self.params_to_optimize, raw_image))
-        opt_param_dict = self._inject_params_into_dict(self.initial_param_dict, 
-                                                       self.params_to_optimize, 
-                                                       opt_params)
+        opt_params = optimize.fmin(self._objective, initial_guesses, args=(raw_image,))
+                                   
+        # un-ravel & inject the param values in the CSPad object
+        param_dict = self._unravel_params(opt_params)
+        self.cspad.set_many_params(param_dict.keys(), param_dict.values())
 
-        return opt_param_dict
-        
-        
-    def plot_assembled(self):
-        """
-        """
-        
-        i = assemble_image_from_params(self.raw_image, self.opt_param_dict)
-        assemble.plot_assembled_image(i)
-        
         return
     
         
@@ -366,33 +412,34 @@ def cheetah_to_psana(cheetah_image):
             psana_image[psind,:,:] = cheetah_image[x_start:x_stop,y_start:y_stop]
     
     return psana_image
-    
+
     
 def load_AgBe():
     
-    f = tables.File('hdf5_examples/AgBe/r0003-RawSum.h5')
+    f = tables.File('../test_data/AgBe/r0003-RawSum.h5')
     cheetah_agbe = f.root.data.data.read()
     psana_agbe = cheetah_to_psana(cheetah_agbe)
     
     return psana_agbe
-    
-    
+
     
 def test_cheetah_conv():
     raw_image = load_AgBe()
     ai = assemble.assemble_image_from_dir(raw_image, 'example_calibration_dir')
     assemble.plot_assembled_image(ai)
     return
-    
+
     
 def test_agbe_assembly():
     
     params_to_opt = ['offset_corr']
     
-    raw_image = load_AgBe()
-    initial_param_dict = assemble.load_params_from_dir('example_calibration_dir')
-    ai = AssembledImage(raw_image, initial_param_dict, params_to_opt)
-    ai.plot_assembled()
+    cal_image = load_AgBe()
+    init_cspad = cspad.CSPad.from_dir('../ex_params')
+    opt = Optimizer(initial_cspad=init_cspad, params_to_optimize=['offset_corr'])
+    
+    opt_cspad = opt(cal_image)
+    plt.imshow( opt_cspad(cal_image).T )
     
     return
     
