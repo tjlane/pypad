@@ -1,68 +1,38 @@
 
-import os, sys
-import tables
-
-import logging
-logging.basicConfig()
-logger = logging.getLogger(__name__)
-logger.setLevel('DEBUG')
-
 import numpy as np
 from scipy import optimize, interpolate
-from scipy.ndimage import filters
-
-import matplotlib.pyplot as plt
-import matplotlib.patches as plt_patches
 
 import cspad
-
-
-def smooth(x, beta=10.0, window_size=11):
-    """
-    Apply a Kaiser window smoothing convolution.
-    
-    Parameters
-    ----------
-    x : ndarray, float
-        The array to smooth.
-        
-    Optional Parameters
-    -------------------
-    beta : float
-        Parameter controlling the strength of the smoothing -- bigger beta 
-        results in a smoother function.
-    window_size : int
-        The size of the Kaiser window to apply, i.e. the number of neighboring
-        points used in the smoothing.
-        
-    Returns
-    -------
-    smoothed : ndarray, float
-        A smoothed version of `x`.
-    """
-    
-    # make sure the window size is odd
-    if window_size % 2 == 0:
-        window_size += 1
-    
-    # apply the smoothing function
-    s = np.r_[x[window_size-1:0:-1], x, x[-1:-window_size:-1]]
-    w = np.kaiser(window_size, beta)
-    y = np.convolve( w/w.sum(), s, mode='valid' )
-    
-    # remove the extra array length convolve adds
-    b = (window_size-1) / 2
-    smoothed = y[b:len(y)-b]
-    
-    return smoothed
+import utils
 
     
 class Optimizer(object):
+    """
+    Modify CSPad geometry parameters to optimize the geometry by some criterion.
+    """
     
     def __init__(self, initial_cspad=None, params_to_optimize=None,
                  **kwargs):
         """
-        init
+        Initialize an optimizer class.
+        
+        Parameters
+        ----------
+        initial_cspad : autogeom.cspad.CSpad
+            A CSPad object containing the CSPad parameters to start from. If
+            `None`, then use the default parameter values.
+            
+        params_to_optimize : list of str
+            A list of the parameters to optimize. Can be any of
+            
+            ['pedestals', 'offset_corr', 'offset', 'common_mode', 
+             'marg_gap_shift', 'rotation', 'center_corr', 'center', 'tilt',
+             'filter', 'quad_rotation', 'pixel_status', 'quad_tilt']
+             
+            if `None`, defaults to:
+                 
+             ['offset_corr', 'marg_gap_shift', 'rotation', 'center_corr',
+              'tilt', 'filter', 'quad_rotation', 'quad_tilt']
         """
                 
         if initial_cspad:
@@ -83,7 +53,7 @@ class Optimizer(object):
         self.minf_size          = 1
         self.medf_size          = 8
         self.horizontal_cut     = 0.1
-        self.use_edge_mask      = True
+        self.use_edge_filter    = True
         self.beta               = 10.0
         self.window_size        = 10
         
@@ -196,43 +166,12 @@ class Optimizer(object):
         bin_values = bin_values[1:]
         bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
         
-        bin_values = smooth(bin_values, beta=self.beta, 
-                            window_size=self.window_size)
-    
+        bin_values = utils.smooth(bin_values, beta=self.beta, 
+                                  window_size=self.window_size)
+        
         return bin_centers, bin_values
     
-    
-    def _find_edges(self, image):
-        """
-        Applies an edge filter followed by a noise reduction filter. Very good
-        at locating powder rings and filtering everything else out.
         
-        Parameters
-        ----------
-        image : ndarray
-            An image to find the edges of
-            
-        Returns
-        -------
-        binary_image : ndarray, np.bool
-            A binary image, with "1" where there are powder rings/strong edges
-        """
-        
-        image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
-        image -= image.min()
-        
-        assert image.min() == 0
-        assert image.max() > 0
-    
-        logger.debug('threshold value: %d' % (image.max() * self.threshold))
-        image = (image > (image.max() * self.threshold)).astype(np.bool)
-    
-        image = filters.minimum_filter(image, size=self.minf_size)
-        image = filters.median_filter(image, size=self.medf_size)
-            
-        return image.astype(np.bool)
-    
-    
     def _all_widths(self, vector, bar=None):
         """
         Compute the sum of all peak widths.
@@ -271,7 +210,7 @@ class Optimizer(object):
         """
         Return the indicies of all local maxima in `a`.
         """
-        a = smooth(a)
+        a = utils.smooth(a)
         maxima = np.where(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True] == True)[0]
         if maxima[-1] == len(a)-1:
             maxima = maxima[:-1]
@@ -349,7 +288,7 @@ class Optimizer(object):
         
         # ----------------------------------------------------------------------
         
-        logger.debug("objective value: %f" % obj)
+        print "objective value: %f" % obj
         
         return obj
     
@@ -373,8 +312,8 @@ class Optimizer(object):
             Dict of the pyana parameters used to optimize the geometry.
         """
 
-        if self.use_edge_mask:
-            raw_image = self._find_edges(raw_image)
+        if self.use_edge_filter:
+            raw_image = utils.find_rings(raw_image)
 
         print "Optimizing:", self.params_to_optimize
 
@@ -392,58 +331,3 @@ class Optimizer(object):
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
 
         return
-    
-        
-def cheetah_to_psana(cheetah_image):
-    """
-    Takes a raw cheetah image (2D) and returns it in psana format (3D)
-    """
-    
-    psana_image = np.zeros((32, 185, 388))
-    assert cheetah_image.shape == (1480, 1552)
-    
-    for i in range(8):
-        for j in range(4):
-            x_start = 185 * i
-            x_stop  = 185 * (i+1)
-            y_start = 388 * j
-            y_stop  = 388 * (j+1)
-            psind = i + j * 8 # confirmed visually
-            psana_image[psind,:,:] = cheetah_image[x_start:x_stop,y_start:y_stop]
-    
-    return psana_image
-
-    
-def load_AgBe():
-    
-    f = tables.File('../test_data/AgBe/r0003-RawSum.h5')
-    cheetah_agbe = f.root.data.data.read()
-    psana_agbe = cheetah_to_psana(cheetah_agbe)
-    
-    return psana_agbe
-
-    
-def test_cheetah_conv():
-    raw_image = load_AgBe()
-    ai = assemble.assemble_image_from_dir(raw_image, 'example_calibration_dir')
-    assemble.plot_assembled_image(ai)
-    return
-
-    
-def test_agbe_assembly():
-    
-    params_to_opt = ['offset_corr']
-    
-    cal_image = load_AgBe()
-    init_cspad = cspad.CSPad.from_dir('../ex_params')
-    opt = Optimizer(initial_cspad=init_cspad, params_to_optimize=['offset_corr'])
-    
-    opt_cspad = opt(cal_image)
-    plt.imshow( opt_cspad(cal_image).T )
-    
-    return
-    
-    
-    
-if __name__ == '__main__':
-    test_agbe_assembly()

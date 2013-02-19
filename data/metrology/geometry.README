@@ -1,0 +1,125 @@
+//  class ElementIterator
+//
+//  A class to iterate through the CSPAD detector data
+//
+//  Each "Element" represents one quadrant of a complete detector
+//  and they are arranged as follows (viewed from upstream):
+//  +---+---+
+//  | 0 | 1 |
+//  +---+---+
+//  | 3 | 2 |
+//  +---+---+
+//
+//  Each "Element" is composed of 8 "Section"s arranged as follows:
+//  +---+---+-------+
+//  |   |   |   6   |
+//  + 5 | 4 +-------+
+//  |   |   |   7   |
+//  +---+---+---+---+   (for quadrant 0)
+//  |   2   |   |   |
+//  +-------+ 0 | 1 |
+//  |   3   |   |   |
+//  +-------+---+---+
+//  The layout of each successive quadrant is rotated 90 degrees clockwise
+//  with respect to the previous quadrant.
+//
+//  Each "Section" is composed of 2*194 rows by 185 columns with the following
+//  orientations (for quadrant 0):
+//    Sections 0,1: row index increases from bottom to top, column index increases from left to right
+//    Sections 2,3: row index increases from left to right, column index increases from top to bottom
+//    Sections 4,5: row index increases from top to bottom, column index increases from right to left
+//    Sections 6,7: row index increases from left to right, column index increases from top to bottom
+//  Again, the orientations of the Sections for quadrant 1 are rotated 90 degrees clockwise
+//  and so on for each successive quadrant.
+//
+
+# The above description does not define a coordinate system. I originally defined it 
+# in XtcExplorer with 0,0 at the top left, as would be natural for an array.
+# Each (possibly rotated) section would be inserted in the pixel coordinate system 
+# (counting from 0,0 at the top left) as shown in the figure above. Each quadrant would
+# then be rotated as needed. 
+
+# The optical measurements have been performed with the assumption that the coordinate system 
+# of each quadrant is the corner nearest the beam line, i.e. lower right corner in the figure above.
+
+
+
+
+The exact geometry of the CSPad detector changes over time, so parameters 
+should be read in from calibration files in 
+  /reg/d/psdm/<INSTRUMENT>/<EXPERIMENT>/calib/<CalibVersion>/<DetAddress>/
+
+The parameters in pyana / xtcexplorer follow the same scheme as designed 
+for psana. 
+
+ - 1) Gap
+    For each section, there's a gap between asics: 3 pixels
+
+ - The geometry is contructed from 9 types of constants, 
+   in 9 config parameter files: 
+
+ For each section:
+
+ 2) Orientation of each section
+   'rotation' file contains array: 8x4, rotation angle of each section in each quadrant:
+	0    0  270  270  180  180  270  270
+	0    0  270  270  180  180  270  270
+	0    0  270  270  180  180  270  270
+	0    0  270  270  180  180  270  270
+
+    ***
+    *** Differs from my orientation in that I left sections 
+	2,3 & 6,7 as they are and rotated 0,1 and 4,5
+
+    *** Never actually used in HDF5Explorer, instead np.rot90 n times. 
+
+   - tilt (of each section, from optical measurements)
+     8x4
+	-0.33819   0.00132   0.31452  -0.03487   0.14738   0.07896  -0.21778  -0.10396
+	-0.27238  -0.00526   0.02545   0.03066  -0.03619   0.02434   0.08027   0.15067
+	-0.04803  -0.00592   0.11318  -0.07896  -0.36125  -0.31846  -0.16527   0.09200
+	 0.12436   0.00263   0.44809   0.25794  -0.18029  -0.00117   0.32701   0.32439
+
+
+
+ Insert each section into the quad by it's center location:
+
+   - center
+     8x12 array
+
+   - center_corr, Mikhail's fine tuning of center coordinates
+
+ Insert each quad into the detector, 
+
+   - offset  (offset_corr)
+     4x3 array for each quad, x,y,z offset w.r.t. upper left corner (0,0)
+
+   - offset_corr . Mikhail's fine tuning
+   
+   - marg_gap_shift (margin gaps and shifts. Movements due to motors)
+     4x3 array:
+     The 3 rows signify x, y and z 
+     The 4 columns signify: 
+	1) section padding (in pixels) in the quad, 
+ 	2) quad padding (in pixels) in the full detector, 
+	3) global gap between the quads, 
+	4) shift of each quad w.r.t. "nominal" position in the detector. 
+
+	Quad coordinates in the detector:
+	off    = 40
+	gapX   = 0
+	gapY   = 0
+	shiftX = 38
+	shiftY = 38
+	offsetX = [ off+0-gapX+shiftX,  off+  0+0-gapX-shiftX,  off+834-2+gapX-shiftX,  off+834+0+gapX+shiftX]
+	offsetY = [ off+3-gapY-shiftY,  off+834-1+gapY-shiftY,  off+834-5+gapY+shiftY,  off+  0+2-gapY+shiftY]
+	# the four numbers represent the four quads, 0,1,2,3. 
+	
+
+   - quad_rotation (of each quad)
+     4x1 array:
+     180   90    0   270
+
+   - quad_tilt (of each quad)
+     0 0 0 0
+

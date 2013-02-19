@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 """
-A high-level interface to pyana for assembling images from psana geometry
-parameters. Main function to pay attention to is `assemble_image`.
+An interface to the CSPad geometry. Converts the pyana/psana parameters that
+definte the CSPad geometry into actual images or a pixel map of the positions
+of each pixel.
 """
 
 import sys
@@ -36,12 +37,60 @@ class CSPad(object):
     This is a container class for saving, loading, and interacting with the 
     parameter set that defines the CSPad geometry.
     
+    The main idea here is that you can instantiate a CSPad instance that is
+    defined by a set of parameters, and use that instance to display images
+    collected on the CSPad:
+    
+    Imagine you have a 'raw_image', an np array from psana with the measured
+    intensities for each pixel. You also have a directory 'my_params', which
+    contains a directory structure like 
+    
+    my_params/
+      rotation/
+        0-end.data
+      tilt/
+        0-end.data
+      ...    
+    
+    Then, you should be able to turn those mysterious parameters into a CSPad
+    geometry by doing something like this:
+    
+    >>> geom = CSPad.from_dir('my_params', run=0)
+    >>> assembled_image = geom(raw_image)
+    >>> imshow(assembled_image)
+    
+    Of course, the 'geom' object can be re-used to assemble many images.
+    
     This class is largely based on XtcExplorer's cspad.py
     """
     
     def __init__(self, param_dict):
         """
-        doc
+        Initialize an instance of CSPad, corresponding to a single CSPad
+        geometry.
+        
+        Parameters
+        ----------
+        param_dict : dict
+            A dictionary of the parameters that define the CSPad geometry. Each
+            key is a string, and each value is an np.ndarray of size indicated
+            below. May include:
+            
+               Key            Value Size
+               ---            ----------
+             'center' :         (12, 8),
+             'center_corr' :    (12, 8),
+             'common_mode' :    (3,),
+             'filter' :         (3,),
+             'marg_gap_shift' : (3, 4),
+             'offset' :         (3, 4),
+             'offset_corr' :    (3, 4),
+             'pedestals' :      (5920, 388),
+             'pixel_status' :   (5920, 388),
+             'quad_rotation' :  (4,),
+             'quad_tilt' :      (4,),
+             'rotation' :       (4, 8),
+             'tilt' :           (4, 8)
         """
 
         self._param_list = _array_sizes.keys()
@@ -72,6 +121,9 @@ class CSPad(object):
     
     
     def get_param(self, param_name):
+        """
+        Parameter getter function.
+        """
         if param_name in self._param_list:
             return self.__dict__[param_name]
         else:
@@ -79,6 +131,9 @@ class CSPad(object):
     
             
     def set_param(self, param_name, value):
+        """
+        Parameter setter.
+        """
         if param_name in self._param_list:
             if value.shape == _array_sizes[param_name]:
                 self.__dict__[param_name] = value
@@ -90,6 +145,8 @@ class CSPad(object):
     
     def set_many_params(self, param_names, param_values):
         """
+        Set many params at once.
+        
         Here, param_names, param_values are list.
         """
         if (type(param_names) == list) and (type(param_values) == list):
@@ -212,7 +269,7 @@ class CSPad(object):
             
         # PyCSPad format
         elif raw_image.shape == (32,185,388):
-            new_image = np.zeros((4, 8, 185, 388))
+            new_image = np.zeros((4, 8, 185, 388), dtype=raw_image.dtype)
             for i in range(8):
                 for j in range(4):
                     psind = i + j * 8
@@ -220,7 +277,7 @@ class CSPad(object):
             
         # Cheetah format
         elif raw_image.shape == (1480, 1552):
-            new_image = np.zeros((4, 8, 185, 388))
+            new_image = np.zeros((4, 8, 185, 388), dtype=raw_image.dtype)
             for i in range(8):
                 for j in range(4):
                     x_start = 185 * i
@@ -262,7 +319,8 @@ class CSPad(object):
                pairs.append( pair )
 
                if self.small_angle_tilt:
-                   pair = interp.rotate(pair, self.tilt_array[quad_index][i])
+                   pair = interp.rotate(pair, self.tilt_array[quad_index][i],
+                                        output=pair.dtype)
 
            # make the array for this quadrant
            quadrant = np.zeros( (850, 850), dtype=raw_image.dtype )
@@ -285,9 +343,10 @@ class CSPad(object):
         Build each of the four quads, and put them together.
         """
         
+        
         raw_image = self._enforce_raw_img_shape(raw_image)
         
-        assembled_image = np.zeros((2*850+100, 2*850+100), dtype=np.float64)
+        assembled_image = np.zeros((2*850+100, 2*850+100), dtype=raw_image.dtype)
         
         # iterate over quads
         for quad_index in range(4):
@@ -497,79 +556,3 @@ class CSPad(object):
             param_dict[p] = np.loadtxt(filename).reshape(_array_sizes[p])
     
         return cls(param_dict)
-        
-# ------------------------------------------------------------------------------
-# TESTING
-#
-#
-    
-
-def get_avg_from_hdf5(hd5_image_file, calibration_path, dsname, start_event,
-                      n_events_to_avg=5):
-    """
-    Extract an average image from a psana hdf5 file.    
-    """
-
-    print 'Getting raw CSPad event %d from file %s \ndataset %s' % (event, fname, dsname)
-    ds1ev = hm.getAverageCSPadEvent( fname, dsname, start_event, nevents=n_events_to_avg )
-    if not ds1ev.shape == (32, 185, 388):
-        print 'WARNING: ds1ev.shape =', ds1ev.shape, "should be (32, 185, 388)"
-
-    return ds1ev
-
-
-def get_event_from_npz(npz_image_file):
-    return np.load(npz_image_file)['arr_0']
-    
-    
-def show_assembled_image(image):
-    plt.imshow(image.T)
-    plt.show()
-    return
-
-    
-def pyana_assembly(raw_image, calibration_path, run_number=0):
-    
-    print 'Loading calibration parameters from: %s' % calibration_path
-    calp.calibpars.setCalibParsForPath( run=run_number, path=calibration_path )
-    calp.calibpars.printCalibPars()
-    cpe.cpeval.printCalibParsEvaluatedAll()
-    
-    print 'Constructing the CSPad image from raw array'
-    cspadimg = cip.CSPadImageProducer(rotation=0, tiltIsOn=True )
-    image = cspadimg.getCSPadImage( raw_image )
-    
-    return image
-
-
-def test_assembly_from_dir():
-    
-    # this one
-    raw_image = get_event_from_npz('../test_data/cxi64813_r58_evt1.npz')
-    d = CSPad.from_dir('../ex_params')
-    show_assembled_image( d(raw_image) )
-    
-    # should be the same as this one
-    # ai = pyana_assembly(raw_image, 'example_calibration_dir')
-    # show_assembled_image(ai)
-    
-    return
-    
-    
-def test_metrology():
-    raw_image = get_event_from_npz('../test_data/cxi64813_r58_evt1.npz')
-    d = CSPad.from_dir('example_calibration_dir')
-    x,y,z = d.coordinate_map(metrology_file="../CSPad/cspad_2011-08-10-Metrology.txt")
-    
-    plt.imshow(x[0,0,:,:])
-    plt.show()
-    
-    plt.imshow(x[0,1,:,:])
-    plt.show()
-    
-    return
-    
-
-if __name__ == "__main__":
-    test_assembly_from_dir()
-    #test_metrology()
