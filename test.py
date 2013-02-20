@@ -1,10 +1,13 @@
 
 import tables
 
-import optimize as opt
-import cspad
+from autogeom import optimize as opt
+from autogeom import cspad
+from autogeom import score
+from autogeom import utils
 
 import numpy as np
+from scipy.ndimage import filters
 import matplotlib.pyplot as plt
 
 
@@ -20,48 +23,10 @@ def get_avg_from_hdf5(hd5_image_file, calibration_path, dsname, start_event,
         print 'WARNING: ds1ev.shape =', ds1ev.shape, "should be (32, 185, 388)"
 
     return ds1ev
-
-
-def get_event_from_npz(npz_image_file):
-    return np.load(npz_image_file)['arr_0']
-    
-    
-def show_assembled_image(image):
-    plt.imshow(image.T)
-    plt.show()
-    return
-
-    
-def pyana_assembly(raw_image, calibration_path, run_number=0):
-    
-    print 'Loading calibration parameters from: %s' % calibration_path
-    calp.calibpars.setCalibParsForPath( run=run_number, path=calibration_path )
-    calp.calibpars.printCalibPars()
-    cpe.cpeval.printCalibParsEvaluatedAll()
-    
-    print 'Constructing the CSPad image from raw array'
-    cspadimg = cip.CSPadImageProducer(rotation=0, tiltIsOn=True )
-    image = cspadimg.getCSPadImage( raw_image )
-    
-    return image
-
-
-def test_assembly_from_dir():
-    
-    # this one
-    raw_image = get_event_from_npz('../test_data/cxi64813_r58_evt1.npz')
-    d = CSPad.from_dir('../ex_params')
-    show_assembled_image( d(raw_image) )
-    
-    # should be the same as this one
-    # ai = pyana_assembly(raw_image, 'example_calibration_dir')
-    # show_assembled_image(ai)
-    
-    return
     
     
 def test_metrology():
-    raw_image = get_event_from_npz('../test_data/cxi64813_r58_evt1.npz')
+    raw_image = get_event_from_npz('../data/test_images/cxi64813_r58_evt1.npz')
     d = CSPad.from_dir('example_calibration_dir')
     x,y,z = d.coordinate_map(metrology_file="../CSPad/cspad_2011-08-10-Metrology.txt")
     
@@ -96,9 +61,10 @@ def cheetah_to_psana(cheetah_image):
     
 def load_AgBe():
     
-    f = tables.File('../test_data/AgBe/r0003-RawSum.h5')
+    f = tables.File('data/test_images/AgBe/r0003-RawSum.h5')
     cheetah_agbe = f.root.data.data.read()
     psana_agbe = cheetah_to_psana(cheetah_agbe)
+    f.close()
     
     return psana_agbe
 
@@ -110,19 +76,56 @@ def test_cheetah_conv():
     return
 
     
+def agbe_score(real_peak_locations):
+    
+    # from jonas // cheetah
+    path_length = 129.0148
+    energy      = 9394.363725
+
+    sref = score.PowderReference.agbe(real_peak_locations, energy, path_length)
+
+    sref.score()
+
+    return
+    
+    
 def test_agbe_assembly():
     
     params_to_opt = ['offset_corr']
     
     cal_image = load_AgBe()
-    init_cspad = cspad.CSPad.from_dir('../ex_params')
+    init_cspad = cspad.CSPad.from_dir('data/ex_params')
     opter = opt.Optimizer(initial_cspad=init_cspad, params_to_optimize=['offset_corr'])
+        
+    opt_cspad, maxima = opter(cal_image, return_maxima_locations=True)
     
-    opt_cspad = opter(cal_image)
+    agbe_score(maxima)
+    
     plt.imshow( opt_cspad(cal_image).T )
+    plt.show()
     
     return
 
+
+def test_filter(threshold=0.025):
+    
+    image = load_AgBe()
+    print image.shape
+    
+    image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
+    
+    for i in range(32):
+        image[i,:,:] -= image[i,:,:].min()
+    
+    image = (image > (image.max() * threshold)).astype(np.bool)
+    
+    plt.imshow( utils.flatten_2x1s(image).T )
+    plt.show()
+    
+    return
+    
     
 if __name__ == '__main__':
     test_agbe_assembly()
+    #test_filter()
+    

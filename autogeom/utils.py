@@ -26,7 +26,16 @@ def find_rings(image, threshold=0.0025, minf_size=1, medf_size=8):
     """
     
     image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
-    image -= image.min()
+    
+    if image.shape == (32, 185, 388):
+        for i in range(32):
+            image[i,:,:] -= image[i,:,:].min()
+    elif image.shape == (4, 8, 185, 388):
+        for i in range(4):
+            for j in range(8):
+                image[i,j,:,:] -= image[i,j,:,:].min()
+    else:
+        image -= image.min()
     
     assert image.min() == 0
     assert image.max() > 0
@@ -47,7 +56,7 @@ def smooth(x, beta=10.0, window_size=11):
     ----------
     x : ndarray, float
         The array to smooth.
-
+    
     Optional Parameters
     -------------------
     beta : float
@@ -56,24 +65,56 @@ def smooth(x, beta=10.0, window_size=11):
     window_size : int
         The size of the Kaiser window to apply, i.e. the number of neighboring
         points used in the smoothing.
-
+    
     Returns
     -------
     smoothed : ndarray, float
         A smoothed version of `x`.
     """
-
+    
     # make sure the window size is odd
     if window_size % 2 == 0:
         window_size += 1
-
+    
     # apply the smoothing function
     s = np.r_[x[window_size-1:0:-1], x, x[-1:-window_size:-1]]
     w = np.kaiser(window_size, beta)
     y = np.convolve( w/w.sum(), s, mode='valid' )
-
+    
     # remove the extra array length convolve adds
     b = (window_size-1) / 2
     smoothed = y[b:len(y)-b]
-
+    
     return smoothed
+
+
+def flatten_2x1s(image):
+    """
+    Takes a non-2D image : either (32, 185, 388) or (4, 8, 185, 388) and returns
+    a 2d version of that image (for visualization).
+    """
+    
+    flat_image = np.zeros((185*8, 388*4))
+    
+    if image.shape == (32, 185, 388):
+        for i in range(4):
+            for j in range(8):
+                xs = 185 * j
+                xe = 185 * (j + 1)
+                ys = 388 * i
+                ye = 388 * (i + 1)
+                flat_image[xs:xe,ys:ye] = image[i*4+j,:,:]
+        
+    elif image.shape == (4, 8, 185, 388):
+        for i in range(4):
+            for j in range(8):
+                xs = 185 * j
+                xe = 185 * (j + 1)
+                ys = 388 * i
+                ye = 388 * (i + 1)
+                flat_image[xs:xe,ys:ye] = image[i,j,:,:] 
+        
+    else:
+        raise ValueError('Invalid shape for arg `image`')
+    
+    return flat_image

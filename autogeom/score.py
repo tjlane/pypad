@@ -196,9 +196,9 @@ class PowderReference(object):
         self._compute_reciprocal_peaks()
         
         total_score = self.score(verbose=False)
-
-        return total_score
         
+        return total_score
+    
         
     def determine_energy(self, verbose=True):
         """
@@ -214,34 +214,28 @@ class PowderReference(object):
         
         e0 = self.energy
         opt_energy = optimize.fmin(self._update_energy_and_score, e0)
-    
+        
         if verbose:
             print "\nOptimal energy (eV):   %f" % opt_energy
             print   "Original energy (eV):  %f" % e0
             print "Correction: %f" % (e0 - opt_energy)
             print ""
             self.score()
-    
+        
         return opt_energy
 
 
-def test():
-    
+def test_agbe_score():
+
     # peak locations in mm, from Jonas
     real_peak_locations = [ 2.80296, 5.6334, 8.60124, 11.62404, 14.64684,
                             17.66964, 20.7474, 23.79768, 26.95788 ]
-                            
+
     path_length = 129.0148
     energy      = 9394.363725
-    
+
     sref = PowderReference.agbe(real_peak_locations, energy, path_length)
-    
+
     sref.score()
-    sref.determine_distance()
-    sref.determine_energy()
-    
+
     return
-
-
-if __name__ == '__main__':
-    test()

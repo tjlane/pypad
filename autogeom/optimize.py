@@ -2,9 +2,10 @@
 import numpy as np
 from scipy import optimize, interpolate
 
-import cspad
-import utils
+from autogeom import cspad
+from autogeom import utils
 
+import matplotlib.pyplot as plt
     
 class Optimizer(object):
     """
@@ -49,13 +50,14 @@ class Optimizer(object):
         # parameters -- default values
         self.n_bins             = None
         self.peak_regulization  = 10.0
-        self.threshold          = 0.01
+        self.threshold          = 0.025
         self.minf_size          = 1
         self.medf_size          = 8
         self.horizontal_cut     = 0.1
         self.use_edge_filter    = True
         self.beta               = 10.0
         self.window_size        = 10
+        self.pixel_size         = 0.109 # mm 
         
         if params_to_optimize:
             self.params_to_optimize = params_to_optimize
@@ -72,7 +74,8 @@ class Optimizer(object):
         return
 
     
-    def __call__(self, raw_image, center_guess=None):
+    def __call__(self, raw_image, center_guess=None, 
+                 return_maxima_locations=False):
         """
         Takes a raw_image and produces an optimized CSPad geometry.
         """
@@ -86,7 +89,19 @@ class Optimizer(object):
                                         
         self.optimize_geometry(raw_image)
         
-        return self.cspad
+        if return_maxima_locations:
+            if self.use_edge_filter:
+                raw_image = utils.find_rings(raw_image)
+            else:
+                raw_image = ( raw_image > self.threshold ).astype(np.bool)
+            assembled_image = self.cspad(raw_image)
+            bc, bv = self._bin_intensities_by_radius(self.abs_center,
+                                                     assembled_image)
+            maxima_locations = self._maxima_indices(bv)
+            return self.cspad, maxima_locations
+            
+        else:
+            return self.cspad
     
         
     def _compute_radii(self, center, image):
@@ -273,6 +288,15 @@ class Optimizer(object):
         
         assembled_image = self.cspad(raw_image)
         
+        # TJL : since the edge filtering *should* be the same for all images, 
+        # it would make sense to do it once early on and not every time we 
+        # evaluate the obj fxn. However, for unknown reasons, the filters seem 
+        # to work much better on the assembled image, so here it is...
+        if self.use_edge_filter:
+            assembled_image = utils.find_rings(assembled_image)
+        else:
+            assembled_image = ( assembled_image > self.assembled_image ).astype(np.bool)
+        
         # the absolute center will always be the first two elements by convention
         self.abs_center = param_vals[:2]
         
@@ -288,7 +312,7 @@ class Optimizer(object):
         
         # ----------------------------------------------------------------------
         
-        print "objective value: %f" % obj
+        print "objective value: %f, number of peaks: %d" % (obj, n_maxima)
         
         return obj
     
@@ -312,9 +336,6 @@ class Optimizer(object):
             Dict of the pyana parameters used to optimize the geometry.
         """
 
-        if self.use_edge_filter:
-            raw_image = utils.find_rings(raw_image)
-
         print "Optimizing:", self.params_to_optimize
 
         initial_guesses = np.concatenate([ self.cspad.get_param(p).flatten() \
@@ -331,3 +352,4 @@ class Optimizer(object):
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
 
         return
+    
