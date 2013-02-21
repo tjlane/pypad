@@ -1,0 +1,89 @@
+#!/usr/bin/env python
+
+import argparse
+import tables
+
+from autogeom import cspad
+from autogeom.utils import find_rings
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider, Button
+
+
+# parse arguments
+parser = argparse.ArgumentParser(description='Set filter parameters')
+parser.add_argument('image_file', help='The (raw) image file to process')
+parser.add_argument('--param_dir', help='The cspad alignment parameters to use', default=None)
+parser.add_argument('--output', help='Write the parameters to a specific file after you\'re done')
+args = parser.parse_args()
+
+
+# load input
+f = tables.File(args.image_file)
+raw_image = f.root.data.data.read()
+
+if args.param_dir:
+    geom  = cspad.CSPad.from_dir(args.param_dir)
+    image = geom(raw_image)
+else:
+    image = raw_image
+
+
+# initialize the plot
+ax = plt.subplot(111)
+plt.subplots_adjust(left=0.25, bottom=0.35)
+im = ax.imshow(image.T, origin='lower')
+
+
+# display the image with sliders for each parameter
+axcolor = 'lightgoldenrodyellow'
+ax_thsd = plt.axes([0.25, 0.10, 0.65, 0.03], axisbg=axcolor)
+ax_minf = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)
+ax_medf = plt.axes([0.25, 0.20, 0.65, 0.03], axisbg=axcolor)
+
+threshold_slider = Slider(ax_thsd, 'Threshold', -5.0, 0.0, valinit=-2.0) # log10 scale
+minf_slider      = Slider(ax_minf, 'Min Filter', 1, 25, valinit=3)
+medf_slider      = Slider(ax_medf, 'Med Filter', 1, 25, valinit=8)
+
+ax_reset = plt.axes([0.8, 0.025, 0.1, 0.04])
+button = Button(ax_reset, 'Reset', color=axcolor, hovercolor='0.975')
+
+
+# if a slider bar gets moved, update!
+def update(val):
+    
+    thd = np.power( 10, threshold_slider.val )
+    mnf = int( minf_slider.val )
+    mdf = int( medf_slider.val )
+    filtered_image = find_rings(image, threshold=thd, minf_size=mnf, medf_size=mdf)
+    
+    ax.imshow(filtered_image.T, origin='lower')
+    plt.draw()
+    
+
+def reset(event):
+    threshold_slider.reset()
+    minf_slider.reset()
+    medf_slider.reset()
+
+
+# link mouse actions to functions
+threshold_slider.on_changed(update)
+minf_slider.on_changed(update)
+medf_slider.on_changed(update)
+button.on_clicked(reset)
+
+
+# display the image and wait for the user to quit out of it
+plt.show()
+
+
+# save the parameter values as a flat text file for future use
+print ""
+print "--- FINAL PARAMETER VALUES ---"
+print "Threshold         :   %.3e" % np.power( 10, threshold_slider.val )
+print "Minimum Filter Size:  %d" % int(minf_slider.val)
+print "Median Filter Size:   %d" % int(medf_slider.val)
+print ""
+

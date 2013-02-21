@@ -32,8 +32,17 @@ class Optimizer(object):
              
             if `None`, defaults to:
                  
-             ['offset_corr', 'marg_gap_shift', 'rotation', 'center_corr',
-              'tilt', 'filter', 'quad_rotation', 'quad_tilt']
+             ['offset_corr', 'marg_gap_shift']
+             
+            the only one you really might consider adding to this is:
+            
+              'center_corr'
+            
+            many of the options you don't want to touch -- they are measured
+            optically to better precision than you can hope for!
+            
+            Note that the absolute center of the image (beam position) is also
+            always found by optimization.
         """
                 
         if initial_cspad:
@@ -48,21 +57,22 @@ class Optimizer(object):
             raise NotImplementedError()
         
         # parameters -- default values
-        self.n_bins             = None
-        self.peak_regulization  = 10.0
-        self.threshold          = 0.025
-        self.minf_size          = 1
-        self.medf_size          = 8
-        self.horizontal_cut     = 0.1
-        self.use_edge_filter    = True
-        self.beta               = 10.0
-        self.window_size        = 10
-        self.pixel_size         = 0.109 # mm 
+        self.n_bins              = None
+        self.peak_regulization   = 10.0
+        self.threshold           = 0.025
+        self.minf_size           = 1
+        self.medf_size           = 8
+        self.horizontal_cut      = 0.1
+        self.use_edge_filter     = True
+        self.beta                = 10.0
+        self.window_size         = 10
+        self.pixel_size          = 0.109 # mm
+        self.plot_each_iteration = True
         
         if params_to_optimize:
             self.params_to_optimize = params_to_optimize
         else:
-            raise NotImplementedError()
+            self.params_to_optimize = ['offset_corr', 'marg_gap_shift']
         
         # parse kwargs into self
         for key in kwargs:
@@ -84,8 +94,7 @@ class Optimizer(object):
         if center_guess:
             self.abs_center = center_guess
         else:
-            self.abs_center = np.array([raw_image.shape[0] / 2,
-                                        raw_image.shape[1] / 2 ])
+            self.abs_center = np.array([850, 880])
                                         
         self.optimize_geometry(raw_image)
         
@@ -295,7 +304,7 @@ class Optimizer(object):
         if self.use_edge_filter:
             assembled_image = utils.find_rings(assembled_image)
         else:
-            assembled_image = ( assembled_image > self.assembled_image ).astype(np.bool)
+            assembled_image = ( assembled_image > self.threshold ).astype(np.bool)
         
         # the absolute center will always be the first two elements by convention
         self.abs_center = param_vals[:2]
@@ -303,6 +312,14 @@ class Optimizer(object):
         bin_centers, bin_values = self._bin_intensities_by_radius(self.abs_center, assembled_image)
         n_maxima = len(self._maxima_indices(bin_values))
         
+        if self.plot_each_iteration:
+            self._fig = plt.figure(figsize=(8,4))
+            self._axL = self._fig.add_subplot(121)
+            self._axR = self._fig.add_subplot(122)
+            self._axL.imshow(assembled_image.T)
+            self._axR.plot(bin_centers, bin_values, lw=2)
+            plt.show()
+                  
         # --------- HERE IS THE OBJECTIVE FUNCTION -- MODIFY TO PLAY -----------
         # TJL: I will think about smart ways to inject other functions in here,
         # but it may also be good to keep this static, once we have something
