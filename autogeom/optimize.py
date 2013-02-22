@@ -68,7 +68,7 @@ class Optimizer(object):
         self.window_size         = 75
         self.pixel_size          = 0.109 # mm
         self.radius_range        = []
-        self.beam_loc          = (900.0, 870.0)
+        self.beam_loc            = (900.0, 870.0)
         self.plot_each_iteration = False
         
         if params_to_optimize:
@@ -76,7 +76,7 @@ class Optimizer(object):
         else:
             self.params_to_optimize = ['offset_corr', 'marg_gap_shift']
         
-        # parse kwargs into self
+        # parse kwargs into self -- this will replace the defaults above
         print ""
         for key in kwargs:
             if hasattr(self, key):

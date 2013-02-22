@@ -551,15 +551,17 @@ class CSPad(object):
             files = glob( pjoin(path, p, '*') )
             
             # if theres nothing in the dir, complain
+            # we have to deal with beam_loc (aka abs_center) separately, since
+            # this has been introduced into the cspad geometry by us...
             if len(files) == 0:
-                            
-                # we have to deal with beam_loc (aka abs_center) separately, since
-                # this has been introduced into the cspad geometry by us...
                 if p == 'beam_loc':
-                    param_dict[p] = (900.0, 870.0) # just set a default value
+                    print "Could not locate dir 'beam_loc', using default value"
+                    param_dict[p] = np.array([900.0, 870.0]) # default value
+                    continue # skip the rest of whats below
                 else:
                     raise IOError('No files in parameter dir: %s' % pjoin(path, p))
             
+            filename = None
             for f in files:
                 
                 start, end = os.path.basename(f).split('.')[0].split('-')
@@ -572,8 +574,10 @@ class CSPad(object):
                 if (run_number >= start) and (run_number <= end):
                     filename = f
             
-            
-            print "Loading parameters in:", filename
-            param_dict[p] = np.loadtxt(filename).reshape(_array_sizes[p])
+            if filename:
+                print "Loading parameters in:", filename
+                param_dict[p] = np.loadtxt(filename).reshape(_array_sizes[p])
+            else:
+                raise IOError('Could not find file for run %d in %s' % (run_number, str(files)))
     
         return cls(param_dict)
