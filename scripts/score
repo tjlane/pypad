@@ -33,7 +33,7 @@ cs1 = cspad.CSPad.from_dir(args.param_dir)
 asm_image = cs1(raw_image)
 
 # find the real-space peak locations || a is shorthand for `bin_values`
-bin_centers, a = utils.radial_profile(asm_image, cs1.abs_center)
+bin_centers, a = utils.radial_profile(asm_image, cs1.beam_loc)
 max_inds = np.where(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True] == True)[0]
 real_peak_locations = bin_centers[max_inds]
 

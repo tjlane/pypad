@@ -68,7 +68,7 @@ class Optimizer(object):
         self.window_size         = 75
         self.pixel_size          = 0.109 # mm
         self.radius_range        = []
-        self.abs_center          = (900.0, 870.0)
+        self.beam_loc          = (900.0, 870.0)
         self.plot_each_iteration = False
         
         if params_to_optimize:
@@ -109,7 +109,7 @@ class Optimizer(object):
             else:
                 raw_image = ( raw_image > self.threshold ).astype(np.bool)
             assembled_image = self.cspad(raw_image)
-            bc, bv = self._bin_intensities_by_radius(self.abs_center,
+            bc, bv = self._bin_intensities_by_radius(self.beam_loc,
                                                      assembled_image)
             maxima_locations = self._maxima_indices(bv)
             return self.cspad, maxima_locations
@@ -278,7 +278,7 @@ class Optimizer(object):
         
         param_dict = {}
 
-        start = 2 # the first two parameter values are reserved for abs_center
+        start = 2 # the first two parameter values are reserved for beam_loc
         for p in self.params_to_optimize:
             param_arr_shape = cspad._array_sizes[p]
             num_params_expected = np.product( param_arr_shape )
@@ -327,9 +327,9 @@ class Optimizer(object):
             assembled_image = utils.find_rings(assembled_image)
         
         # the absolute center will always be the first two elements by convention
-        self.abs_center = param_vals[:2]
+        self.beam_loc = param_vals[:2]
         
-        bin_centers, bin_values = self._bin_intensities_by_radius(self.abs_center, assembled_image)
+        bin_centers, bin_values = self._bin_intensities_by_radius(self.beam_loc, assembled_image)
         n_maxima = len(self._maxima_indices(bin_values))
         
         if self.plot_each_iteration:
@@ -383,7 +383,7 @@ class Optimizer(object):
                                            for p in self.params_to_optimize ])
                                            
         # add in the absolute center -- we need to optimize this as well!
-        initial_guesses = np.concatenate([ self.abs_center, initial_guesses ])
+        initial_guesses = np.concatenate([ self.beam_loc, initial_guesses ])
 
         # run simplex minimization
         opt_params = optimize.fmin(self._objective, initial_guesses, 

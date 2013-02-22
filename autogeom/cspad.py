@@ -4,11 +4,6 @@
 An interface to the CSPad geometry. Converts the pyana/psana parameters that
 definte the CSPad geometry into actual images or a pixel map of the positions
 of each pixel.
-
-to finish
----------
--- direct access to the pixel (x,y,z) positions
--- the above as a basis vector repr
 """
 
 import sys
@@ -34,7 +29,8 @@ _array_sizes = { 'center' :         (12, 8),
                  'quad_rotation' :  (4,),
                  'quad_tilt' :      (4,),
                  'rotation' :       (4, 8),
-                 'tilt' :           (4, 8) }
+                 'tilt' :           (4, 8),
+                 'beam_loc' :       (2,) } # this one is our addition
 
 
 class CSPad(object):
@@ -554,6 +550,16 @@ class CSPad(object):
             # our run number
             files = glob( pjoin(path, p, '*') )
             
+            # if theres nothing in the dir, complain
+            if len(files) == 0:
+                            
+                # we have to deal with beam_loc (aka abs_center) separately, since
+                # this has been introduced into the cspad geometry by us...
+                if p == 'beam_loc':
+                    param_dict[p] = (900.0, 870.0) # just set a default value
+                else:
+                    raise IOError('No files in parameter dir: %s' % pjoin(path, p))
+            
             for f in files:
                 
                 start, end = os.path.basename(f).split('.')[0].split('-')
@@ -565,6 +571,7 @@ class CSPad(object):
                     
                 if (run_number >= start) and (run_number <= end):
                     filename = f
+            
             
             print "Loading parameters in:", filename
             param_dict[p] = np.loadtxt(filename).reshape(_array_sizes[p])

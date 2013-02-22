@@ -97,8 +97,8 @@ class InteractiveFilter(object):
         self.axR = plt.subplot(122)
         plt.subplots_adjust(left=0.25, bottom=0.35)
         
-        # initial guess for abs_center
-        self.abs_center = (900.0, 870.0)
+        # initial guess for beam_loc
+        self.beam_loc = (900.0, 870.0)
         self.regions = []
         
         self.im = self.axL.imshow(raw_unfiltered_image.T, origin='lower')
@@ -143,8 +143,8 @@ class InteractiveFilter(object):
         
         XX, YY = np.meshgrid(y, x)
 
-        dx = np.power( XX - self.abs_center[0], 2 )
-        dy = np.power( YY - self.abs_center[1], 2 )
+        dx = np.power( XX - self.beam_loc[0], 2 )
+        dy = np.power( YY - self.beam_loc[1], 2 )
         r = np.sqrt( dx + dy )
 
         assert r.shape == image.shape
@@ -196,23 +196,23 @@ class InteractiveFilter(object):
         """
         Draw the current center on the image
         """
-        blob_circ = plt_patches.Circle(self.abs_center, 25, fill=False, lw=2, 
+        blob_circ = plt_patches.Circle(self.beam_loc, 25, fill=False, lw=2, 
                                        ec='orange')
         self.axL.add_patch(blob_circ)
-        print "center set to: %s" % str(self.abs_center)
+        print "center set to: %s" % str(self.beam_loc)
         return
         
     
     def on_click(self, event):
         """
-        If the user clicks on the image, put the abs_center there.
+        If the user clicks on the image, put the beam_loc there.
         """
         if event.inaxes and (event.button is not 1):
             
             if event.inaxes == self.axL:                  
                 if (event.xdata > 0) and (event.xdata < self.raw_unfiltered_image.shape[0]):
                     if (event.ydata > 0) and (event.ydata < self.raw_unfiltered_image.shape[1]):
-                        self.abs_center = event.xdata, event.ydata
+                        self.beam_loc = event.xdata, event.ydata
                         self.axL.cla()
                         self.draw_center()
                         self.update_image(event)
@@ -249,14 +249,14 @@ class InteractiveFilter(object):
             if len(radius_range) % 2 != 0:
                 raise ValueError('Odd number of peak limits found on right panel!')
             
-        abs_center = [float(x) for x in self.abs_center]
+        beam_loc = [float(x) for x in self.beam_loc]
         
         
         param_dict = { 'threshold'    : float( np.power(10, self.threshold_slider.val) ),
                        'minf_size'    : int(self.minf_slider.val),
                        'medf_size'    : int(self.medf_slider.val),
                        'radius_range' : radius_range,
-                       'abs_center'   : list(abs_center) }
+                       'beam_loc'     : list(beam_loc) }
         
         print "\nFinal Parameters:"
         pprint(param_dict)
