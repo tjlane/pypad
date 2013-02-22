@@ -1,6 +1,32 @@
 #!/usr/bin/env python
 
 """
-Take a raw image and a set of psana parameters and produce an assembled image.
+A simple script that takes a CSPad specification and a raw image and renders
+an assembled image.
 """
 
+import tables
+import argparse
+
+from autogeom import cspad
+from autogeom import utils
+
+import matplotlib.pyplot as plt
+
+parser = argparse.ArgumentParser(description='''Use a CSPad geometry to assemble a raw image.''')
+                                 
+parser.add_argument('image', help='The (raw) image file.')
+parser.add_argument('--param-dir', default=None, 
+                    help='''The cspad alignment parameters to use as a starting point, should be
+                            a directory. Default: use the pyana default geometry.''')
+                            
+args = parser.parse_args()
+
+print "Loading: %s" % args.image
+raw_image = utils.load_raw_image(args.image)
+
+cs1 = cspad.CSPad.from_dir(args.param_dir)
+
+plt.figure()
+plt.imshow( cs1(raw_image).T, origin='lower' )
+plt.show()

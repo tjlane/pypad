@@ -67,7 +67,8 @@ class Optimizer(object):
         self.beta                = 10.0
         self.window_size         = 75
         self.pixel_size          = 0.109 # mm
-        self.radius_range        = (400.0, 600.0)
+        self.radius_range        = []
+        self.abs_center          = (900.0, 870.0)
         self.plot_each_iteration = False
         
         if params_to_optimize:
@@ -76,26 +77,29 @@ class Optimizer(object):
             self.params_to_optimize = ['offset_corr', 'marg_gap_shift']
         
         # parse kwargs into self
+        print ""
         for key in kwargs:
             if hasattr(self, key):
-                self.key = kwargs[key]
+                self.__dict__[key] = kwargs[key]
+                print "Set parameter : %s --> %s" % (key, str(kwargs[key]))
             else:
                 raise ValueError('Invalid Parameter: %s' % key)
+                
+        # check radius_range is sane
+        if not len(self.radius_range) % 2 == 0:
+            raise ValueError('`radius_range`, which defines which regions of the'
+                             ' radial projection to optimize, must contain an '
+                             'even number of entries.')
+        else:
+            self.radius_range.sort()
         
         return
 
     
-    def __call__(self, raw_image, center_guess=None, 
-                 return_maxima_locations=False):
+    def __call__(self, raw_image, return_maxima_locations=False):
         """
         Takes a raw_image and produces an optimized CSPad geometry.
         """
-        
-        # add an absolute center to the optimization no matter what
-        if center_guess:
-            self.abs_center = center_guess
-        else:
-            self.abs_center = np.array([850, 880])
                                         
         self.optimize_geometry(raw_image)
         
@@ -149,12 +153,12 @@ class Optimizer(object):
     
     def _bin_intensities_by_radius(self, center, image, radii=None):
         """
-        Bin binary pixel intensities by their radius.
+        Bin pixel intensities by their radius.
         
         Parameters
         ----------
         image : np.ndarray, np.bool
-            A binary image.
+            An image.
             
         center : tuple
             (x,y) in pixel units.
@@ -169,7 +173,7 @@ class Optimizer(object):
             The radial center of each bin.
         
         bin_values : ndarray, int
-            The number of pixels of value "1" in the bin.
+            The total intensity in the bin.
         """
         
         # if not image.dtype == np.bool:
@@ -197,11 +201,19 @@ class Optimizer(object):
         bin_values = utils.smooth(bin_values, beta=self.beta, 
                                   window_size=self.window_size)
                                   
-        if self.radius_range:
-            start = np.where(bin_centers < self.radius_range[0])[0][-1]
-            end   = np.where(bin_centers > self.radius_range[1])[0][0]
-            bin_centers = bin_centers[start:end]
-            bin_values  = bin_values[start:end]
+        # slice out only the requested parts of the radial profile
+        if len(self.radius_range) > 0:
+            include = np.zeros( len(bin_values), dtype=np.bool)
+            for i in range( len(self.radius_range)/2 ):
+                include += (bin_centers > self.radius_range[i]) * \
+                           (bin_centers < self.radius_range[i+1])
+            
+            if np.sum(include) == 0:
+                raise RuntimeError('`radius_range` slices were not big enough to '
+                                   'inlcude any data!')
+                
+            bin_centers = bin_centers[include]
+            bin_values  = bin_values[include]
         
         return bin_centers, bin_values
     
@@ -361,7 +373,11 @@ class Optimizer(object):
             Dict of the pyana parameters used to optimize the geometry.
         """
 
+        print ""
+        print "Beginning optimization..."
         print "Optimizing:", self.params_to_optimize
+        print "Objective function:  Sum[peak_widths] + %.2f * num_peaks" % self.peak_regulization
+        print ""
 
         initial_guesses = np.concatenate([ self.cspad.get_param(p).flatten() \
                                            for p in self.params_to_optimize ])
@@ -370,7 +386,8 @@ class Optimizer(object):
         initial_guesses = np.concatenate([ self.abs_center, initial_guesses ])
 
         # run simplex minimization
-        opt_params = optimize.fmin(self._objective, initial_guesses, args=(raw_image,))
+        opt_params = optimize.fmin(self._objective, initial_guesses, 
+                                   args=(raw_image,), ftol=1e-2)
                                    
         # un-ravel & inject the param values in the CSPad object
         param_dict = self._unravel_params(opt_params)

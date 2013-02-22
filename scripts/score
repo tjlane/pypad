@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+
+"""
+Score an optimized geometry by testing it on a reference sample.
+
+ToDo
+----
+Extract energy/path length from psana directly...
+"""
+
+from autogeom import cspad
+from autogeom import score
+from autogeom import utils
+
+parser = argparse.ArgumentParser(description='''Score an optimized geometry by
+                                           testing it on a reference sample.''')
+
+parser.add_argument('image', help='The (raw) image file of the calibration sample.')
+parser.add_argument('--energy', help='The energy of the beam (in eV).', required=True)
+parser.add_argument('--path-len', required=True, 
+                    help='The distance from the sample to the detector (in mm).')
+parser.add_argument('--cal-type', default='unknown', type=str, 
+                    choices=['AgBe', 'Ag', 'Au', 'unknown'],
+                    help='The kind of sample, can be one of {AgBe, Ag, Au, unknown}')
+parser.add_argument('--param-dir', default=None, 
+                    help='''The cspad alignment parameters to use as a starting point, should be
+                            a directory. Default: use the pyana default geometry.''')
+
+# assemble the image
+print "Loading: %s" % args.image
+raw_image = utils.load_raw_image(args.image)
+cs1 = cspad.CSPad.from_dir(args.param_dir)
+asm_image = cs1(raw_image)
+
+# find the real-space peak locations || a is shorthand for `bin_values`
+bin_centers, a = utils.radial_profile(asm_image, cs1.abs_center)
+max_inds = np.where(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True] == True)[0]
+real_peak_locations = bin_centers[max_inds]
+
+# score the sample
+sref = score.PowderReference.agbe(real_peak_locations, args.energy, args.path_length)
+sref.score()

@@ -4,6 +4,11 @@
 An interface to the CSPad geometry. Converts the pyana/psana parameters that
 definte the CSPad geometry into actual images or a pixel map of the positions
 of each pixel.
+
+to finish
+---------
+-- direct access to the pixel (x,y,z) positions
+-- the above as a basis vector repr
 """
 
 import sys
@@ -469,7 +474,7 @@ class CSPad(object):
         return self.x_coordinates, self.y_coordinates, self.z_coordinates
     
 
-    def to_dir(self, dir_name):
+    def to_dir(self, dir_name, run_range=None):
         """
         Write the parameters to `dir_name`, in the standard psana/pyana format.
         
@@ -481,9 +486,12 @@ class CSPad(object):
         dir_name : str
             The name of the parent dir (parameter set) to place these parameters
             under.
+            
+        run_range : tuple
+            A tuple of values (X,Y), with X,Y ints, such that these parameters
+            will be used for all runs between and including X to Y. If `None`
+            (default), then gets set to 0-end.data, meaning all runs.
         """
-    
-        check_param_dict(param_dict)
     
         if os.path.exists(dir_name):
             print "WARNING: rm'ing %s..." % dir_name
@@ -491,15 +499,20 @@ class CSPad(object):
     
         os.mkdir(dir_name)
     
-        for key in param_dict.keys():
+        if run_range == None:
+            param_filenames = '0-end.data'
+        else:
+            param_filenames = '%d-%d.data' % run_range
+    
+        for key in _array_sizes.keys():
             os.mkdir( pjoin( dir_name, key ))
-            fname = pjoin( dir_name, key, '0-end.data' )
+            fname = pjoin( dir_name, key, param_filenames )
             
             # the file-format for these two parameters is slightly different
             # from all the others... try to maintain that.
             if key == 'center' or key == 'center_corr':
             
-                v = param_dict[key]
+                v = self.get_param(key)
                 v = v.reshape(3,4,8)
             
                 f = open(fname, 'w')
@@ -509,7 +522,7 @@ class CSPad(object):
                     f.write('\n')
             
             else:
-                np.savetxt(fname, param_dict[key], fmt='%.2f')
+                np.savetxt(fname, self.get_param(key), fmt='%.2f')
             print "Wrote: %s" % fname
     
         return
@@ -523,16 +536,17 @@ class CSPad(object):
         ----------
         path : str
             The path to the directory containing the parameters.
+            
+        run_number : int
+            Load the parameters for this run.
         """
         
-        '0-end.data'
-    
         param_dict = {}
     
-        to_load = ['center', 'center_corr', 'common_mode', 'filter',
-                   'marg_gap_shift', 'offset', 'offset_corr', 'pedestals',
-                   'pixel_status', 'quad_rotation' 'quad_tilt', 'rotation', 
-                   'tilt']
+        # if not to_load:
+        #     to_load = ['center', 'center_corr', 'filter', 'marg_gap_shift', 
+        #                'offset', 'offset_corr', 'pixel_status', 'quad_rotation',
+        #                'quad_tilt',  'rotation', 'tilt'] # 'common_mode', 'pedestals'
     
         for p in _array_sizes.keys():
             

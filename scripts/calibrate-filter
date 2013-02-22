@@ -11,7 +11,7 @@ import yaml
 from pprint import pprint
 
 from autogeom import cspad
-from autogeom.utils import find_rings
+from autogeom.utils import find_rings, load_raw_image
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -32,17 +32,7 @@ def parse_n_load():
                         help='Write the parameters to a specific file after you\'re done')
     args = parser.parse_args()
     
-    
-    # load input
-    fn = args.image_file
-    if fn.endswith('.h5'):
-        f = tables.File(fn)
-        raw_image = f.root.data.data.read()
-    elif fn.endswith('.npz'):
-        raw_image = np.load(fn)['arr_0']
-    else:
-        raise ValueError('Cannot understand format of file: %s' % fn)
-    
+    raw_image = load_raw_image(args.image_file)
     
     # if we got a parameter dir, assemble the image
     if args.param_dir:
@@ -83,7 +73,7 @@ def print_instructions():
     print ""
     print " Once you are done, the final parameters you have in your window will"
     print " be written to disk in a file that can be interpreted by the "
-    print " 'assemble' script, which will give you a final, optimized geometry."
+    print " 'optgeom' script, which will give you a final, optimized geometry."
     print ""
     print " PS. The rendering can be a bit slow... sorry. Please be a bit "
     print " patient!\n\n"
@@ -108,7 +98,7 @@ class InteractiveFilter(object):
         plt.subplots_adjust(left=0.25, bottom=0.35)
         
         # initial guess for abs_center
-        self.abs_center = np.array([900, 870])
+        self.abs_center = (900.0, 870.0)
         self.regions = []
         
         self.im = self.axL.imshow(raw_unfiltered_image.T, origin='lower')
@@ -251,11 +241,22 @@ class InteractiveFilter(object):
         Write the parameters we have to disk.
         """
         
-        param_dict = { 'threshold'    : self.threshold_slider.val,
-                       'minf_size'    : self.minf_slider.val,
-                       'medf_size'    : self.medf_slider.val,
-                       'radius_range' : self.regions,
-                       'abs_center'   : self.abs_center }
+        # process the values into native python types
+        if len(self.regions) == 0:
+            radius_range = 'None'
+        else:
+            radius_range = [ float(x) for x in self.regions ]
+            if len(radius_range) % 2 != 0:
+                raise ValueError('Odd number of peak limits found on right panel!')
+            
+        abs_center = [float(x) for x in self.abs_center]
+        
+        
+        param_dict = { 'threshold'    : float( np.power(10, self.threshold_slider.val) ),
+                       'minf_size'    : int(self.minf_slider.val),
+                       'medf_size'    : int(self.medf_slider.val),
+                       'radius_range' : radius_range,
+                       'abs_center'   : list(abs_center) }
         
         print "\nFinal Parameters:"
         pprint(param_dict)

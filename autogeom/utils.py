@@ -5,6 +5,8 @@ utils.py
 Various utility functions. Filtering, image processing, etc.
 """
 
+import tables
+
 import numpy as np
 from scipy.ndimage import filters
 
@@ -90,6 +92,53 @@ def smooth(x, beta=10.0, window_size=11):
     return smoothed
 
 
+def radial_profile(image, center):
+    """
+    Compute the radial intensity profile of `image`.
+    
+    Parameters
+    ----------
+    image : np.ndarray
+        The image to perform the radial profile on.
+        
+    center : tuple of floats
+        The center to use, in pixel units
+        
+    Returns
+    -------
+    bin_centers : np.ndarray
+        The radial position (x-coordinate)
+    
+    bin_values
+        The intensities corresponding to `bin_centers`.
+    """
+    
+    # compute the radii
+    x = np.arange(image.shape[0])
+    y = np.arange(image.shape[1])
+    
+    XX, YY = np.meshgrid(y, x)
+
+    dx = np.power( XX - center[0], 2 )
+    dy = np.power( YY - center[1], 2 )
+    r = np.sqrt( dx + dy )
+
+    assert r.shape == image.shape
+    
+    # histogram the intensities
+    n_bins = max(image.shape) / 2
+    
+    if image.dtype == np.bool:
+        bin_values, bin_edges = np.histogram( r * image, bins=n_bins )
+    else:
+        bin_values, bin_edges = np.histogram( r, weights=image, bins=n_bins )
+    
+    bin_values = bin_values[1:]
+    bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+    
+    return bin_centers, bin_values
+
+
 def flatten_2x1s(image):
     """
     Takes a non-2D image : either (32, 185, 388) or (4, 8, 185, 388) and returns
@@ -120,3 +169,70 @@ def flatten_2x1s(image):
         raise ValueError('Invalid shape for arg `image`')
     
     return flat_image
+    
+    
+def load_raw_image(filename, image_in_file=0):
+    """
+    Attempts to be a general and forgiving file-loading platform for raw images.
+    
+    Currently supported formats:
+        -- psana hdf5
+        -- cheetah hdf5
+        -- npz : numpy-z compression
+        -- txt : flat text
+    
+    Parameters
+    ----------
+    filename : str
+        The file to load.
+        
+    image_in_file : int
+        The image contained in that file to load.
+        
+    Returns
+    -------
+    image : np.ndarray
+        A numpy array of the image.
+    """
+    
+    if filename.endswith('.h5'):
+        f = tables.File(filename)
+        try:
+            # psana format
+            raw_image = f.getNode('/data%d/raw' % image_in_file).read()
+        except:
+            # cheetah format
+            raw_image = f.root.data.data.read()
+        finally:
+            f.close()
+        
+    elif filename.endswith('.npz'):
+        raw_image = np.load(filename)['arr_%d' % image_in_file]
+        
+    elif filename.endswith('txt'):
+        raw_image = np.loadtxt(filename)
+        
+    else:
+        raise ValueError('Cannot understand format of file: %s' % fn)
+    
+    return raw_image
+
+    
+def cheetah_to_3Dpsana(cheetah_image):
+    """
+    Takes a raw cheetah image (2D) and returns it in psana format (3D)
+    """
+
+    psana_image = np.zeros((32, 185, 388))
+    assert cheetah_image.shape == (1480, 1552)
+
+    for i in range(8):
+        for j in range(4):
+            x_start = 185 * i
+            x_stop  = 185 * (i+1)
+            y_start = 388 * j
+            y_stop  = 388 * (j+1)
+            psind = i + j * 8 # confirmed visually
+            psana_image[psind,:,:] = cheetah_image[x_start:x_stop,y_start:y_stop]
+
+    return psana_image
