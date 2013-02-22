@@ -4,6 +4,8 @@
 Setup script autogeom
 """
 
+from glob import glob
+
 try:
     from setuptools import setup
 except ImportError:
@@ -17,4 +19,5 @@ setup(name='autogeom',
       description='CSPad geometry, assembly and optimization',
       packages=["autogeom"],
       package_dir={"autogeom": "autogeom" },
+      scripts=[s for s in glob('scripts/*') if not s.endswith('__.py')],
       test_suite="test")

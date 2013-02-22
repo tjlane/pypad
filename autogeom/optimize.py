@@ -59,15 +59,16 @@ class Optimizer(object):
         # parameters -- default values
         self.n_bins              = None
         self.peak_regulization   = 10.0
-        self.threshold           = 0.025
-        self.minf_size           = 1
+        self.threshold           = 4.585e-04
+        self.minf_size           = 3
         self.medf_size           = 8
         self.horizontal_cut      = 0.1
         self.use_edge_filter     = True
         self.beta                = 10.0
-        self.window_size         = 10
+        self.window_size         = 75
         self.pixel_size          = 0.109 # mm
-        self.plot_each_iteration = True
+        self.radius_range        = (400.0, 600.0)
+        self.plot_each_iteration = False
         
         if params_to_optimize:
             self.params_to_optimize = params_to_optimize
@@ -146,13 +147,13 @@ class Optimizer(object):
         return r
     
     
-    def _bin_intensities_by_radius(self, center, binary_image, radii=None):
+    def _bin_intensities_by_radius(self, center, image, radii=None):
         """
         Bin binary pixel intensities by their radius.
         
         Parameters
         ----------
-        binary_image : np.ndarray, np.bool
+        image : np.ndarray, np.bool
             A binary image.
             
         center : tuple
@@ -171,27 +172,36 @@ class Optimizer(object):
             The number of pixels of value "1" in the bin.
         """
         
-        if not binary_image.dtype == np.bool:
-            raise TypeError('`binary_image` must be dtype np.bool')
+        # if not image.dtype == np.bool:
+        #     raise TypeError('`image` must be dtype np.bool')
 
         if radii == None:
-            radii = self._compute_radii(center, binary_image)
+            radii = self._compute_radii(center, image)
         else:
-            if not radii.shape == binary_image.shape:
-                raise ValueError('`radii` and `binary_image` must have same shape')
+            if not radii.shape == image.shape:
+                raise ValueError('`radii` and `image` must have same shape')
         
         if self.n_bins == None:
-            n_bins = max(binary_image.shape) / 2
+            n_bins = max(image.shape) / 2
         else:
             n_bins = self.n_bins
         
-        # assume we've got a binary filter applied for now (!)
-        bin_values, bin_edges = np.histogram( radii * binary_image, bins=n_bins )
+        if image.dtype == np.bool:
+            bin_values, bin_edges = np.histogram( radii * image, bins=n_bins )
+        else:
+            bin_values, bin_edges = np.histogram( radii, weights=image, bins=n_bins )
+            
         bin_values = bin_values[1:]
         bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
         
         bin_values = utils.smooth(bin_values, beta=self.beta, 
                                   window_size=self.window_size)
+                                  
+        if self.radius_range:
+            start = np.where(bin_centers < self.radius_range[0])[0][-1]
+            end   = np.where(bin_centers > self.radius_range[1])[0][0]
+            bin_centers = bin_centers[start:end]
+            bin_values  = bin_values[start:end]
         
         return bin_centers, bin_values
     
@@ -303,8 +313,6 @@ class Optimizer(object):
         # to work much better on the assembled image, so here it is...
         if self.use_edge_filter:
             assembled_image = utils.find_rings(assembled_image)
-        else:
-            assembled_image = ( assembled_image > self.threshold ).astype(np.bool)
         
         # the absolute center will always be the first two elements by convention
         self.abs_center = param_vals[:2]

@@ -1,89 +1,287 @@
 #!/usr/bin/env python
 
+"""
+This is an interactive platform for getting initial parameters for a geometry
+optimization.
+"""
+
 import argparse
 import tables
+import yaml
+from pprint import pprint
 
 from autogeom import cspad
 from autogeom.utils import find_rings
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as plt_patches
 from matplotlib.widgets import Slider, Button
 
 
-# parse arguments
-parser = argparse.ArgumentParser(description='Set filter parameters')
-parser.add_argument('image_file', help='The (raw) image file to process')
-parser.add_argument('--param_dir', help='The cspad alignment parameters to use', default=None)
-parser.add_argument('--output', help='Write the parameters to a specific file after you\'re done')
-args = parser.parse_args()
-
-
-# load input
-f = tables.File(args.image_file)
-raw_image = f.root.data.data.read()
-
-if args.param_dir:
-    geom  = cspad.CSPad.from_dir(args.param_dir)
-    image = geom(raw_image)
-else:
-    image = raw_image
-
-
-# initialize the plot
-ax = plt.subplot(111)
-plt.subplots_adjust(left=0.25, bottom=0.35)
-im = ax.imshow(image.T, origin='lower')
-
-
-# display the image with sliders for each parameter
-axcolor = 'lightgoldenrodyellow'
-ax_thsd = plt.axes([0.25, 0.10, 0.65, 0.03], axisbg=axcolor)
-ax_minf = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)
-ax_medf = plt.axes([0.25, 0.20, 0.65, 0.03], axisbg=axcolor)
-
-threshold_slider = Slider(ax_thsd, 'Threshold', -5.0, 0.0, valinit=-2.0) # log10 scale
-minf_slider      = Slider(ax_minf, 'Min Filter', 1, 25, valinit=3)
-medf_slider      = Slider(ax_medf, 'Med Filter', 1, 25, valinit=8)
-
-ax_reset = plt.axes([0.8, 0.025, 0.1, 0.04])
-button = Button(ax_reset, 'Reset', color=axcolor, hovercolor='0.975')
-
-
-# if a slider bar gets moved, update!
-def update(val):
+def parse_n_load():
+    """
+    Parse the command line arguments and make sense of them. Return an image.
+    """
     
-    thd = np.power( 10, threshold_slider.val )
-    mnf = int( minf_slider.val )
-    mdf = int( medf_slider.val )
-    filtered_image = find_rings(image, threshold=thd, minf_size=mnf, medf_size=mdf)
+    # parse arguments
+    parser = argparse.ArgumentParser(description='Set filter parameters')
+    parser.add_argument('image_file', help='The (raw) image file to process')
+    parser.add_argument('--param-dir', help='The cspad alignment parameters to use', default=None)
+    parser.add_argument('--output', default='filter_params.yaml',
+                        help='Write the parameters to a specific file after you\'re done')
+    args = parser.parse_args()
     
-    ax.imshow(filtered_image.T, origin='lower')
-    plt.draw()
+    
+    # load input
+    fn = args.image_file
+    if fn.endswith('.h5'):
+        f = tables.File(fn)
+        raw_image = f.root.data.data.read()
+    elif fn.endswith('.npz'):
+        raw_image = np.load(fn)['arr_0']
+    else:
+        raise ValueError('Cannot understand format of file: %s' % fn)
+    
+    
+    # if we got a parameter dir, assemble the image
+    if args.param_dir:
+        print "ASSEMBLING IMAGE..."
+        geom  = cspad.CSPad.from_dir(args.param_dir)
+        image = geom(raw_image)
+    else:
+        image = raw_image
+        
+    return image, args.output
+    
+    
+def print_instructions():
+    """
+    Prints some instructions...
+    """
+    
+    print ""
+    print "      ---  INTERACTIVE PARAMETER OPTIMIZATION ENVIRONMENT  ---    "
+    print ""
+    print " Welcome to autogeom's interactive image pre-processing environment."
+    print " Adjust the sliders to optimize your image -- the goal is to get one"
+    print " or more sharp powder rings on the image to show up above the noise."
+    print ""
+    print " Instructions:"
+    print " -- Right Click:  (Left Panel)  Sets the guess of the center of the "
+    print "                                image."
+    print "                  (Right Panel) Set a 'peak limit', the algorithm"
+    print "                                only optimizes peaks between these "
+    print "                                limits. You can set many such regions."
+    print " -- Threshold:    Sets a binary intensity threshold."
+    print " -- Median:       A median filter. You can thinks of this as a voting"
+    print "                  scheme, where a pixel gets set to be the same as a"
+    print "                  consensus of those around it. This parameter sets"
+    print "                  the size of that consensus window."
+    print " -- Minimum:      A minimum filter. If any pixel in this window size"
+    print "                  is zero, all pixels in the window become zero."
+    print ""
+    print " Once you are done, the final parameters you have in your window will"
+    print " be written to disk in a file that can be interpreted by the "
+    print " 'assemble' script, which will give you a final, optimized geometry."
+    print ""
+    print " PS. The rendering can be a bit slow... sorry. Please be a bit "
+    print " patient!\n\n"
+    
+    return
+
+    
+class InteractiveFilter(object):
+    """
+    Build an interactive environment for determining good parameters for
+    the geometry optimization.
+    """
+    
+    def __init__(self, raw_unfiltered_image):
+        
+        self.raw_unfiltered_image = raw_unfiltered_image
+
+        # initialize the plot
+        self.fig = plt.figure( figsize=(18,9))
+        self.axL = plt.subplot(121)
+        self.axR = plt.subplot(122)
+        plt.subplots_adjust(left=0.25, bottom=0.35)
+        
+        # initial guess for abs_center
+        self.abs_center = np.array([900, 870])
+        self.regions = []
+        
+        self.im = self.axL.imshow(raw_unfiltered_image.T, origin='lower')
+        self.draw_projection(raw_unfiltered_image)
+
+        # display the image with sliders for each parameter
+        axcolor = 'lightgoldenrodyellow'
+        ax_thsd = plt.axes([0.25, 0.10, 0.65, 0.03], axisbg=axcolor)
+        ax_minf = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)
+        ax_medf = plt.axes([0.25, 0.20, 0.65, 0.03], axisbg=axcolor)
+
+        self.threshold_slider = Slider(ax_thsd, 'Threshold', -5.0, 0.0, valinit=-2.0) # log10 scale
+        self.minf_slider      = Slider(ax_minf, 'Min Filter', 1, 25, valinit=3)
+        self.medf_slider      = Slider(ax_medf, 'Med Filter', 1, 25, valinit=8)
+
+        ax_reset = plt.axes([0.8, 0.025, 0.1, 0.04])
+        self.button = Button(ax_reset, 'Reset', color=axcolor, hovercolor='0.975')
+        
+        # link mouse actions to functions
+        self.threshold_slider.on_changed(self.update_image)
+        self.minf_slider.on_changed(self.update_image)
+        self.medf_slider.on_changed(self.update_image)
+        self.button.on_clicked(self.reset)
+        self.fig.canvas.mpl_connect('button_press_event', self.on_click)
     
 
-def reset(event):
-    threshold_slider.reset()
-    minf_slider.reset()
-    medf_slider.reset()
+    def show(self):
+        """ display the image and wait for the user to quit out of it """
+        plt.show()
+        return
+    
 
+    def draw_projection(self, image):
+        """
+        Draw a radial projection of the intensities, in the rightmost panel.
+        """
+        # this is bad, but I just c/p'd code from optimize :( --TJL
 
-# link mouse actions to functions
-threshold_slider.on_changed(update)
-minf_slider.on_changed(update)
-medf_slider.on_changed(update)
-button.on_clicked(reset)
+        # compute the radii
+        x = np.arange(image.shape[0])
+        y = np.arange(image.shape[1])
+        
+        XX, YY = np.meshgrid(y, x)
 
+        dx = np.power( XX - self.abs_center[0], 2 )
+        dy = np.power( YY - self.abs_center[1], 2 )
+        r = np.sqrt( dx + dy )
 
-# display the image and wait for the user to quit out of it
-plt.show()
+        assert r.shape == image.shape
+        
+        # histogram the intensities
+        n_bins = max(image.shape) / 2
+        
+        if image.dtype == np.bool:
+            bin_values, bin_edges = np.histogram( r * image, bins=n_bins )
+        else:
+            bin_values, bin_edges = np.histogram( r, weights=image, bins=n_bins )
+        
+        bin_values = bin_values[1:]
+        bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+        
+        # draw the actual image
+        self.axR.plot(bin_centers, bin_values, lw=2)
+        self.axR.set_xlabel('Radius')
+        self.axR.set_ylabel('Intensity')
+        
+        if len(self.regions) > 0:
+            self.axR.vlines(self.regions, self.axR.get_ylim()[0], 
+                            self.axR.get_ylim()[1], lw=2, color='k')
+        
+        return
+    
 
+    def update_image(self, val):
+        """
+        If a slider gets moved, update the panels
+        """
+        thd = np.power( 10, self.threshold_slider.val )
+        mnf = int( self.minf_slider.val )
+        mdf = int( self.medf_slider.val )
+        filtered_image = find_rings(self.raw_unfiltered_image, 
+                                    threshold=thd, minf_size=mnf, 
+                                    medf_size=mdf, sobel=True)
+        
+        self.axL.imshow(filtered_image.T, origin='lower')
+        
+        self.axR.cla()
+        self.draw_projection(filtered_image)
+        plt.draw()
+        
+        return
+    
+        
+    def draw_center(self):
+        """
+        Draw the current center on the image
+        """
+        blob_circ = plt_patches.Circle(self.abs_center, 25, fill=False, lw=2, 
+                                       ec='orange')
+        self.axL.add_patch(blob_circ)
+        print "center set to: %s" % str(self.abs_center)
+        return
+        
+    
+    def on_click(self, event):
+        """
+        If the user clicks on the image, put the abs_center there.
+        """
+        if event.inaxes and (event.button is not 1):
+            
+            if event.inaxes == self.axL:                  
+                if (event.xdata > 0) and (event.xdata < self.raw_unfiltered_image.shape[0]):
+                    if (event.ydata > 0) and (event.ydata < self.raw_unfiltered_image.shape[1]):
+                        self.abs_center = event.xdata, event.ydata
+                        self.axL.cla()
+                        self.draw_center()
+                        self.update_image(event)
+                        
+            elif event.inaxes == self.axR:
+                v_line = event.xdata
+                print "Set peak limit at: %f" % v_line
+                self.regions.append(v_line)
+                self.axR.cla()
+                self.update_image(event)
+                    
+        return
+    
 
-# save the parameter values as a flat text file for future use
-print ""
-print "--- FINAL PARAMETER VALUES ---"
-print "Threshold         :   %.3e" % np.power( 10, threshold_slider.val )
-print "Minimum Filter Size:  %d" % int(minf_slider.val)
-print "Median Filter Size:   %d" % int(medf_slider.val)
-print ""
+    def reset(self, event):
+        self.threshold_slider.reset()
+        self.minf_slider.reset()
+        self.medf_slider.reset()
+        self.regions = []
+        self.update_image(event)
+        return
+    
+        
+    def write_params(self, filename):
+        """
+        Write the parameters we have to disk.
+        """
+        
+        param_dict = { 'threshold'    : self.threshold_slider.val,
+                       'minf_size'    : self.minf_slider.val,
+                       'medf_size'    : self.medf_slider.val,
+                       'radius_range' : self.regions,
+                       'abs_center'   : self.abs_center }
+        
+        print "\nFinal Parameters:"
+        pprint(param_dict)
+        
+        f = open(filename, 'w')
+        f.write( yaml.dump( param_dict ) )
+        f.close()
+        
+        print "\nWrote parameters to: %s\n" % filename
+        
+        return
+    
+
+def main():
+    
+    print_instructions()
+    image, output_fn = parse_n_load()
+    
+    intflt = InteractiveFilter(image)
+    intflt.show()
+    intflt.write_params(output_fn)
+    
+    return
+    
+    
+if __name__ == '__main__':
+    main()
+
 

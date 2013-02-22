@@ -9,7 +9,7 @@ import numpy as np
 from scipy.ndimage import filters
 
 
-def find_rings(image, threshold=0.0025, minf_size=1, medf_size=8):
+def find_rings(image, threshold=0.0025, minf_size=1, medf_size=8, sobel=True):
     """
     Applies an edge filter followed by a noise reduction filter. Very good
     at locating powder rings and filtering everything else out.
@@ -25,26 +25,28 @@ def find_rings(image, threshold=0.0025, minf_size=1, medf_size=8):
         A binary image, with "1" where there are powder rings/strong edges
     """
     
+    image = image.astype(np.float64)
     image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
     
+    # do a "common-mode"-esque normalization (seems to help)
     if image.shape == (32, 185, 388):
         for i in range(32):
-            image[i,:,:] -= image[i,:,:].min()
+            image[i,:,:] -= np.min(image[i,:,:])
     elif image.shape == (4, 8, 185, 388):
         for i in range(4):
             for j in range(8):
-                image[i,j,:,:] -= image[i,j,:,:].min()
+                image[i,j,:,:] -= np.min(image[i,j,:,:])
     else:
         image -= image.min()
     
     assert image.min() == 0
     assert image.max() > 0
-
+    
     image = (image > (image.max() * threshold)).astype(np.bool)
-
+    
     image = filters.minimum_filter(image, size=minf_size)
     image = filters.median_filter(image, size=medf_size)
-        
+    
     return image.astype(np.bool)
     
     

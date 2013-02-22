@@ -68,15 +68,47 @@ class PowderReference(object):
         """
         
         real_peak_locations = np.sort(real_peak_locations)
-        lattice_spacing = 58.3803
+        lattice_spacing = 58.3803 # ang
         
         n_peaks = len(real_peak_locations)
         millers_included = [ (0,0,x) for x in range(1, n_peaks+1) ]
         
         return cls(lattice_spacing, real_peak_locations, energy, path_length,
                    millers_included=millers_included)
-    
+                   
+
+    @classmethod               
+    def silver(cls, real_peak_locations, energy, path_length):
+        """
+        Factory method that sets the lattice spacing to that for silver.
+        """
         
+        real_peak_locations = np.sort(real_peak_locations)
+        lattice_spacing = 4.09 # ang
+        
+        n_peaks = len(real_peak_locations)
+        millers_included = [(1,1,1), (2,0,0), (2,2,0), (3,1,1)][:n_peaks]
+        
+        return cls(lattice_spacing, real_peak_locations, energy, path_length,
+                   millers_included=millers_included)
+    
+                   
+    @classmethod               
+    def gold(cls, real_peak_locations, energy, path_length):
+        """
+        Factory method that sets the lattice spacing to that for gold.
+        """
+
+        real_peak_locations = np.sort(real_peak_locations)
+        lattice_spacing = 4.076
+
+        n_peaks = len(real_peak_locations)
+        millers_included = [(1,1,1), (2,0,0), (2,2,0), (3,1,1)][:n_peaks]
+
+        return cls(lattice_spacing, real_peak_locations, energy, path_length,
+                   millers_included=millers_included)
+    
+
     def _compute_reciprocal_peaks(self):
         """
         Convert the real-space peaks into reciprocal space.

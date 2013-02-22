@@ -68,6 +68,10 @@ def load_AgBe():
     
     return psana_agbe
 
+
+def load_gold():
+    return np.load('data/test_images/gold/gold_avg.npz')['arr_0']
+    
     
 def test_cheetah_conv():
     raw_image = load_AgBe()
@@ -93,13 +97,15 @@ def test_agbe_assembly():
     
     params_to_opt = ['offset_corr']
     
-    cal_image = load_AgBe()
+    # cal_image = load_AgBe()
+    cal_image = load_gold()
+    
     init_cspad = cspad.CSPad.from_dir('data/ex_params')
     opter = opt.Optimizer(initial_cspad=init_cspad, params_to_optimize=['offset_corr'])
         
     opt_cspad, maxima = opter(cal_image, return_maxima_locations=True)
     
-    agbe_score(maxima)
+    # agbe_score(maxima)
     
     plt.imshow( opt_cspad(cal_image).T )
     plt.show()
