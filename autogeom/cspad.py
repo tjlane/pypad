@@ -65,7 +65,7 @@ class CSPad(object):
     This class is largely based on XtcExplorer's cspad.py
     """
     
-    def __init__(self, param_dict):
+    def __init__(self, param_dict, metrology_file=None):
         """
         Initialize an instance of CSPad, corresponding to a single CSPad
         geometry.
@@ -77,8 +77,8 @@ class CSPad(object):
             key is a string, and each value is an np.ndarray of size indicated
             below. May include:
             
-               Key            Value Size
-               ---            ----------
+               Key             Value Size
+              ------           ----------
              'center' :         (12, 8),
              'center_corr' :    (12, 8),
              'common_mode' :    (3,),
@@ -92,6 +92,11 @@ class CSPad(object):
              'quad_tilt' :      (4,),
              'rotation' :       (4, 8),
              'tilt' :           (4, 8)
+             
+             
+        metrology_file : str
+            A file specifing an optical metrology of the CSPad. Necessary to
+            get any specific pixel coordinates.
         """
 
         self._param_list = _array_sizes.keys()
@@ -104,6 +109,12 @@ class CSPad(object):
         
         self._process_parameters()
         self.small_angle_tilt = True # always true for now
+        
+        if metrology_file:
+            self._read_metrology(metrology_file)
+            self.metrology_enabled = True
+        else:
+            self.metrology_enabled = False
         
         return
     
@@ -131,13 +142,15 @@ class CSPad(object):
             raise ValueError('No parameter with name: %s' % param_name)
     
             
-    def set_param(self, param_name, value):
+    def set_param(self, param_name, value, process=True):
         """
         Parameter setter.
         """
         if param_name in self._param_list:
             if value.shape == _array_sizes[param_name]:
                 self.__dict__[param_name] = value
+                if process:
+                    self._process_parameters()
             else:
                 raise ValueError('`value` has wrong shape for: %s' % param_name)
         else:
@@ -153,7 +166,8 @@ class CSPad(object):
         if (type(param_names) == list) and (type(param_values) == list):
             if len(param_names) == len(param_values):
                 for i,pn in enumerate(param_names):
-                    self.set_param(pn, param_values[i])
+                    self.set_param(pn, param_values[i], process=False)
+                self._process_parameters()
             else:
                 raise ValueError('`param_names` & `param_values` must be same len')
         else:
@@ -179,6 +193,11 @@ class CSPad(object):
     
     @property
     def basis_repr(self):
+        if not self.metrology_enabled:
+            raise RuntimeError('You must supply a metrology file to access '
+                               'precise pixel position data.')
+        
+        raise NotImplementedError()
         return
         
     
@@ -187,9 +206,13 @@ class CSPad(object):
         """
         Compute and return the x,y,z positions of each pixel.
         """
+        if not self.metrology_enabled:
+            raise RuntimeError('You must supply a metrology file to access '
+                               'precise pixel position data.')
         
+        x, y, z = self._apply_geom_corrections()
         
-        return
+        return np.concatenate( (x,y,z) )
     
         
     def _process_parameters(self):
@@ -213,8 +236,8 @@ class CSPad(object):
         
         # position of sections in each quadrant (quadrant coordinates)
         # ... (3*4 rows (4 quads, 3 xyz coordinates) x 8 columns (sections))
-        centers            = self.center
-        center_corrections = self.center_corr
+        centers              = self.center
+        center_corrections   = self.center_corr
         self.section_centers = np.reshape( centers + center_corrections, (3,4,8) )
         
         # quadrant offset parameters (w.r.t. image 0,0 in upper left coner)
@@ -232,8 +255,8 @@ class CSPad(object):
         self.sec_offset = marg_gap_shift[:,0]
 
         quad_offset = marg_gap_shift[:,1]
-        quad_gap = marg_gap_shift[:,2]
-        quad_shift = marg_gap_shift[:,3]
+        quad_gap    = marg_gap_shift[:,2]
+        quad_shift  = marg_gap_shift[:,3]
 
         # turn them into 2D arrays, use numpy element-wise multiplication
         quad_offset = np.array( [quad_offset,
@@ -344,7 +367,6 @@ class CSPad(object):
         Build each of the four quads, and put them together.
         """
         
-        
         raw_image = self._enforce_raw_img_shape(raw_image)
         
         assembled_image = np.zeros((2*850+100, 2*850+100), dtype=raw_image.dtype)
@@ -356,7 +378,7 @@ class CSPad(object):
 
             if quad_index>0:
                 # reorient the quad_index_image as needed
-                quad_index_image = np.rot90( quad_index_image, 4-quad_index)
+                quad_index_image = np.rot90( quad_index_image, 4-quad_index )
 
             qoff_x = self.quad_offset[0,quad_index]
             qoff_y = self.quad_offset[1,quad_index]
@@ -365,8 +387,7 @@ class CSPad(object):
         return assembled_image
     
         
-    def coordinate_map(self, metrology_file="cspad_2011-08-10-Metrology.txt",
-                       verbose=False):
+    def _read_metrology(self, metrology_file, verbose=False):
         """
         Make coordinate maps from meterology file
         """
@@ -449,7 +470,9 @@ class CSPad(object):
         self.y_coordinates = self.y_coordinates / dTotal.mean()
         self.z_coordinates = self.z_coordinates / dTotal.mean()
 
-        origin = [[834,834],[834,834],[834,834],[834,834]]
+        origin = np.array([ [834.0, 834.0], [834.0, 834.0], 
+                            [834.0, 834.0], [834.0, 834.0] ])
+        
         for quad in range(4):
             # For each quad, rotate and shift into the image coordinate system
             if quad==0 :
@@ -467,7 +490,30 @@ class CSPad(object):
                 self.x_coordinates[quad] = origin[quad][0] - self.x_coordinates[quad]
                 self.y_coordinates[quad] = origin[quad][1] + self.y_coordinates[quad]        
         
-        return self.x_coordinates, self.y_coordinates, self.z_coordinates
+        return
+        
+        
+    def _apply_geom_corrections(self):
+        """
+        Apply specific geometry corrections, defined by the psana parameters,
+        to the metrology pixel map.
+        
+        Returns
+        -------
+        x, y, z : np.ndarrays of shape (4,8,185,388)
+            The x,y,z locations of each pixel in real-space, corrected.
+        """
+        
+        x = self.x_coordinates.copy()
+        y = self.y_coordinates.copy()
+        z = self.z_coordinates.copy()
+        
+        for i in range(4):
+            x[i,:,:,:] += self.offset_coor[0,i]
+            y[i,:,:,:] += self.offset_coor[1,i]
+            z[i,:,:,:] += self.offset_coor[2,i]
+        
+        return x, y, z
     
 
     def to_dir(self, dir_name, run_range=None):

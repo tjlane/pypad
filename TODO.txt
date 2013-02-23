@@ -1,0 +1,9 @@
+
+To Do for autogeom
+------------------
+
+-- default CSPad
+-- automatic miller index matching (in score)
+-- access to real-space pixel geometries
+-- write default param yaml
+-- GPL everything

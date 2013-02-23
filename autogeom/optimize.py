@@ -66,7 +66,7 @@ class Optimizer(object):
         self.horizontal_cut      = 0.1
         self.use_edge_filter     = True
         self.beta                = 10.0
-        self.window_size         = 5
+        self.window_size         = 10
         self.pixel_size          = 0.109 # mm
         self.radius_range        = []
         self.beam_loc            = (900.0, 870.0)
@@ -319,17 +319,7 @@ class Optimizer(object):
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
         
         assembled_image = self.cspad(raw_image)
-        
-        # TJL : since the edge filtering *should* be the same for all images, 
-        # it would make sense to do it once early on and not every time we 
-        # evaluate the obj fxn. However, for unknown reasons, the filters seem 
-        # to work much better on the assembled image, so here it is...
-        if self.use_edge_filter:
-            assembled_image = utils.find_rings(assembled_image, 
-                                               threshold=self.threshold, 
-                                               minf_size=self.minf_size, 
-                                               medf_size=self.medf_size)
-        
+                
         # the absolute center will always be the first two elements by convention
         self.beam_loc = param_vals[:2]
         
@@ -339,7 +329,7 @@ class Optimizer(object):
         # only count big maxima for regularization purposes
         n_maxima = 0
         for ind in max_inds:
-            if bin_values[ind] > bin_values.mean() / 5.:
+            if bin_values[ind] > bin_values.mean() / 2.:
                 n_maxima += 1
         
         #n_maxima = len(max_inds)
@@ -356,17 +346,6 @@ class Optimizer(object):
             blob_circ = plt_patches.Circle(self.beam_loc, 15, fill=False, lw=2, 
                                            ec='orange')
             self._axL.add_patch(blob_circ)
-            
-            if len(self.radius_range) > 0:
-                for i in range( len(self.radius_range)/2 ):
-                    self._axR.fill_between(np.arange(self.radius_range[i], 
-                                                     self.radius_range[i+1]),
-                                           self._axR.get_ylim()[0], 
-                                           self._axR.get_ylim()[1], 
-                                           facecolor='blue', alpha=0.5)
-                
-                self._axR.vlines(self.radius_range, self._axR.get_ylim()[0], 
-                                 self._axR.get_ylim()[1], lw=2, color='k')
             plt.draw()
                   
         # --------- HERE IS THE OBJECTIVE FUNCTION -- MODIFY TO PLAY -----------
@@ -424,9 +403,13 @@ class Optimizer(object):
             self._axR.set_xlabel('Radius')
             self._axR.set_ylabel('Intensity')
 
+        if self.use_edge_filter:
+            image = utils.find_rings(raw_image, threshold=self.threshold, 
+                                     minf_size=self.minf_size, medf_size=self.medf_size)
+
         # run simplex minimization
         opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
-                                   args=(raw_image,), xtol=1e-2, ftol=1e-2)
+                                          args=(image,), xtol=1e-2, ftol=1e-2)
                                    
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()
