@@ -6,6 +6,7 @@ from autogeom import cspad
 from autogeom import utils
 
 import matplotlib.pyplot as plt
+import matplotlib.patches as plt_patches
     
 class Optimizer(object):
     """
@@ -65,16 +66,16 @@ class Optimizer(object):
         self.horizontal_cut      = 0.1
         self.use_edge_filter     = True
         self.beta                = 10.0
-        self.window_size         = 75
+        self.window_size         = 5
         self.pixel_size          = 0.109 # mm
         self.radius_range        = []
         self.beam_loc            = (900.0, 870.0)
-        self.plot_each_iteration = False
+        self.plot_each_iteration = True
         
         if params_to_optimize:
             self.params_to_optimize = params_to_optimize
         else:
-            self.params_to_optimize = ['offset_corr', 'marg_gap_shift']
+            self.params_to_optimize = ['offset_corr'] #, 'marg_gap_shift']
         
         # parse kwargs into self -- this will replace the defaults above
         print ""
@@ -324,28 +325,57 @@ class Optimizer(object):
         # evaluate the obj fxn. However, for unknown reasons, the filters seem 
         # to work much better on the assembled image, so here it is...
         if self.use_edge_filter:
-            assembled_image = utils.find_rings(assembled_image)
+            assembled_image = utils.find_rings(assembled_image, 
+                                               threshold=self.threshold, 
+                                               minf_size=self.minf_size, 
+                                               medf_size=self.medf_size)
         
         # the absolute center will always be the first two elements by convention
         self.beam_loc = param_vals[:2]
         
         bin_centers, bin_values = self._bin_intensities_by_radius(self.beam_loc, assembled_image)
-        n_maxima = len(self._maxima_indices(bin_values))
+        max_inds = self._maxima_indices(bin_values)
         
+        # only count big maxima for regularization purposes
+        n_maxima = 0
+        for ind in max_inds:
+            if bin_values[ind] > bin_values.mean() / 5.:
+                n_maxima += 1
+        
+        #n_maxima = len(max_inds)
+        
+        # if plotting is requested, plot away!
         if self.plot_each_iteration:
-            self._fig = plt.figure(figsize=(8,4))
-            self._axL = self._fig.add_subplot(121)
-            self._axR = self._fig.add_subplot(122)
+            
+            self._axL.cla()
+            self._axR.cla()
+            
             self._axL.imshow(assembled_image.T)
-            self._axR.plot(bin_centers, bin_values, lw=2)
-            plt.show()
+            self._axR.plot(bin_centers, bin_values, lw=2, color='k')
+            
+            blob_circ = plt_patches.Circle(self.beam_loc, 15, fill=False, lw=2, 
+                                           ec='orange')
+            self._axL.add_patch(blob_circ)
+            
+            if len(self.radius_range) > 0:
+                for i in range( len(self.radius_range)/2 ):
+                    self._axR.fill_between(np.arange(self.radius_range[i], 
+                                                     self.radius_range[i+1]),
+                                           self._axR.get_ylim()[0], 
+                                           self._axR.get_ylim()[1], 
+                                           facecolor='blue', alpha=0.5)
+                
+                self._axR.vlines(self.radius_range, self._axR.get_ylim()[0], 
+                                 self._axR.get_ylim()[1], lw=2, color='k')
+            plt.draw()
                   
         # --------- HERE IS THE OBJECTIVE FUNCTION -- MODIFY TO PLAY -----------
         # TJL: I will think about smart ways to inject other functions in here,
         # but it may also be good to keep this static, once we have something
         # nice and robust.
         
-        obj = self._all_widths(bin_values) + self.peak_regulization * n_maxima
+        obj = self._all_widths(bin_values) - 0.1 * np.mean(bin_values[max_inds]) + \
+              self.peak_regulization * n_maxima
         
         # ----------------------------------------------------------------------
         
@@ -385,9 +415,21 @@ class Optimizer(object):
         # add in the absolute center -- we need to optimize this as well!
         initial_guesses = np.concatenate([ self.beam_loc, initial_guesses ])
 
+        # turn on interactive plotting -- this is the only way I've gotten it to work
+        if self.plot_each_iteration:
+            plt.ion()
+            self._fig = plt.figure(figsize=(18,9))
+            self._axL = self._fig.add_subplot(121)
+            self._axR = self._fig.add_subplot(122)
+            self._axR.set_xlabel('Radius')
+            self._axR.set_ylabel('Intensity')
+
         # run simplex minimization
-        opt_params = optimize.fmin(self._objective, initial_guesses, 
-                                   args=(raw_image,), ftol=1e-2)
+        opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
+                                   args=(raw_image,), xtol=1e-2, ftol=1e-2)
+                                   
+        # turn off interactive plotting
+        if self.plot_each_iteration: plt.ioff()
                                    
         # un-ravel & inject the param values in the CSPad object
         param_dict = self._unravel_params(opt_params)
