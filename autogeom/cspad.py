@@ -65,7 +65,7 @@ class CSPad(object):
     This class is largely based on XtcExplorer's cspad.py
     """
     
-    def __init__(self, param_dict, metrology_file=None):
+    def __init__(self, param_dict):
         """
         Initialize an instance of CSPad, corresponding to a single CSPad
         geometry.
@@ -93,10 +93,6 @@ class CSPad(object):
              'rotation' :       (4, 8),
              'tilt' :           (4, 8)
              
-             
-        metrology_file : str
-            A file specifing an optical metrology of the CSPad. Necessary to
-            get any specific pixel coordinates.
         """
 
         self._param_list = _array_sizes.keys()
@@ -109,13 +105,7 @@ class CSPad(object):
         
         self._process_parameters()
         self.small_angle_tilt = True # always true for now
-        
-        if metrology_file:
-            self._read_metrology(metrology_file)
-            self.metrology_enabled = True
-        else:
-            self.metrology_enabled = False
-        
+                
         return
     
     
@@ -431,7 +421,122 @@ class CSPad(object):
 
         return assembled_image
     
+
+    def to_dir(self, dir_name, run_range=None):
+        """
+        Write the parameters to `dir_name`, in the standard psana/pyana format.
         
+        This method will create a 2-level directory tree under `dir_name` to
+        hold these parameters.
+        
+        Parameters
+        ----------
+        dir_name : str
+            The name of the parent dir (parameter set) to place these parameters
+            under.
+            
+        run_range : tuple
+            A tuple of values (X,Y), with X,Y ints, such that these parameters
+            will be used for all runs between and including X to Y. If `None`
+            (default), then gets set to 0-end.data, meaning all runs.
+        """
+    
+        if os.path.exists(dir_name):
+            print "WARNING: rm'ing %s..." % dir_name
+            os.system('rm -r %s' % dir_name)
+    
+        os.mkdir(dir_name)
+    
+        if run_range == None:
+            param_filenames = '0-end.data'
+        else:
+            param_filenames = '%d-%d.data' % run_range
+    
+        for key in _array_sizes.keys():
+            os.mkdir( pjoin( dir_name, key ))
+            fname = pjoin( dir_name, key, param_filenames )
+            
+            # the file-format for these two parameters is slightly different
+            # from all the others... try to maintain that.
+            if key == 'center' or key == 'center_corr':
+            
+                v = self.get_param(key)
+                v = v.reshape(3,4,8)
+            
+                f = open(fname, 'w')
+                for i in range(3):
+                    for j in range(4):
+                        f.write( '\t'.join([ str(x) for x in v[i,j,:] ]) + '\n' )
+                    f.write('\n')
+            
+            else:
+                np.savetxt(fname, self.get_param(key), fmt='%.2f')
+            print "Wrote: %s" % fname
+    
+        return
+    
+    @classmethod
+    def from_dir(cls, path, run_number=0):
+        """
+        Load a parameter set from disk.
+        
+        Parameters
+        ----------
+        path : str
+            The path to the directory containing the parameters.
+            
+        run_number : int
+            Load the parameters for this run.
+        """
+        
+        param_dict = {}
+        
+        # if not to_load:
+        #     to_load = ['center', 'center_corr', 'filter', 'marg_gap_shift', 
+        #                'offset', 'offset_corr', 'pixel_status', 'quad_rotation',
+        #                'quad_tilt',  'rotation', 'tilt'] # 'common_mode', 'pedestals'
+    
+        for p in _array_sizes.keys():
+            
+            # scan through the possible files and find the right one matching
+            # our run number
+            files = glob( pjoin(path, p, '*') )
+            
+            # if theres nothing in the dir, complain
+            # we have to deal with beam_loc (aka abs_center) separately, since
+            # this has been introduced into the cspad geometry by us...
+            if len(files) == 0:
+                if p == 'beam_loc':
+                    print "Could not locate dir 'beam_loc', using default value"
+                    param_dict[p] = np.array([900.0, 870.0]) # default value
+                    continue # skip the rest of whats below
+                else:
+                    raise IOError('No files in parameter dir: %s' % pjoin(path, p))
+            
+            filename = None
+            for f in files:
+                
+                start, end = os.path.basename(f).split('.')[0].split('-')
+                start = int(start)
+                if end == 'end':
+                    end = 9999
+                else:
+                    end = int(end)
+                    
+                if (run_number >= start) and (run_number <= end):
+                    filename = f
+            
+            if filename:
+                print "Loading parameters in:", filename
+                param_dict[p] = np.loadtxt(filename).reshape(_array_sizes[p])
+            else:
+                raise IOError('Could not find file for run %d in %s' % (run_number, str(files)))
+    
+        return cls(param_dict)
+        
+
+class Metrology(CSPad):
+    
     def _read_metrology(self, metrology_file, verbose=False):
         """
         Make coordinate maps from meterology file
@@ -559,119 +664,6 @@ class CSPad(object):
             z[i,:,:,:] += self.offset_coor[2,i]
         
         return x, y, z
-    
-
-    def to_dir(self, dir_name, run_range=None):
-        """
-        Write the parameters to `dir_name`, in the standard psana/pyana format.
-        
-        This method will create a 2-level directory tree under `dir_name` to
-        hold these parameters.
-        
-        Parameters
-        ----------
-        dir_name : str
-            The name of the parent dir (parameter set) to place these parameters
-            under.
-            
-        run_range : tuple
-            A tuple of values (X,Y), with X,Y ints, such that these parameters
-            will be used for all runs between and including X to Y. If `None`
-            (default), then gets set to 0-end.data, meaning all runs.
-        """
-    
-        if os.path.exists(dir_name):
-            print "WARNING: rm'ing %s..." % dir_name
-            os.system('rm -r %s' % dir_name)
-    
-        os.mkdir(dir_name)
-    
-        if run_range == None:
-            param_filenames = '0-end.data'
-        else:
-            param_filenames = '%d-%d.data' % run_range
-    
-        for key in _array_sizes.keys():
-            os.mkdir( pjoin( dir_name, key ))
-            fname = pjoin( dir_name, key, param_filenames )
-            
-            # the file-format for these two parameters is slightly different
-            # from all the others... try to maintain that.
-            if key == 'center' or key == 'center_corr':
-            
-                v = self.get_param(key)
-                v = v.reshape(3,4,8)
-            
-                f = open(fname, 'w')
-                for i in range(3):
-                    for j in range(4):
-                        f.write( '\t'.join([ str(x) for x in v[i,j,:] ]) + '\n' )
-                    f.write('\n')
-            
-            else:
-                np.savetxt(fname, self.get_param(key), fmt='%.2f')
-            print "Wrote: %s" % fname
-    
-        return
-    
-    @classmethod
-    def from_dir(cls, path, run_number=0):
-        """
-        Load a parameter set from disk.
-        
-        Parameters
-        ----------
-        path : str
-            The path to the directory containing the parameters.
-            
-        run_number : int
-            Load the parameters for this run.
-        """
-        
-        param_dict = {}
-        
-        # if not to_load:
-        #     to_load = ['center', 'center_corr', 'filter', 'marg_gap_shift', 
-        #                'offset', 'offset_corr', 'pixel_status', 'quad_rotation',
-        #                'quad_tilt',  'rotation', 'tilt'] # 'common_mode', 'pedestals'
-    
-        for p in _array_sizes.keys():
-            
-            # scan through the possible files and find the right one matching
-            # our run number
-            files = glob( pjoin(path, p, '*') )
-            
-            # if theres nothing in the dir, complain
-            # we have to deal with beam_loc (aka abs_center) separately, since
-            # this has been introduced into the cspad geometry by us...
-            if len(files) == 0:
-                if p == 'beam_loc':
-                    print "Could not locate dir 'beam_loc', using default value"
-                    param_dict[p] = np.array([900.0, 870.0]) # default value
-                    continue # skip the rest of whats below
-                else:
-                    raise IOError('No files in parameter dir: %s' % pjoin(path, p))
-            
-            filename = None
-            for f in files:
-                
-                start, end = os.path.basename(f).split('.')[0].split('-')
-                start = int(start)
-                if end == 'end':
-                    end = 9999
-                else:
-                    end = int(end)
-                    
-                if (run_number >= start) and (run_number <= end):
-                    filename = f
-            
-            if filename:
-                print "Loading parameters in:", filename
-                param_dict[p] = np.loadtxt(filename).reshape(_array_sizes[p])
-            else:
-                raise IOError('Could not find file for run %d in %s' % (run_number, str(files)))
-    
-        return cls(param_dict)
     
         
 class BasisGrid(object):
