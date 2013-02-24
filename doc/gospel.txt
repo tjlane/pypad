@@ -101,7 +101,7 @@ CSPAD QUAD GEOMETRY
 		2. Rotate 90 degrees CW
 
 	2. Module layout
-		Module 0 = is in the lower right coner of the 1st quad (viewed from the beam)
+		Module 0 = is in the lower right corner of the 1st quad (viewed from the beam)
 		Module 1 = Module 0 rotated 90 CW
 		Module 2 = Module 0 rotated 180 CW
 		Module 3 = Module 0 rotated 90 CW

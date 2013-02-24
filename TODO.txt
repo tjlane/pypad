@@ -12,3 +12,7 @@ To Do for autogeom
 -- automatic miller index matching (in score)
 -- write default param yaml
 -- GPL everything
+
+Under Consideration
+-------------------
+-- split CSPad into two classes, one for metrology

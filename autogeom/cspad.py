@@ -317,6 +317,51 @@ class CSPad(object):
         
         return new_image
     
+    
+    def _assemble_image_basis(self):
+
+        bg = BasisGrid()
+
+        shape = (185, 388)                     # slow, fast
+        slow = np.array([ 0.10992, 0.0, 0.0 ]) # basis vector for pixels in x
+        fast = np.array([ 0.0, 0.10992, 0.0 ]) # basis vector for pixels in y
+
+        # assemble each 2x1 on the quad
+        for quad_index in range(4):
+            for i in range(8):
+
+                # we have to re-orient each 2x1
+                if i==0 or i==1:
+                    # reverse slow dim, switch slow/fast
+                    f = -slow.copy()
+                    s =  fast.copy()
+                    shape = shape[::-1]
+                if i==4 or i==5:
+                    # reverse fast dim, switch slow/fast
+                    f =  slow.copy()
+                    s = -fast.copy()
+                    shape = shape[::-1]
+                else:
+                    f = fast.copy()
+                    s = slow.copy()
+
+                # now, apply a small rotation in the detector (x/y) plane
+                if self.small_angle_tilt:
+                    ct = np.cos( np.deg2rad(self.tilt_array[quad_index][i] + (90 * (4-quad_index)) ) )
+                    st = np.sin( np.deg2rad(self.tilt_array[quad_index][i] + (90 * (4-quad_index)) ) )
+                    R = np.array([[ct, -st], [st, ct]])
+                    fprime = np.dot(R, f)
+                    sprime = np.dot(R, s)
+
+                # find the center of the 2x1
+                cx = self.sec_offset[0] - self.section_centers[0][quad_index][sec] + self.quad_offset[0,quad_index]
+                cy = self.sec_offset[1] - self.section_centers[1][quad_index][sec] + self.quad_offset[1,quad_index]
+                center = (cx, cy)
+
+                bg.add_grid_using_center(center, s, f, shape)
+
+        return bg
+    
         
     def _assemble_quad(self, raw_image, quad_index):
            """
