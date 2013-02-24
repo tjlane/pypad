@@ -70,7 +70,7 @@ class Optimizer(object):
         self.pixel_size          = 0.109 # mm
         self.radius_range        = []
         self.beam_loc            = (900.0, 870.0)
-        self.plot_each_iteration = True
+        self.plot_each_iteration = False
         
         if params_to_optimize:
             self.params_to_optimize = params_to_optimize
@@ -107,8 +107,6 @@ class Optimizer(object):
         if return_maxima_locations:
             if self.use_edge_filter:
                 raw_image = utils.find_rings(raw_image)
-            else:
-                raw_image = ( raw_image > self.threshold ).astype(np.bool)
             assembled_image = self.cspad(raw_image)
             bc, bv = self._bin_intensities_by_radius(self.beam_loc,
                                                      assembled_image)
@@ -152,17 +150,20 @@ class Optimizer(object):
         return r
     
     
-    def _bin_intensities_by_radius(self, center, image, radii=None):
+    def _bin_intensities_by_radius(self, center, pixel_pos, intensities):
         """
         Bin pixel intensities by their radius.
         
         Parameters
-        ----------
-        image : np.ndarray, np.bool
-            An image.
-            
+        ----------            
         center : tuple
             (x,y) in pixel units.
+            
+        pixel_pos : np.ndarray
+            The x,y,z positions of each pixel
+            
+        intensities : np.ndarray
+            The intensity at each pixel, same shape as pixel_pos
             
         Optional Parameters
         -------------------
@@ -176,25 +177,30 @@ class Optimizer(object):
         bin_values : ndarray, int
             The total intensity in the bin.
         """
-        
-        # if not image.dtype == np.bool:
-        #     raise TypeError('`image` must be dtype np.bool')
 
-        if radii == None:
-            radii = self._compute_radii(center, image)
-        else:
-            if not radii.shape == image.shape:
-                raise ValueError('`radii` and `image` must have same shape')
+        if not pixel_pos.shape[1:] == intensities.shape:
+            raise ValueError('`pixel_pos` and `intensities` must have same shape format')
+            
+        if not (pixel_pos.shape[0] == 2) or (pixel_pos.shape[0] == 3):
+            raise ValueError('`pixel_pos` must have first dimension be 2 or 3')
+            
+        # use only x,y for now
+        if (pixel_pos.shape[0] == 3):
+            pixel_pos = pixel_pos[:2]
+            
+        # compute radii
+        radii = np.sqrt( np.sum( np.power( pixel_pos, 2 ), axis=0 ) )
         
+        # generate the histogram
         if self.n_bins == None:
             n_bins = max(image.shape) / 2
         else:
             n_bins = self.n_bins
         
-        if image.dtype == np.bool:
-            bin_values, bin_edges = np.histogram( radii * image, bins=n_bins )
+        if intensities.dtype == np.bool:
+            bin_values, bin_edges = np.histogram( radii * intensities, bins=n_bins )
         else:
-            bin_values, bin_edges = np.histogram( radii, weights=image, bins=n_bins )
+            bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
             
         bin_values = bin_values[1:]
         bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
@@ -317,13 +323,13 @@ class Optimizer(object):
         # un-ravel & inject the param values in the CSPad object
         param_dict = self._unravel_params(param_vals)
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
-        
-        assembled_image = self.cspad(raw_image)
                 
         # the absolute center will always be the first two elements by convention
         self.beam_loc = param_vals[:2]
         
-        bin_centers, bin_values = self._bin_intensities_by_radius(self.beam_loc, assembled_image)
+        bin_centers, bin_values = self._bin_intensities_by_radius(self.beam_loc, 
+                                          self.cspad.pixel_positions, raw_image)
+                                          
         max_inds = self._maxima_indices(bin_values)
         
         # only count big maxima for regularization purposes
@@ -331,8 +337,6 @@ class Optimizer(object):
         for ind in max_inds:
             if bin_values[ind] > bin_values.mean() / 2.:
                 n_maxima += 1
-        
-        #n_maxima = len(max_inds)
         
         # if plotting is requested, plot away!
         if self.plot_each_iteration:

@@ -28,6 +28,8 @@ def parse():
     parser.add_argument('--param-dir', default=None, 
                         help='''The cspad alignment parameters to use as a starting point, should be
                                 a directory. Default: use the pyana default geometry.''')
+    parser.add_argument('--metrology', default=None, 
+                        help='''Metrology file''')
     parser.add_argument('--run-range', default='0-end', 
                         help="""What range of runs these parameters correspond 
                         to. Should be a string of form X-Y, with X and Y run 
@@ -67,7 +69,7 @@ def main():
     
     # load the initial CSPad object to start from
     if args.param_dir:
-        init_cspad = cspad.CSPad.from_dir(args.param_dir)
+        init_cspad = cspad.CSPad.from_dir(args.param_dir, metrology_file=args.metrology)
     else:
         init_cspad = None # use the default
     

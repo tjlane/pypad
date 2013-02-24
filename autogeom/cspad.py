@@ -584,7 +584,7 @@ class CSPad(object):
         """
         
         param_dict = {}
-    
+        
         # if not to_load:
         #     to_load = ['center', 'center_corr', 'filter', 'marg_gap_shift', 
         #                'offset', 'offset_corr', 'pixel_status', 'quad_rotation',
@@ -627,3 +627,236 @@ class CSPad(object):
                 raise IOError('Could not find file for run %d in %s' % (run_number, str(files)))
     
         return cls(param_dict)
+    
+        
+class BasisGrid(object):
+    """
+    A class representing a set of rectangular grids in space -- specifically,
+    x-ray scattering detectors.
+    
+    Note that the geometry below is definied in "slow" and "fast" scan 
+    dimensions. These are simply the two dimensions that define the plane
+    a single rectangular pixel grid lives in. They may also be called the x and
+    y dimensions without any loss of generality.
+    
+    Note on units: units are arbitrary -- all the units must be the same for
+    this to work. We don't keep track of units here.
+    
+    The class is a set of rectangular grids, with each grid defined by four
+    quantities:
+    
+        -- p vector : DEFINES A GRIDS POSITION IN SPACE.
+                      The vector between a chosen origin (possibly interaction 
+                      site) and the corner of the grid that is smallest in both 
+                      slow and fast (x/y) dimensions of the coordinate system. 
+                      Usually this will be the "bottom left" corner, but due to 
+                      the generality of the coordinates used, this is not 
+                      necessarily true.
+                      
+        -- s/f vect : DEFINES A GRIDS ORIENTATION IN SPACE
+                      Vectors pointing along the slow/fast-scan direction,
+                      respectively. These define the plane containing the pixels.
+                      The magnitudes of these vectors defines the size of the
+                      pixel in that dimension.
+                      
+        -- shape    : DEFINES GRID DIMENSIONS
+                      The number of pixels in the fast/slow direction. Ints.
+    """
+    
+    
+    def __init__(self, list_of_grids=[]):
+        """
+        Initialize a BasisGrid object.
+        
+        Parameters
+        ----------
+        list_of_grids : list
+            A list of tuples of the form  (p, v, pix_size, shape). See the doc
+            for the `add_grid` method on this class for more information. May
+            be an empty list (default) in which case a GridList with no pixels
+            is created.
+            
+        See Also
+        --------
+        add_grid
+        add_grid_using_center
+        """
+        
+        self.num_grids  = 0
+        self._ps        = [] # p-vectors
+        self._ss        = [] # slow-scan vectors
+        self._fs        = [] # fast-scan vectors
+        self._shapes    = [] # shapes
+        
+        if len(list_of_grids) > 0:
+            for grid in list_of_grids:
+                self.add_grid(*grid)
+            
+        return
+    
+    
+    def _check_valid_basis(self, p, s, f, shape):
+        """
+        Check to make sure that all the inputs look good.
+        """
+        
+        if not (p.shape == (3,)) and (s.shape == (3,), (f.shape == (3,)):
+            raise ValueError('`p`, `s`, `f` must be 3-vectors')
+            
+        if not (len(shape) == 2):
+            raise ValueError('`shape` must be len 2')
+            
+        return
+    
+        
+    def _assert_list_sizes(self):
+        """
+        A simple sanity check
+        """
+        assert len(self._ps)     == self.num_grids
+        assert len(self._ss)     == self.num_grids
+        assert len(self._fs)     == self.num_grids
+        assert len(self._shapes) == self.num_grids
+        return
+    
+        
+    def add_grid(self, p, s, f, shape):
+        """
+        Add a grid (detector array) to the basis representation.
+        
+        Parameters
+        ----------
+        p : np.ndarray, float
+            3-vector from the origin to the pixel on the grid with 
+            smallest coordinate in all dimensions.
+            
+        s : np.ndarray, float
+            3-vector pointing in the slow scan direction
+            
+        f : np.ndarray, float
+            3-vector pointing in the slow scan direction    
+            
+        shape : tuple or list of float
+            The number of pixels in the (slow, fast) directions. Len 2.
+            
+        See Also
+        --------    
+        add_grid_using_center
+        """
+        self._check_valid_basis(p, s, f, shape)
+        self._ps.append(p)
+        self._ss.append(s)
+        self._fs.append(f)
+        self._shapes.append(shape)
+        self.num_grids += 1
+        self._assert_list_sizes()
+        return
+
+
+    def add_grid_using_center(self, p_center, s, f, shape):
+        """
+        Add a grid (detector array) to the basis representation. Here, though,
+        the p-vector points to the center of the array instead of the slow/fast
+        smallest corner.
+        
+        Parameters
+        ----------
+        p_center : np.ndarray, float
+            3-vector from the origin to the center of the grid.
+            
+        s : np.ndarray, float
+            3-vector pointing in the slow scan direction
+
+        f : np.ndarray, float
+            3-vector pointing in the slow scan direction
+            
+        shape : tuple or list of float
+            The number of pixels in the (slow, fast) directions. Len 2.
+        """
+        
+        # just compute where `p` is then add the grid as usual
+        center = np.array(shape) * np.array(pix_size) / 2.
+        assert center.shape = (2,)
+        p = p_center.copy()
+        p[:2] = p[:2] - center
+        
+        self.add_grid(p, s, f, pix_size, shape)
+        
+        return
+    
+
+    def get_grid(self, grid_number):
+        """
+        Return a grid for grid `grid_number`.
+        
+        Parameters
+        ----------
+        grid_number : int
+            The index of the grid to get.
+        
+        Returns
+        -------
+        p_center : np.ndarray, float
+            3-vector from the origin to the center of the grid.
+            
+        s : np.ndarray, float
+            3-vector pointing in the slow scan direction
+
+        f : np.ndarray, float
+            3-vector pointing in the slow scan direction
+            
+        shape : tuple or list of float
+            The number of pixels in the (slow, fast) directions. Len 2.
+        """
+        
+        if grid_number >= self.num_grid:
+            raise ValueError('Only %d grids in object, you asked for the %d-th'
+                             ' (zero indexed)' % (self.num_grids, grid_number))
+        
+        grid_tuple = (self._ps[grid_number],        self._vs[grid_number], 
+                      self._pix_sizes[grid_number], self._shapes[grid_number])
+                      
+        return grid_tuple
+    
+        
+    def to_explicit(self):
+        """
+        Return the entire grid as an n x 3 array, defining the x,y,z positions
+        of each pixel.
+                
+        Returns
+        -------
+        xyz : np.ndarray, float
+            An N x 3 array of the x,y,z positions of each pixel
+        """
+        xyz = np.concatenate([ self.grid_as_explicit(i) for i in range(self.num_grids) ])
+        return xyz
+        
+        
+    def grid_as_explicit(self, grid_number):
+        """
+        Get the x,y,z coordiantes for a single grid.
+        
+        Parameters
+        ----------
+        grid_number : int
+            The index of the grid to get.
+        
+        Returns
+        -------
+        xyz : np.ndarray, float
+            An N x 3 array of the x,y,z positions of each pixel
+        """
+        
+        p, s, f, shape = self.get_grid(grid_number)
+        
+        # xyz = i * s + j * f, where i,j are ints running over range `shape`
+        mg = np.mgrid[0:shape[0]-1:1j*shape[0], 0:shape[1]-1:1j*shape[1]]
+        xyz = np.outer(mg[0].flatten(), s) + np.outer(mg[1].flatten(), f)
+        
+        # translate
+        xyz += p
+        
+        return xyz
+        
+        
