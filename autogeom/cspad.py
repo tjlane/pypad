@@ -15,6 +15,7 @@ import numpy as np
 import scipy.ndimage.interpolation as interp
 import matplotlib.pyplot as plt
 
+from autogeom import utils
 
 # the expected size of each parameter array
 _array_sizes = { 'center' :         (12, 8),
@@ -183,12 +184,7 @@ class CSPad(object):
     
     @property
     def basis_repr(self):
-        if not self.metrology_enabled:
-            raise RuntimeError('You must supply a metrology file to access '
-                               'precise pixel position data.')
-        
-        raise NotImplementedError()
-        return
+        return self._generate_basis()
         
     
     @property
@@ -196,13 +192,9 @@ class CSPad(object):
         """
         Compute and return the x,y,z positions of each pixel.
         """
-        if not self.metrology_enabled:
-            raise RuntimeError('You must supply a metrology file to access '
-                               'precise pixel position data.')
-        
-        x, y, z = self._apply_geom_corrections()
-        
-        return np.concatenate( (x,y,z) )
+        bg = self._generate_basis()
+        xyz = bg.to_explicit()
+        return xyz
     
         
     def _process_parameters(self):
@@ -268,47 +260,11 @@ class CSPad(object):
         
         return
     
-    
-    def _enforce_raw_img_shape(self, raw_image):
+
+    def _generate_basis(self):
         """
-        Make sure that the `raw_image` has shape: (4,8,185,388).
-        
-        Which is (quad, 2x1, fast, slow). This function will attempt to get
-        the image into that form, and if it can't throw an error.
+        Generate a BasisGrid representation of the CSPad 
         """
-        
-        # XtcExporter format
-        if raw_image.shape == (4,8,185,388):
-            new_image = raw_image # we're good
-            
-        # PyCSPad format
-        elif raw_image.shape == (32,185,388):
-            new_image = np.zeros((4, 8, 185, 388), dtype=raw_image.dtype)
-            for i in range(8):
-                for j in range(4):
-                    psind = i + j * 8
-                    new_image[j,i,:,:] = raw_image[psind,:,:]
-            
-        # Cheetah format
-        elif raw_image.shape == (1480, 1552):
-            new_image = np.zeros((4, 8, 185, 388), dtype=raw_image.dtype)
-            for i in range(8):
-                for j in range(4):
-                    x_start = 185 * i
-                    x_stop  = 185 * (i+1)
-                    y_start = 388 * j
-                    y_stop  = 388 * (j+1)
-                    psind = i + j * 8
-                    new_image[j,i,:,:] = raw_image[x_start:x_stop,y_start:y_stop]
-        
-        else:
-            raise ValueError("Cannot understand `raw_image`: does not have any"
-                             " known dimension structure")
-        
-        return new_image
-    
-    
-    def _assemble_image_basis(self):
 
         bg = BasisGrid()
 
@@ -340,13 +296,15 @@ class CSPad(object):
                     ct = np.cos( np.deg2rad(self.tilt_array[quad_index][i] + (90 * (4-quad_index)) ) )
                     st = np.sin( np.deg2rad(self.tilt_array[quad_index][i] + (90 * (4-quad_index)) ) )
                     R = np.array([[ct, -st], [st, ct]])
-                    fprime = np.dot(R, f)
-                    sprime = np.dot(R, s)
+                    f[:2] = np.dot(R, f[:2])
+                    s[:2] = np.dot(R, s[:2])
 
                 # find the center of the 2x1
-                cx = self.sec_offset[0] - self.section_centers[0][quad_index][sec] + self.quad_offset[0,quad_index]
-                cy = self.sec_offset[1] - self.section_centers[1][quad_index][sec] + self.quad_offset[1,quad_index]
-                center = (cx, cy)
+                cx = self.sec_offset[0] - self.section_centers[0][quad_index][i] + self.quad_offset[0,quad_index]
+                cy = self.sec_offset[1] - self.section_centers[1][quad_index][i] + self.quad_offset[1,quad_index]
+                cz = self.sec_offset[2] - self.section_centers[2][quad_index][i] + self.quad_offset[2,quad_index]
+                center = np.array([cx, cy, cz])
+                center *= 0.10992 # convert to microns
 
                 bg.add_grid_using_center(center, s, f, shape)
 
@@ -402,7 +360,7 @@ class CSPad(object):
         Build each of the four quads, and put them together.
         """
         
-        raw_image = self._enforce_raw_img_shape(raw_image)
+        raw_image = utils.enforce_raw_img_shape(raw_image)
         
         assembled_image = np.zeros((2*850+100, 2*850+100), dtype=raw_image.dtype)
         
@@ -420,8 +378,8 @@ class CSPad(object):
             assembled_image[qoff_x:qoff_x+850, qoff_y:qoff_y+850] = quad_index_image
 
         return assembled_image
-    
-
+        
+        
     def to_dir(self, dir_name, run_range=None):
         """
         Write the parameters to `dir_name`, in the standard psana/pyana format.
@@ -535,9 +493,35 @@ class CSPad(object):
         return cls(param_dict)
         
 
-class Metrology(CSPad):
+class Metrology(object):
+    """
+    Class for interacting with a CSPad optical metrology.
+    """
     
-    def _read_metrology(self, metrology_file, verbose=False):
+    def __init__(self, metrology_file):
+        """
+        Generate an instance of a CSPad metrology.
+        
+        Parameters
+        ----------
+        metrology_file : str
+            A file containing the optical metrology readout, formatted in LCLS's
+            custom format. See Confluence for more info (good luck...).
+        """
+        self.load(metrology_file)
+        
+    
+    @property
+    def _flat_pixel_positions(self):
+        """
+        Returns all the pixels as an (x,y,z) / N x 3 array.
+        """
+        return np.vstack(( self.x_coordinates.flatten(),
+                           self.y_coordinates.flatten(),
+                           self.z_coordinates.flatten() )).T
+    
+        
+    def load(self, metrology_file, verbose=False):
         """
         Make coordinate maps from meterology file
         """
@@ -737,7 +721,7 @@ class BasisGrid(object):
         Check to make sure that all the inputs look good.
         """
         
-        if not (p.shape == (3,)) and (s.shape == (3,), (f.shape == (3,)):
+        if not (p.shape == (3,)) and (s.shape == (3,)) and (f.shape == (3,)):
             raise ValueError('`p`, `s`, `f` must be 3-vectors')
             
         if not (len(shape) == 2):
@@ -811,13 +795,18 @@ class BasisGrid(object):
             The number of pixels in the (slow, fast) directions. Len 2.
         """
         
+        p_center = np.array(p_center)
+        if not p_center.shape == (3,):
+            raise ValueError('`p_center` must have shape (3,)')
+        
         # just compute where `p` is then add the grid as usual
+        pix_size = (np.linalg.norm(s), np.linalg.norm(f))
         center = np.array(shape) * np.array(pix_size) / 2.
-        assert center.shape = (2,)
+        assert center.shape == (2,)
         p = p_center.copy()
         p[:2] = p[:2] - center
         
-        self.add_grid(p, s, f, pix_size, shape)
+        self.add_grid(p, s, f, shape)
         
         return
     
@@ -846,12 +835,12 @@ class BasisGrid(object):
             The number of pixels in the (slow, fast) directions. Len 2.
         """
         
-        if grid_number >= self.num_grid:
+        if grid_number >= self.num_grids:
             raise ValueError('Only %d grids in object, you asked for the %d-th'
                              ' (zero indexed)' % (self.num_grids, grid_number))
         
-        grid_tuple = (self._ps[grid_number],        self._vs[grid_number], 
-                      self._pix_sizes[grid_number], self._shapes[grid_number])
+        grid_tuple = (self._ps[grid_number], self._ss[grid_number], 
+                      self._fs[grid_number], self._shapes[grid_number])
                       
         return grid_tuple
     
@@ -895,5 +884,3 @@ class BasisGrid(object):
         xyz += p
         
         return xyz
-        
-        

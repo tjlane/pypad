@@ -9,6 +9,7 @@ import tables
 
 import numpy as np
 from scipy.ndimage import filters
+from scipy import interpolate
 
 
 def find_rings(image, threshold=0.0025, minf_size=1, medf_size=8, sobel=True):
@@ -215,6 +216,8 @@ def load_raw_image(filename, image_in_file=0):
     else:
         raise ValueError('Cannot understand format of file: %s' % fn)
     
+    raw_image = enforce_raw_img_shape(raw_image)
+    
     return raw_image
 
     
@@ -236,3 +239,86 @@ def cheetah_to_3Dpsana(cheetah_image):
             psana_image[psind,:,:] = cheetah_image[x_start:x_stop,y_start:y_stop]
 
     return psana_image
+    
+
+def enforce_raw_img_shape(raw_image):
+    """
+    Make sure that the `raw_image` has shape: (4,8,185,388).
+    
+    Which is (quad, 2x1, fast, slow). This function will attempt to get
+    the image into that form, and if it can't throw an error.
+    
+    Parameters
+    ----------
+    raw_image : np.ndarray
+        The raw image, in XtcExplorer, PyCSPad, or Cheetah format
+        
+    Returns
+    -------
+    raw_image : np.ndarray
+        The same image reshaped to be (4,8,185,388)
+    """
+    
+    # XtcExporter format
+    if raw_image.shape == (4,8,185,388):
+        new_image = raw_image # we're good
+        
+    # PyCSPad format
+    elif raw_image.shape == (32,185,388):
+        new_image = np.zeros((4, 8, 185, 388), dtype=raw_image.dtype)
+        for i in range(8):
+            for j in range(4):
+                psind = i + j * 8
+                new_image[j,i,:,:] = raw_image[psind,:,:]
+        
+    # Cheetah format
+    elif raw_image.shape == (1480, 1552):
+        new_image = np.zeros((4, 8, 185, 388), dtype=raw_image.dtype)
+        for i in range(8):
+            for j in range(4):
+                x_start = 185 * i
+                x_stop  = 185 * (i+1)
+                y_start = 388 * j
+                y_stop  = 388 * (j+1)
+                psind = i + j * 8
+                new_image[j,i,:,:] = raw_image[x_start:x_stop,y_start:y_stop]
+    
+    else:
+        raise ValueError("Cannot understand `raw_image`: does not have any"
+                         " known dimension structure")
+    
+    return new_image
+
+
+def _assemble_implicit(xyz, raw_image, num_x=2000, num_y=2000):
+    """
+    For testing purposes ONLY. This is just a slower, shittier version of the
+    assembly algorithm provided by cspad.CSPad that was used to ensure
+    internal consistency.
+    """
+    
+    assert xyz.shape[1] == 3
+
+    points = xyz[:,:2] # ignore z-comp. of detector
+    
+    x = np.linspace(points[:,0].min(), points[:,0].max(), num_x)
+    y = np.linspace(points[:,1].min(), points[:,1].max(), num_y)
+    grid_x, grid_y = np.meshgrid(x,y)
+    
+    # flatten out the raw image
+    # assert raw_image.shape == (4,8,185,388)
+    # flat_image = np.zeros( np.product(raw_image.shape) )
+    # interval = 185 * 388
+    # 
+    # for i in range(4):
+    #     for j in range(8):
+    #         ind = i*8 + j
+    #         flat_image[interval*ind:interval*(ind+1)] = raw_image[i,j,:,:].flatten()
+    
+    flat_image = raw_image.flatten()
+    
+    grid_z = interpolate.griddata(points, flat_image, (grid_x,grid_y), 
+                                  method='linear', fill_value=0.0)
+    
+    return grid_z
+

@@ -3,7 +3,6 @@ To Do for autogeom
 ------------------
 
 -- access to real-space pixel geometries
----> generate pixel positions from psana params
 ---> write/port image assembler from pix coordinates
 ---> write test to check consistency of psana param 
      geom vs. opt metrology (binary difference map)

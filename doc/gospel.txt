@@ -140,3 +140,13 @@ All alignment parameters are splitted for 9 types:
     tilt- 8 2x1-tilt angle for 4 quads in fractional degree. Comes from optical measurement.
 
 All coordinates are defined in size of pixel, which is 109.92 x 109.92um (and 274.80 x 109.92um for two rows between two of 2x1 ASICs.) The quadrant size is pre-defined as 850x850. The margines, shifts and gaps are defined for these quads. The offset and offset_corr are defined for low-left angle of the rotated by n*90 degree quad. Size of entire CSPad image does not matter for this alignment.
+
+
+CONFLUENCE LINKS
+----------------
+
+CSPad Geometry:
+https://confluence.slac.stanford.edu/display/PCDS/CSPad+alignment
+https://confluence.slac.stanford.edu/display/PCDS/Psana+Module+Catalog
+https://confluence.slac.stanford.edu/display/PCDS/Psana+CSPad+Geometry
+
