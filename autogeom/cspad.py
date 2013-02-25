@@ -692,7 +692,7 @@ class BasisGrid(object):
         Parameters
         ----------
         list_of_grids : list
-            A list of tuples of the form  (p, v, pix_size, shape). See the doc
+            A list of tuples of the form  (p, s, f, shape). See the doc
             for the `add_grid` method on this class for more information. May
             be an empty list (default) in which case a GridList with no pixels
             is created.
@@ -702,6 +702,9 @@ class BasisGrid(object):
         add_grid
         add_grid_using_center
         """
+        
+        if not type(list_of_grids) == list:
+            raise TypeError('`list_of_grids` must be a list')
         
         self.num_grids  = 0
         self._ps        = [] # p-vectors
@@ -801,7 +804,7 @@ class BasisGrid(object):
         
         # just compute where `p` is then add the grid as usual
         pix_size = (np.linalg.norm(s), np.linalg.norm(f))
-        center = np.array(shape) * np.array(pix_size) / 2.
+        center = (np.array(shape) - 1) * np.array(pix_size) / 2.
         assert center.shape == (2,)
         p = p_center.copy()
         p[:2] = p[:2] - center
