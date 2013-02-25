@@ -304,7 +304,7 @@ class CSPad(object):
                 cy = self.sec_offset[1] - self.section_centers[1][quad_index][i] + self.quad_offset[1,quad_index]
                 cz = self.sec_offset[2] - self.section_centers[2][quad_index][i] + self.quad_offset[2,quad_index]
                 center = np.array([cx, cy, cz])
-                center *= 0.10992 # convert to microns
+                center *= 0.10992 # convert to mm
 
                 bg.add_grid_using_center(center, s, f, shape)
 
@@ -856,7 +856,7 @@ class BasisGrid(object):
         Returns
         -------
         xyz : np.ndarray, float
-            An N x 3 array of the x,y,z positions of each pixel
+            An (shape) x 3 array of the x,y,z positions of each pixel
         """
         xyz = np.concatenate([ self.grid_as_explicit(i) for i in range(self.num_grids) ])
         return xyz
@@ -874,7 +874,7 @@ class BasisGrid(object):
         Returns
         -------
         xyz : np.ndarray, float
-            An N x 3 array of the x,y,z positions of each pixel
+            An (shape) x 3 array of the x,y,z positions of each pixel
         """
         
         p, s, f, shape = self.get_grid(grid_number)
@@ -882,8 +882,7 @@ class BasisGrid(object):
         # xyz = i * s + j * f, where i,j are ints running over range `shape`
         mg = np.mgrid[0:shape[0]-1:1j*shape[0], 0:shape[1]-1:1j*shape[1]]
         xyz = np.outer(mg[0].flatten(), s) + np.outer(mg[1].flatten(), f)
-        
-        # translate
-        xyz += p
+        xyz += p # translate
+        xyz = xyz.reshape( (shape[0], shape[1], 3) )
         
         return xyz
