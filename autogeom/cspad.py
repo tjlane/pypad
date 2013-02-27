@@ -260,6 +260,17 @@ class CSPad(object):
         
         return
     
+    
+    def _rotate_xy(self, vector, degrees_cw):
+        """
+        Perform a rotation in the x-y plane of a 3-vector
+        """
+        ct = np.cos( np.deg2rad(degrees_cw) )
+        st = np.sin( np.deg2rad(degrees_cw) )
+        R = np.array([[ct, -st], [st, ct]])
+        vector[:2] = np.dot(R, vector[:2])
+        return vector
+    
 
     def _generate_basis(self):
         """
@@ -267,46 +278,64 @@ class CSPad(object):
         """
 
         bg = BasisGrid()
-
-        shape = (185, 388)                     # slow, fast
-        slow = np.array([ 0.10992, 0.0, 0.0 ]) # basis vector for pixels in x
-        fast = np.array([ 0.0, 0.10992, 0.0 ]) # basis vector for pixels in y
-
+        
         # assemble each 2x1 on the quad
         for quad_index in range(4):
             for i in range(8):
+                
+                # here, slow == row == x, fast == col == y
+                shape = (185, 388)                     # slow, fast
+                slow = np.array([ 0.10992, 0.0, 0.0 ]) # basis vector
+                fast = np.array([ 0.0, 0.10992, 0.0 ]) # basis vector
 
                 # we have to re-orient each 2x1
                 if i==0 or i==1:
                     # reverse slow dim, switch slow/fast
-                    f = -slow.copy()
-                    s =  fast.copy()
+                    s = -slow.copy()
+                    f =  fast.copy()
                     shape = shape[::-1]
                 if i==4 or i==5:
                     # reverse fast dim, switch slow/fast
-                    f =  slow.copy()
-                    s = -fast.copy()
+                    f =  fast.copy() # MAYBE SHOULD BE NEGATIVE?
+                    s =  slow.copy()
                     shape = shape[::-1]
                 else:
                     f = fast.copy()
                     s = slow.copy()
 
-                # now, apply a small rotation in the detector (x/y) plane
+                # now, apply `tilt` correction - a small rotation in x-y
                 if self.small_angle_tilt:
-                    ct = np.cos( np.deg2rad(self.tilt_array[quad_index][i] + (90 * (4-quad_index)) ) )
-                    st = np.sin( np.deg2rad(self.tilt_array[quad_index][i] + (90 * (4-quad_index)) ) )
-                    R = np.array([[ct, -st], [st, ct]])
-                    f[:2] = np.dot(R, f[:2])
-                    s[:2] = np.dot(R, s[:2])
+                    s = self._rotate_xy(s, self.tilt_array[quad_index][i])
+                    f = self._rotate_xy(f, self.tilt_array[quad_index][i])
 
                 # find the center of the 2x1
-                cx = self.sec_offset[0] - self.section_centers[0][quad_index][i] + self.quad_offset[0,quad_index]
-                cy = self.sec_offset[1] - self.section_centers[1][quad_index][i] + self.quad_offset[1,quad_index]
-                cz = self.sec_offset[2] - self.section_centers[2][quad_index][i] + self.quad_offset[2,quad_index]
-                center = np.array([cx, cy, cz])
+                cx = self.sec_offset[0] + self.section_centers[0][quad_index][i]
+                cy = self.sec_offset[1] + self.section_centers[1][quad_index][i]
+                cz = self.sec_offset[2] + self.section_centers[2][quad_index][i]
+
+                # WHAT REMAINS TO BE DONE:
+                # (1) Rotate the quads around their center -- however, it is not
+                #     clear where this center is, precisely
+                # (2) Validate that the pixel ordering above is correct, that is
+                #     the GridBasis pixel ordering maps correctly onto the psana
+                #     pixel ordering.
+                # -- TJL 2.27.13
+
+                # perform quad rotations
+                # s = self._rotate_xy( s, 90*(4-quad_index) )
+                # f = self._rotate_xy( f, 90*(4-quad_index) )
+                # center = self._rotate_xy( center, 90*(4-quad_index) )
+                
+                cx += self.quad_offset[0,quad_index]
+                cy += self.quad_offset[1,quad_index]
+                cz += self.quad_offset[2,quad_index]
+                
+                center =  np.array([cx, cy, cz])
                 center *= 0.10992 # convert to mm
 
                 bg.add_grid_using_center(center, s, f, shape)
+                
+        print self.quad_offset
 
         return bg
     
@@ -627,10 +656,16 @@ class Metrology(object):
         return
         
         
-    def _apply_geom_corrections(self):
+    def apply_quad_offset(self, quad_offset):
         """
         Apply specific geometry corrections, defined by the psana parameters,
         to the metrology pixel map.
+        
+        Parameters
+        ----------
+        quad_offset : np.ndarray
+            A shape-(4,2) array describing the (x,y) offset to apply to each
+            quad.
         
         Returns
         -------
@@ -643,11 +678,14 @@ class Metrology(object):
         z = self.z_coordinates.copy()
         
         for i in range(4):
-            x[i,:,:,:] += self.offset_coor[0,i]
-            y[i,:,:,:] += self.offset_coor[1,i]
-            z[i,:,:,:] += self.offset_coor[2,i]
+            x[i,:,:,:] += quad_offset[i,0]
+            y[i,:,:,:] += quad_offset[i,1]
         
         return x, y, z
+        
+        
+    def to_basisgrid(self):
+        raise NotImplementedError()
     
         
 class BasisGrid(object):
@@ -856,9 +894,16 @@ class BasisGrid(object):
         Returns
         -------
         xyz : np.ndarray, float
-            An (shape) x 3 array of the x,y,z positions of each pixel
+            An N x 3 array of the x,y,z positions of each pixel. Note that this
+            is a flattened version of what you get for each grid individually
+            using `grid_as_explicit`.
+            
+        See Also
+        --------
+        grid_as_explicit
         """
-        xyz = np.concatenate([ self.grid_as_explicit(i) for i in range(self.num_grids) ])
+        ex_grids = [ self.grid_as_explicit(i) for i in range(self.num_grids) ]
+        xyz = np.concatenate([ g.reshape((g.shape[0]* g.shape[1], 3)) for g in ex_grids ])
         return xyz
         
         
@@ -875,6 +920,10 @@ class BasisGrid(object):
         -------
         xyz : np.ndarray, float
             An (shape) x 3 array of the x,y,z positions of each pixel
+            
+        See Also
+        --------
+        to_explicit
         """
         
         p, s, f, shape = self.get_grid(grid_number)

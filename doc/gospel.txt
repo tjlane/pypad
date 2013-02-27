@@ -149,4 +149,5 @@ CSPad Geometry:
 https://confluence.slac.stanford.edu/display/PCDS/CSPad+alignment
 https://confluence.slac.stanford.edu/display/PCDS/Psana+Module+Catalog
 https://confluence.slac.stanford.edu/display/PCDS/Psana+CSPad+Geometry
+https://confluence.slac.stanford.edu/display/PCDS/Optical+measurement+for+CSPAD 
 
