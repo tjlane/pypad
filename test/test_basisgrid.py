@@ -28,11 +28,11 @@ class TestBasisGrid(object):
         assert self.bg.get_grid(0) == self.grid_list[0]
         
     def test_to_explicit(self):
-        ref = np.zeros((10,10,3))
+        ref = np.zeros((100,3))
         mg = np.mgrid[0:9:10j,0:18:10j]
-        ref[:,:,0] = mg[0]
-        ref[:,:,1] = mg[1]
-        ref[:,:,2] = 1.0
+        ref[:,0] = mg[0].flatten()
+        ref[:,1] = mg[1].flatten()
+        ref[:,2] = 1.0
         assert_array_almost_equal(self.bg.to_explicit(), ref)
         
     def test_grid_as_explicit(self):

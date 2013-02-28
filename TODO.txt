@@ -2,14 +2,6 @@
 To Do for autogeom
 ------------------
 
-We need to decide if we are going with the psana alignment parameter scheme
-or directly with the optical metrology.
-
-The former has the advantage of working well with the rest of psana. The latter
-has the possible advantage of being more accurate.
-
--- add offset_coor_xy functionality
--- make optimizer agnostic to cspad vs. metrology
 -- finish cspad pixel map service
 -- include default CSPad
 -- automatic miller index matching (in score)

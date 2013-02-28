@@ -25,14 +25,35 @@ _array_sizes = { 'center' :         (12, 8),
                  'marg_gap_shift' : (3, 4),
                  'offset' :         (3, 4),
                  'offset_corr' :    (3, 4),
-                 'offset_corr_xy' : (2, 4),
+                 'offset_corr_xy' : (2, 4),        # our addition
                  'pedestals' :      (5920, 388),
                  'pixel_status' :   (5920, 388),
                  'quad_rotation' :  (4,),
                  'quad_tilt' :      (4,),
                  'rotation' :       (4, 8),
                  'tilt' :           (4, 8),
-                 'beam_loc' :       (2,) } # this one is our addition
+                 'beam_loc' :       (2,) }         # our addition
+                 
+
+# the parameters that we can expect any psana project to serve up
+_psana_params = [ 'center',
+                  'center_corr',
+                  'common_mode',
+                  'filter',
+                  'marg_gap_shift',
+                  'offset',
+                  'offset_corr',
+                  'pedestals',
+                  'pixel_status',
+                  'quad_rotation',
+                  'quad_tilt',
+                  'rotation',
+                  'tilt']
+
+
+# we have some additions of our own, enumerated here, that we don't expect
+# a psana project to have at the beginning
+_autogeom_additional_parameters = ['beam_loc', 'offset_corr_xy']
 
 
 class CSPad(object):
@@ -99,7 +120,7 @@ class CSPad(object):
 
         self._param_list = _array_sizes.keys()
         
-        self._check_param_dict(param_dict)
+        self._check_params(param_dict)
         
         # inject each parameter as an attribute into the class
         for k,v in param_dict.items():
@@ -138,6 +159,7 @@ class CSPad(object):
         """
         Parameter setter.
         """
+                
         if param_name in self._param_list:
             if value.shape == _array_sizes[param_name]:
                 self.__dict__[param_name] = value
@@ -145,6 +167,7 @@ class CSPad(object):
                     self._process_parameters()
             else:
                 raise ValueError('`value` has wrong shape for: %s' % param_name)
+                
         else:
             raise ValueError('No parameter with name: %s' % param_name)
     
@@ -166,7 +189,7 @@ class CSPad(object):
             raise TypeError('`param_names` & `param_values` must be type list')
     
         
-    def _check_param_dict(self, param_dict):
+    def _check_params(self, param_dict):
         """
         Does a sanity check on a parameter dictionary.
         """
@@ -274,6 +297,9 @@ class CSPad(object):
                                 
         self.quad_offset = quad_position + quad_offset + quad_gap + quad_shift
         
+        # inject offset_corr_xy
+        self.offset_corr_xy = self.offset_corr[:2,:]
+        
         return
     
     
@@ -299,25 +325,28 @@ class CSPad(object):
         for quad_index in range(4):
             for i in range(8):
                 
-                # here, slow == row == x, fast == col == y
-                shape = (185, 388)                     # slow, fast
-                slow = np.array([ 0.10992, 0.0, 0.0 ]) # basis vector
-                fast = np.array([ 0.0, 0.10992, 0.0 ]) # basis vector
+                # in the below, the following convention is correct:
+                # slow == row == x
+                # fast == col == y
+                
+                shape = (185, 388) # slow, fast
 
-                # we have to re-orient each 2x1
-                if i==0 or i==1:
+                # we have to re-orient each 2x1 -- the geometrical positions
+                # must also match the way intensity data are layed out in
+                # memory...
+                
+                # re-orient quads 0,1 & 4,5, which are rotated
+                if (i==0 or i==1):
                     # reverse slow dim, switch slow/fast
-                    s = -slow.copy()
-                    f =  fast.copy()
-                    shape = shape[::-1]
-                if i==4 or i==5:
+                    s = np.array([  0.0, 0.10992, 0.0 ])
+                    f = np.array([ -0.10992, 0.0, 0.0 ])
+                elif (i==4 or i==5):
                     # reverse fast dim, switch slow/fast
-                    f =  fast.copy() # MAYBE SHOULD BE NEGATIVE?
-                    s =  slow.copy()
-                    shape = shape[::-1]
+                    s = np.array([ 0.0, -0.10992, 0.0 ])
+                    f = np.array([ 0.10992,  0.0, 0.0 ])
                 else:
-                    f = fast.copy()
-                    s = slow.copy()
+                    s = np.array([ 0.10992, 0.0, 0.0 ])
+                    f = np.array([ 0.0, 0.10992, 0.0 ])
 
                 # now, apply `tilt` correction - a small rotation in x-y
                 if self.small_angle_tilt:
@@ -328,31 +357,47 @@ class CSPad(object):
                 cx = self.sec_offset[0] + self.section_centers[0][quad_index][i]
                 cy = self.sec_offset[1] + self.section_centers[1][quad_index][i]
                 cz = self.sec_offset[2] + self.section_centers[2][quad_index][i]
-
-                # WHAT REMAINS TO BE DONE:
-                # (1) Rotate the quads around their center -- however, it is not
-                #     clear where this center is, precisely
-                # (2) Validate that the pixel ordering above is correct, that is
-                #     the GridBasis pixel ordering maps correctly onto the psana
-                #     pixel ordering.
-                # -- TJL 2.27.13
-
-                # perform quad rotations
-                # s = self._rotate_xy( s, 90*(4-quad_index) )
-                # f = self._rotate_xy( f, 90*(4-quad_index) )
-                # center = self._rotate_xy( center, 90*(4-quad_index) )
-                
-                cx += self.quad_offset[0,quad_index]
-                cy += self.quad_offset[1,quad_index]
-                cz += self.quad_offset[2,quad_index]
-                
-                center =  np.array([cx, cy, cz])
+                                
+                center =  np.array([850-cx, 850-cy, cz])
                 center *= 0.10992 # convert to mm
-
-                bg.add_grid_using_center(center, s, f, shape)
                 
-        print self.quad_offset
-
+                # convert to p -- the natural BasisGrid convention. This is
+                # necessary to get the rotation below correct.
+                x = (np.array(shape) - 1)
+                center_correction = ((x[0] * s) + (x[1] * f)) / 2.
+                p = center.copy()
+                p -= center_correction
+                
+                # rotate each quad by the appropriate amount ( n * 90-deg CW 
+                # rotations for quads n = { 0, 1, 2, 3 } ), then translate
+                # them so that the top-left corners of an 850 x 850 pixel box
+                # overlap. This remains true to psana convention.
+                                
+                # perform the rotation
+                s = self._rotate_xy( s, 90*(4-quad_index) )
+                f = self._rotate_xy( f, 90*(4-quad_index) )
+                p = self._rotate_xy( p, 90*(4-quad_index) )
+                
+                # now translate so that the top-left corners of an 850 x 850 box
+                # overlap
+                if quad_index == 0:
+                    translation = np.array([0.0,     0.0, 0.0])
+                elif quad_index == 1:
+                    translation = np.array([  0.0, 850.0, 0.0])
+                elif quad_index == 2:
+                    translation = np.array([850.0, 850.0, 0.0])    
+                elif quad_index == 3:
+                    translation = np.array([850.0,   0.0, 0.0])    
+                
+                p += translation * 0.10992 # convert to microns
+                
+                # add the quad offset, which defines the relative spatial
+                # orientations of each quad
+                p += self.quad_offset[:,quad_index] * 0.10992
+                
+                # finally, add these to our basis grid
+                bg.add_grid(p, s, f, shape)
+                
         return bg
     
         
@@ -492,27 +537,26 @@ class CSPad(object):
             Load the parameters for this run.
         """
         
-        param_dict = {}
+        defaults = { 'beam_loc'       : np.array([900.0, 870.0]),
+                     'offset_corr_xy' : np.zeros((2, 4))       # never accessed
+                   }
         
-        # if not to_load:
-        #     to_load = ['center', 'center_corr', 'filter', 'marg_gap_shift', 
-        #                'offset', 'offset_corr', 'pixel_status', 'quad_rotation',
-        #                'quad_tilt',  'rotation', 'tilt'] # 'common_mode', 'pedestals'
+        param_dict = {}
     
+        # look for and load the parameters that we "guarentee" are there
         for p in _array_sizes.keys():
             
             # scan through the possible files and find the right one matching
             # our run number
             files = glob( pjoin(path, p, '*') )
             
-            # if theres nothing in the dir, complain
-            # we have to deal with beam_loc (aka abs_center) separately, since
-            # this has been introduced into the cspad geometry by us...
+            # if theres nothing in the dir, complain, unless we're looking for
             if len(files) == 0:
-                if p == 'beam_loc':
-                    print "Could not locate dir 'beam_loc', using default value"
-                    param_dict[p] = np.array([900.0, 870.0]) # default value
+                if p in defaults.keys():
+                    print "Could not locate dir '%s', using default value" % p
+                    param_dict[p] = defaults[p]
                     continue # skip the rest of whats below
+                    
                 else:
                     raise IOError('No files in parameter dir: %s' % pjoin(path, p))
             
@@ -534,7 +578,7 @@ class CSPad(object):
                 param_dict[p] = np.loadtxt(filename).reshape(_array_sizes[p])
             else:
                 raise IOError('Could not find file for run %d in %s' % (run_number, str(files)))
-    
+        
         return cls(param_dict)
         
 
@@ -697,7 +741,7 @@ class Metrology(object):
 
                 dS = np.array([ abs(input_y[0,0]-input_y[1,0])/185,
                                 abs(input_y[0,1]-input_y[1,1])/185, 
-                                abs(input_x[0,0]-input_x[1,0])/185,
+                                 abs(input_x[0,0]-input_x[1,0])/185,
                                 abs(input_x[0,1]-input_x[1,1])/185 ])
                 dShort[quad,sec] = dS[dS>100] # filter out the nonsense ones
 
@@ -986,11 +1030,10 @@ class BasisGrid(object):
             raise ValueError('`p_center` must have shape (3,)')
         
         # just compute where `p` is then add the grid as usual
-        pix_size = (np.linalg.norm(s), np.linalg.norm(f))
-        center = (np.array(shape) - 1) * np.array(pix_size) / 2.
-        assert center.shape == (2,)
-        p = p_center.copy()
-        p[:2] = p[:2] - center
+        x = (np.array(shape) - 1)
+        center_correction =  ((x[0] * s) + (x[1] * f)) / 2.
+        p  = p_center.copy()
+        p -= center_correction
         
         self.add_grid(p, s, f, shape)
         

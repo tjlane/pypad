@@ -11,6 +11,8 @@ import numpy as np
 from scipy.ndimage import filters
 from scipy import interpolate
 
+import matplotlib.pyplot as plt
+
 
 def find_rings(raw_image, threshold=0.0025, minf_size=1, medf_size=8, sobel=True):
     """
@@ -321,28 +323,25 @@ def _assemble_implicit(xyz, raw_image, num_x=2000, num_y=2000):
     internal consistency.
     """
     
+    if xyz.shape == (3, 4, 8, 185, 388):
+        xyz = np.array(( xyz[0].flatten(),
+                         xyz[1].flatten(),
+                         xyz[2].flatten(), )).T
+    
     assert xyz.shape[1] == 3
-
+    assert raw_image.shape == (4, 8, 185, 388)
+    
     points = xyz[:,:2] # ignore z-comp. of detector
     
     x = np.linspace(points[:,0].min(), points[:,0].max(), num_x)
     y = np.linspace(points[:,1].min(), points[:,1].max(), num_y)
     grid_x, grid_y = np.meshgrid(x,y)
     
-    # flatten out the raw image
-    # assert raw_image.shape == (4,8,185,388)
-    # flat_image = np.zeros( np.product(raw_image.shape) )
-    # interval = 185 * 388
-    # 
-    # for i in range(4):
-    #     for j in range(8):
-    #         ind = i*8 + j
-    #         flat_image[interval*ind:interval*(ind+1)] = raw_image[i,j,:,:].flatten()
-    
     flat_image = raw_image.flatten()
     
+    print "interpolating"
     grid_z = interpolate.griddata(points, flat_image, (grid_x,grid_y), 
-                                  method='linear', fill_value=0.0)
+                                  method='nearest', fill_value=0.0)
     
     return grid_z
 
@@ -356,6 +355,10 @@ def sketch_2x1s(pixel_positions, mpl_axes=None):
     pixel_positions : np.ndarray
         The x,y,z coordinates of the pixels on the CSPAD
     """
+    
+    if pixel_positions.shape not in [(3,4,8,185,388), (2,4,8,185,388)]:
+        raise ValueError('`pixel_positions` has incorrect shape: '
+                         '%s' % str(pixel_positions.shape))
     
     quad_color = ['k', 'g', 'purple', 'b']
 
