@@ -806,6 +806,32 @@ class Metrology(object):
         raise NotImplementedError()
         return
         
+    
+    def to_dir(self, dirname):
+        """
+        A quick and dirty save method. Probably should write h5s.
+        
+        todo
+        """
+        
+        if not os.path.isdir(dirname):
+            print "Creating directory: %s" % dirname
+            os.mkdir(dirname)
+            
+        np.savez('x_coordinates.npz', self.x_coordinates)
+        np.savez('y_coordinates.npz', self.y_coordinates)
+        np.savez('z_coordinates.npz', self.z_coordinates)
+        
+        np.savetxt('offset_corr.dat', self.offset_corr)
+        
+        print "Wrote metrology specification to: %s" % dirname
+        
+        return
+        
+    @classmethod
+    def from_dir(self, dirname):
+        raise NotImplementedError()
+        
 
 class BasisGrid(object):
     """

@@ -69,12 +69,12 @@ class Optimizer(object):
             raise NotImplementedError()
             
         else:
-            raise TypeError('`initial_cspad` must be one of {dict, CSPad}')
+            raise TypeError('`geometry` must be one of {None, dict, CSPad, Metrology}')
         
         # parameters -- default values
         self.n_bins              = None
         self.peak_regulization   = 10.0
-        self.threshold           = 4.585e-04
+        self.threshold           = 4.5e-04
         self.minf_size           = 3
         self.medf_size           = 8
         self.horizontal_cut      = 0.1

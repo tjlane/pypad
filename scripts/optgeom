@@ -36,7 +36,15 @@ def parse():
                         numbers (ints). Default is 0-end, which is all runs.""")
     parser.add_argument('--output', default='my_cspad_params', type=str,
                         help='The directory which to write the optimized parameters to.')
+                        
     args = parser.parse_args()
+    
+    # if not (args.param_dir or args.metrology):
+    #     parser.error('No CSPad geometry provided; pass --param_dir (alignment'
+    #                  ' parameters) or --metrology (optical metrology)')
+                     
+    if (args.param_dir and args.metrology):
+        parser.error('Cannot handle *both* metrology and param-dir, choose one!')
     
     return args
 
@@ -67,16 +75,22 @@ def main():
     optimization_params = yaml.load(f)
     f.close()
     
-    # # load the initial CSPad object to start from
-    # if args.param_dir:
-    #     init_cspad = cspad.CSPad.from_dir(args.param_dir, metrology_file=args.metrology)
-    # else:
-    #     init_cspad = None # use the default
-    
-    m = cspad.Metrology(args.metrology)
+    # load the initial CSPad object to start from
+    if args.param_dir:
+        geometry = cspad.CSPad.from_dir(args.param_dir)
+        print "Mode: CSPad/alignment parameter"
+        print "Initial condition: alignment parameter geometry in: %s\n" % args.param_dir
+    elif args.metrology:
+        geometry = cspad.Metrology(args.metrology)
+        print "Mode: optical metrology"
+        print "Initial condition: alignment parameter geometry in: %s\n" % args.param_dir
+    else:
+        print "Mode: CSPad/alignment parameter"
+        print "Initial condition: pyana/psana default geometry."
+        geometry = None # use the default
     
     # generate the image optimizer and run it
-    optizor = opt.Optimizer(m, **optimization_params)
+    optizor = opt.Optimizer(geometry, **optimization_params)
     opt_cspad = optizor(cal_image)
     
     # save the final parameters to disk
