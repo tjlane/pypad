@@ -67,14 +67,16 @@ def main():
     optimization_params = yaml.load(f)
     f.close()
     
-    # load the initial CSPad object to start from
-    if args.param_dir:
-        init_cspad = cspad.CSPad.from_dir(args.param_dir, metrology_file=args.metrology)
-    else:
-        init_cspad = None # use the default
+    # # load the initial CSPad object to start from
+    # if args.param_dir:
+    #     init_cspad = cspad.CSPad.from_dir(args.param_dir, metrology_file=args.metrology)
+    # else:
+    #     init_cspad = None # use the default
+    
+    m = cspad.Metrology(args.metrology)
     
     # generate the image optimizer and run it
-    optizor = opt.Optimizer(initial_cspad=init_cspad, **optimization_params)
+    optizor = opt.Optimizer(m, **optimization_params)
     opt_cspad = optizor(cal_image)
     
     # save the final parameters to disk

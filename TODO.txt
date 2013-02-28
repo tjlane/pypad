@@ -2,16 +2,16 @@
 To Do for autogeom
 ------------------
 
--- access to real-space pixel geometries
----> write/port image assembler from pix coordinates
----> write test to check consistency of psana param 
-     geom vs. opt metrology (binary difference map)
+We need to decide if we are going with the psana alignment parameter scheme
+or directly with the optical metrology.
 
--- default CSPad
+The former has the advantage of working well with the rest of psana. The latter
+has the possible advantage of being more accurate.
+
+-- add offset_coor_xy functionality
+-- make optimizer agnostic to cspad vs. metrology
+-- finish cspad pixel map service
+-- include default CSPad
 -- automatic miller index matching (in score)
 -- write default param yaml
 -- GPL everything
-
-Under Consideration
--------------------
--- split CSPad into two classes, one for metrology

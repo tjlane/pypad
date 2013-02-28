@@ -12,14 +12,14 @@ from scipy.ndimage import filters
 from scipy import interpolate
 
 
-def find_rings(image, threshold=0.0025, minf_size=1, medf_size=8, sobel=True):
+def find_rings(raw_image, threshold=0.0025, minf_size=1, medf_size=8, sobel=True):
     """
     Applies an edge filter followed by a noise reduction filter. Very good
     at locating powder rings and filtering everything else out.
     
     Parameters
     ----------
-    image : ndarray
+    raw_image : ndarray
         An image to find the edges of
         
     Returns
@@ -28,7 +28,26 @@ def find_rings(image, threshold=0.0025, minf_size=1, medf_size=8, sobel=True):
         A binary image, with "1" where there are powder rings/strong edges
     """
     
-    image = image.astype(np.float64)
+    # flatten the image into a two-D array and later re-process it
+    # convert to cheetah-like format
+    if raw_image.shape == (4, 8, 185, 388):
+        non_flat_img = True
+        image = np.zeros((1480, 1552), dtype=np.float) # flat image
+        for i in range(8):
+            for j in range(4):
+                x_start = 185 * i
+                x_stop  = 185 * (i+1)
+                y_start = 388 * j
+                y_stop  = 388 * (j+1)
+                psind = i + j * 8
+                image[x_start:x_stop,y_start:y_stop] = raw_image[j,i,:,:].astype(np.float)
+    elif len(raw_image.shape) == 2:
+        non_flat_img = False
+        image = raw_image.astype(np.float)
+    else:
+        raise ValueError('`raw_image` should be 2d or shape-(4,8,185,388), got'
+                         ': %s' % str(raw_image.shape))
+    
     image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
     
     # do a "common-mode"-esque normalization (seems to help)
@@ -50,7 +69,12 @@ def find_rings(image, threshold=0.0025, minf_size=1, medf_size=8, sobel=True):
     image = filters.minimum_filter(image, size=minf_size)
     image = filters.median_filter(image, size=medf_size)
     
-    return image.astype(np.bool)
+    if non_flat_img:
+        image = enforce_raw_img_shape( image.astype(np.bool) )
+    else:
+        image = image.astype(np.bool)
+    
+    return image
     
     
 def smooth(x, beta=10.0, window_size=11):
@@ -321,4 +345,43 @@ def _assemble_implicit(xyz, raw_image, num_x=2000, num_y=2000):
                                   method='linear', fill_value=0.0)
     
     return grid_z
+
+
+def sketch_2x1s(pixel_positions, mpl_axes=None):
+    """
+    Draw a rough sketch of the layout of the CSPAD
+
+    Parameters
+    ----------
+    pixel_positions : np.ndarray
+        The x,y,z coordinates of the pixels on the CSPAD
+    """
+    
+    quad_color = ['k', 'g', 'purple', 'b']
+
+    if not mpl_axes:
+        plt.figure()
+        ax = plt.subplot(111)
+    else:
+        ax = mpl_axes
+
+    for i in range(4):
+        for j in range(8):
+            x = pixel_positions[0,i,j,:,:]
+            y = pixel_positions[1,i,j,:,:]
+            corners = np.zeros((5,2))
+
+            corners[0,:] = np.array([ x[0,0],   y[0,0] ])     # bottom left
+            corners[1,:] = np.array([ x[0,-1],  y[0,-1] ])    # bottom right
+            corners[3,:] = np.array([ x[-1,0],  y[-1,0] ])    # top left
+            corners[2,:] = np.array([ x[-1,-1], y[-1,-1] ])   # top right
+            corners[4,:] = np.array([ x[0,0],   y[0,0] ])     # make rectangle
+
+            ax.plot(corners[:,0], corners[:,1], lw=2, color=quad_color[i])
+            ax.scatter(x[0,0], y[0,0])
+
+    if mpl_axes:
+        return ax
+    else:
+        plt.show()
 

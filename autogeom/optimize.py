@@ -13,27 +13,29 @@ class Optimizer(object):
     Modify CSPad geometry parameters to optimize the geometry by some criterion.
     """
     
-    def __init__(self, initial_cspad=None, params_to_optimize=None,
+    def __init__(self, geometry=None, params_to_optimize=['offset_corr_xy'],
                  **kwargs):
         """
         Initialize an optimizer class.
         
         Parameters
         ----------
-        initial_cspad : autogeom.cspad.CSpad
-            A CSPad object containing the CSPad parameters to start from. If
-            `None`, then use the default parameter values.
+        geometry : autogeom.cspad.CSpad OR autogeom.cspad.Metrology
+            An initial specification of the CSPad geometry, via either a set
+            of psana alignment parameters (CSPad object) or an optical metrology
+            (Metrology object). If `None`, defaults to a (probably bad) geometry.
             
         params_to_optimize : list of str
-            A list of the parameters to optimize. Can be any of
+            A list of the parameters to optimize. If `geometry` is a CSPad 
+            object, can be any of
             
             ['pedestals', 'offset_corr', 'offset', 'common_mode', 
              'marg_gap_shift', 'rotation', 'center_corr', 'center', 'tilt',
              'filter', 'quad_rotation', 'pixel_status', 'quad_tilt']
              
-            if `None`, defaults to:
+            defaults to:
                  
-             ['offset_corr', 'marg_gap_shift']
+             ['offset_corr_xy'], a custom one
              
             the only one you really might consider adding to this is:
             
@@ -42,20 +44,32 @@ class Optimizer(object):
             many of the options you don't want to touch -- they are measured
             optically to better precision than you can hope for!
             
+            If `geometry` is a Metrology object, then the only things updated
+            will be the quad positions and beam_loc.
+            
             Note that the absolute center of the image (beam position) is also
             always found by optimization.
         """
-                
-        if initial_cspad:
-            if type(initial_cspad) == dict:
-                self.cspad = cspad.CSPad(initial_cspad)
-            elif isinstance(initial_cspad, cspad.CSPad):
-                self.cspad = initial_cspad
-            else:
-                raise TypeError('`initial_cspad` must be one of {dict, CSPad}')
-        else:
+        
+        # handle all possible `geometry` cases
+        if isinstance(geometry, cspad.CSPad):
+            self.cspad = geometry
+            
+        elif isinstance(geometry, cspad.Metrology):
+            if params_to_optimize != ['offset_corr_xy']:
+                raise ValueError('Can only optimize `offset_corr_xy` with '
+                                 'Metrology object as geometry')
+            self.cspad = geometry
+            
+        elif type(initial_cspad) == dict:
+            self.cspad = cspad.CSPad(geometry)
+            
+        elif geometry == None:
             # todo should be psana defaults
             raise NotImplementedError()
+            
+        else:
+            raise TypeError('`initial_cspad` must be one of {dict, CSPad}')
         
         # parameters -- default values
         self.n_bins              = None
@@ -70,19 +84,17 @@ class Optimizer(object):
         self.pixel_size          = 0.109 # mm
         self.radius_range        = []
         self.beam_loc            = (900.0, 870.0)
-        self.plot_each_iteration = False
+        self.plot_each_iteration = True
         
-        if params_to_optimize:
-            self.params_to_optimize = params_to_optimize
-        else:
-            self.params_to_optimize = ['offset_corr'] #, 'marg_gap_shift']
+        self.params_to_optimize = params_to_optimize
+        
         
         # parse kwargs into self -- this will replace the defaults above
         print ""
         for key in kwargs:
             if hasattr(self, key):
                 self.__dict__[key] = kwargs[key]
-                print "Set parameter : %s --> %s" % (key, str(kwargs[key]))
+                print "Set parameter : %s \t--> %s" % (key, str(kwargs[key]))
             else:
                 raise ValueError('Invalid Parameter: %s' % key)
                 
@@ -117,39 +129,6 @@ class Optimizer(object):
             return self.cspad
     
         
-    def _compute_radii(self, center, image):
-        """
-        Compute the radii of each pixel, in pixel units, with respect to 
-        `center`.
-        
-        Parameters
-        ----------
-        center : tuple
-            (x,y) in pixel units.
-            
-        image : ndarray
-            The image
-            
-        Returns
-        -------
-        r : ndarray
-            The radius of each pixel.
-        """
-        
-        x = np.arange(image.shape[0])
-        y = np.arange(image.shape[1])
-        
-        XX, YY = np.meshgrid(y, x)
-    
-        dx = np.power( XX - center[0], 2 )
-        dy = np.power( YY - center[1], 2 )
-        r = np.sqrt( dx + dy )
-    
-        assert r.shape == image.shape
-    
-        return r
-    
-    
     def _bin_intensities_by_radius(self, center, pixel_pos, intensities):
         """
         Bin pixel intensities by their radius.
@@ -179,10 +158,13 @@ class Optimizer(object):
         """
 
         if not pixel_pos.shape[1:] == intensities.shape:
-            raise ValueError('`pixel_pos` and `intensities` must have same shape format')
+            raise ValueError('`pixel_pos` and `intensities` must have same'
+                             ' shape format. Current shapes: %s and %s respectively.' %\
+                              (str(pixel_pos.shape), str(intensities.shape)))
             
-        if not (pixel_pos.shape[0] == 2) or (pixel_pos.shape[0] == 3):
-            raise ValueError('`pixel_pos` must have first dimension be 2 or 3')
+        if not ((pixel_pos.shape[0] == 2) or (pixel_pos.shape[0] == 3)):
+            raise ValueError('`pixel_pos` must have first dimension be 2 or 3.'
+                             'Current shape: %s' % str(pixel_pos.shape))
             
         # use only x,y for now
         if (pixel_pos.shape[0] == 3):
@@ -193,7 +175,7 @@ class Optimizer(object):
         
         # generate the histogram
         if self.n_bins == None:
-            n_bins = max(image.shape) / 2
+            n_bins = np.sqrt( np.product(intensities.shape) ) / 2.
         else:
             n_bins = self.n_bins
         
@@ -285,11 +267,13 @@ class Optimizer(object):
         
         param_dict = {}
 
-        start = 2 # the first two parameter values are reserved for beam_loc
+        start = 1 # the first two parameter values are reserved for beam_loc
         for p in self.params_to_optimize:
             param_arr_shape = cspad._array_sizes[p]
             num_params_expected = np.product( param_arr_shape )
             end = start + num_params_expected
+            if end > len(flat_param_array) - 1:
+                raise RuntimeError('array overrun on `flat_param_array`')
             param_dict[p] = flat_param_array[start:end].reshape(param_arr_shape)
             start = end
 
@@ -320,7 +304,7 @@ class Optimizer(object):
             Makes sense of `params_to_opt` and `list_of_params`
         """
         
-        # un-ravel & inject the param values in the CSPad object
+        # un-ravel & inject the param values in the geometry object
         param_dict = self._unravel_params(param_vals)
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
                 
@@ -329,7 +313,6 @@ class Optimizer(object):
         
         bin_centers, bin_values = self._bin_intensities_by_radius(self.beam_loc, 
                                           self.cspad.pixel_positions, raw_image)
-                                          
         max_inds = self._maxima_indices(bin_values)
         
         # only count big maxima for regularization purposes
@@ -344,7 +327,7 @@ class Optimizer(object):
             self._axL.cla()
             self._axR.cla()
             
-            self._axL.imshow(assembled_image.T)
+            utils.sketch_2x1s(self.cspad.pixel_positions, self._axL)
             self._axR.plot(bin_centers, bin_values, lw=2, color='k')
             
             blob_circ = plt_patches.Circle(self.beam_loc, 15, fill=False, lw=2, 
@@ -409,11 +392,12 @@ class Optimizer(object):
 
         if self.use_edge_filter:
             image = utils.find_rings(raw_image, threshold=self.threshold, 
-                                     minf_size=self.minf_size, medf_size=self.medf_size)
+                                     minf_size=self.minf_size,
+                                     medf_size=self.medf_size)
 
         # run simplex minimization
-        opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
-                                          args=(image,), xtol=1e-2, ftol=1e-2)
+        opt_params = optimize.fmin(self._objective, initial_guesses, 
+                                   args=(image,), xtol=1e-2, ftol=1e-2)
                                    
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()

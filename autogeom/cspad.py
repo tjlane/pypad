@@ -25,6 +25,7 @@ _array_sizes = { 'center' :         (12, 8),
                  'marg_gap_shift' : (3, 4),
                  'offset' :         (3, 4),
                  'offset_corr' :    (3, 4),
+                 'offset_corr_xy' : (2, 4),
                  'pedestals' :      (5920, 388),
                  'pixel_status' :   (5920, 388),
                  'quad_rotation' :  (4,),
@@ -190,11 +191,26 @@ class CSPad(object):
     @property
     def pixel_positions(self):
         """
-        Compute and return the x,y,z positions of each pixel.
+        Compute and return the x,y,z positions of each pixel. The format is
+        shape-(3, 4, 8, 185, 388), indexed as: (x/y/z, quad, 2x1, slow, fast)
         """
+        
+        # WARNING: method untested
+        
         bg = self._generate_basis()
-        xyz = bg.to_explicit()
-        return xyz
+        pix_pos = np.zeros((3, 4, 8, 185, 388))
+        for i in range(4):
+            for j in range(8):
+                grid = bg.grid_as_explicit(i*8 + j)
+                
+                if grid.shape == (388,185,3):
+                    for k in range(3):
+                        pix_pos[k,i,j,:,:] = grid[:,:,k].T
+                else:
+                    for k in range(3):
+                        pix_pos[k,i,j,:,:] = grid[:,:,k]
+        
+        return pix_pos
     
         
     def _process_parameters(self):
@@ -537,7 +553,9 @@ class Metrology(object):
             A file containing the optical metrology readout, formatted in LCLS's
             custom format. See Confluence for more info (good luck...).
         """
+        print "Generating metrology from: %s" % metrology_file
         self.load(metrology_file)
+        self.quad_offset = np.zeros((3,4))
         
     
     @property
@@ -548,6 +566,69 @@ class Metrology(object):
         return np.vstack(( self.x_coordinates.flatten(),
                            self.y_coordinates.flatten(),
                            self.z_coordinates.flatten() )).T
+                           
+
+    @property           
+    def pixel_positions(self):
+        return np.array((self.x_coordinates,
+                         self.y_coordinates,
+                         self.z_coordinates))
+                         
+    
+    # the following methods are an attempt to provide an interface similar
+    # to that of CSPad -- the only parameter we really have, though, is
+    # "offset", which is the quad offset
+    
+    def get_param(self, param_name):
+        """
+        Parameter getter function.
+        """
+        if param_name == 'offset_corr':
+            return self.quad_offset
+        elif param_name == 'offset_corr_xy':
+            xy = self.quad_offset[:2,:]
+            assert xy.shape == (2,4)
+            return xy
+        else:
+            raise ValueError('Metrology objects only has `offset_corr` and '
+                             '`offset_corr_xy` parameters, got: %s' % param_name)
+
+        
+    def set_param(self, param_name, value):
+        """
+        Parameter setter.
+        """
+        if param_name == 'offset_corr':
+            if value.shape == (3,4):
+                self.quad_offset = value
+            else:
+                raise ValueError('`offset_corr` should have shape (3,4),'
+                                 ' got: %s' % str(value.shape))
+        elif param_name == 'offset_corr_xy':
+            if value.shape == (2,4):
+                self.quad_offset[:2,:] = value
+            else:
+                raise ValueError('`offset_corr_xy` should have shape (2,4),'
+                                 ' got: %s' % str(value.shape))
+        else:
+            raise ValueError('Metrology objects only has `offset_corr` and '
+                             '`offset_corr_xy` parameters, got: %s' % param_name)
+
+
+    def set_many_params(self, param_names, param_values):
+        """
+        Set many params at once.
+    
+        Here, param_names, param_values are list.
+        """
+        if (type(param_names) == list) and (type(param_values) == list):
+            if len(param_names) == len(param_values):
+                for i,pn in enumerate(param_names):
+                    self.set_param(pn, param_values[i])
+            else:
+                raise ValueError('`param_names` & `param_values` must be same len')
+        else:
+            raise TypeError('`param_names` & `param_values` must be type list')
     
         
     def load(self, metrology_file, verbose=False):
@@ -664,7 +745,7 @@ class Metrology(object):
         Parameters
         ----------
         quad_offset : np.ndarray
-            A shape-(4,2) array describing the (x,y) offset to apply to each
+            A shape-(3,4) array describing the (x,y) offset to apply to each
             quad.
         
         Returns
@@ -673,21 +754,59 @@ class Metrology(object):
             The x,y,z locations of each pixel in real-space, corrected.
         """
         
-        x = self.x_coordinates.copy()
-        y = self.y_coordinates.copy()
-        z = self.z_coordinates.copy()
+        if not quad_offset.shape == (3,4):
+            raise ValueError('`quad_offset` is wrong shape, must be (3,4), got'
+                             ' %s' % str(quad_offset.shape))
+        
+        # keep track of the total offsets applied so far
+        self.quad_offset += quad_offset
         
         for i in range(4):
-            x[i,:,:,:] += quad_offset[i,0]
-            y[i,:,:,:] += quad_offset[i,1]
+            self.x_coordinates[i] += quad_offset[0,i]
+            self.y_coordinates[i] += quad_offset[1,i]
+            self.z_coordinates[i] += quad_offset[2,i]
         
-        return x, y, z
+        return
         
         
     def to_basisgrid(self):
-        raise NotImplementedError()
+        """
+        Convert the optical metrology to a basis grid representation.
+        
+        Returns
+        -------
+        bg : cspad.BasisGrid
+            A basis representation of the metrology.
+        """
+        
+        bg = BasisGrid()
+        
+        for i in range(4):
+            for j in range(8):
+                p = np.array([ self.x_coordinates[i,j,0,0],
+                               self.y_coordinates[i,j,0,0],
+                               self.z_coordinates[i,j,0,0] ])
+                s = np.array([ self.x_coordinates[i,j,1,0] - self.x_coordinates[i,j,0,0],
+                               self.y_coordinates[i,j,1,0] - self.x_coordinates[i,j,0,0],
+                               self.z_coordinates[i,j,1,0] - self.x_coordinates[i,j,0,0] ])
+                f = np.array([ self.x_coordinates[i,j,0,1] - self.x_coordinates[i,j,0,0],
+                               self.y_coordinates[i,j,0,1] - self.x_coordinates[i,j,0,0],
+                               self.z_coordinates[i,j,0,1] - self.x_coordinates[i,j,0,0] ])
+                shape = (185, 388)
+                bg.add_grid(p, s, f, shape)
+        
+        return bg
     
         
+    def to_cspad(self):
+        """
+        Convert the optical metrology to a set of psana alignment parameters,
+        in the form of a cspad object.
+        """
+        raise NotImplementedError()
+        return
+        
+
 class BasisGrid(object):
     """
     A class representing a set of rectangular grids in space -- specifically,
