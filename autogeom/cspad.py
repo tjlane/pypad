@@ -16,6 +16,8 @@ import scipy.ndimage.interpolation as interp
 import matplotlib.pyplot as plt
 
 from autogeom import utils
+from autogeom import default
+
 
 # the expected size of each parameter array
 _array_sizes = { 'center' :         (12, 8),
@@ -319,10 +321,33 @@ class CSPad(object):
         Generate a BasisGrid representation of the CSPad 
         """
 
+        # The loop over quads below is [1,2,3,0] because
+        # the quad positions are supposed to be (as viewed from upstream):
+        # 
+        #     Q0     Q1
+        # 
+        #         x
+        # 
+        #     Q3     Q2
+        #
+        # but the geometry specification here outputs these quads rotated 90-deg
+        # counter-clockwise:
+        #
+        #     Q1     Q2
+        # 
+        #         x
+        # 
+        #     Q0     Q3
+        # 
+        # if you use range(4) to loop over the quads I am not 100% sure right 
+        # now why this is the case, but the modified loop appears to give the
+        # correct geometry. This should be triple-checked.
+        # -- TJL 28.2.13
+
         bg = BasisGrid()
         
         # assemble each 2x1 on the quad
-        for quad_index in range(4):
+        for quad_index in [1,2,3,0]:
             for i in range(8):
                 
                 # in the below, the following convention is correct:
@@ -535,6 +560,11 @@ class CSPad(object):
             
         run_number : int
             Load the parameters for this run.
+            
+        Returns
+        -------
+        self : cspad.CSPad
+            A CSPad object.
         """
         
         defaults = { 'beam_loc'       : np.array([900.0, 870.0]),
@@ -581,6 +611,20 @@ class CSPad(object):
         
         return cls(param_dict)
         
+        
+    @classmethod    
+    def default(cls):
+        """
+        Generate a default CSPad geometry.
+        
+        Returns
+        -------
+        self : cspad.CSPad
+            A CSPad object.
+        """
+        defaults = default.DefaultCSPadParams()
+        return cls(defaults.__dict__)
+    
 
 class Metrology(object):
     """

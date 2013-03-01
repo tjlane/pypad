@@ -65,8 +65,7 @@ class Optimizer(object):
             self.cspad = cspad.CSPad(geometry)
             
         elif geometry == None:
-            # todo should be psana defaults
-            raise NotImplementedError()
+            self.cspad = cspad.CSPad.default()
             
         else:
             raise TypeError('`geometry` must be one of {None, dict, CSPad, Metrology}')
