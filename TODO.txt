@@ -2,8 +2,7 @@
 To Do for autogeom
 ------------------
 
--- finish cspad pixel map service
--- include default CSPad
+-- make sure optimization works
 -- automatic miller index matching (in score)
 -- write default param yaml
 -- GPL everything

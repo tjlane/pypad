@@ -23,11 +23,27 @@ import matplotlib.lines  as lines
 class Main :
     """Main"""
 
-    def __init__(self):
+    def __init__(self, metrology_file):
         """Constructor."""
         print 'Start constructor'
 
         self.pixelSize = 109.92
+        self._convert_metrology_to_cspad(metrology_file)
+
+
+    def _convert_metrology_to_cspad(self, metrology_file):
+        self._preprocess_file_for_conversion_to_cspad(metrology_file)
+        self._compute_center_coordinates()
+        self._compute_length_width_angle()
+
+
+    def _preprocess_file_for_conversion_to_cspad(self, filename, verbose=False): 
+        """
+        Load up the metrology file and read out key quantities. This has
+        """
+        
+        if verbose:
+            print "Reading: %s" % filename
 
         self.points_for_quadrants = [ [ 6, 2,14,10,18,22,30,26],
                                       [ 6, 2,14,10,18,22,30,26],
@@ -36,65 +52,30 @@ class Main :
 
         #Base index for 2x1:
         #             0  1   2  3   4   5   6   7
-        self.ibase = [5, 1, 13, 9, 17, 21, 29, 25] 
+        self.ibase = [5, 1, 13, 9, 17, 21, 29, 25]
 
-        self.readOpticalAlignmentFile()
-
-        self.get_center_coordinates()
-
-        self.get_length_width_angle()
-
-        self.drawOpticalAlignmentFile()
-        self.drawQuadsSeparately()
-
-    #-------------------
-    # methods --
-    #-------------------
-
-    def readOpticalAlignmentFile(self): 
-        print 'readOpticalAlignmentFile()'
-
-
-                                 # quad 0:3
-                                   # point 1:32
-                                      # record: point, X, Y, Z 0:3
         self.arr = numpy.zeros( (4,33,4), dtype=numpy.int32 )
 
-        #fname = '2011-03-29-CSPAD2-Alignment-PostRun3.txt'
-        #fname = '2011-06-20-CSPAD2-Alignment-Before-Run4.txt'
-        #fname = '2011-08-10-Metrology.txt'
-        #fname = '2011-08-DD-Run4-DSD-Metrology.txt'
-        #fname = '2012-01-10-Run5-DSD-Metrology.txt'
-        #fname = '2012-01-12-Run5-DSD-Metrology-corrected.txt'
-        #fname = '2012-02-26-CSPAD-XPP-Metrology.txt'
-        #fname = '2012-11-08-Run6-DSD-Metrology-standard.txt'
-        #fname = '2013-01-24-CSPAD-XPP-Metrology-standard.txt'
-        #fname = 'metrology_renumerated.txt'
-        fname = 'metrology_standard.txt'
-
-        self.fname_plot_quads = 'metrology_standard_quads.png'
-        self.fname_plot_det   = 'metrology_standard_det.png'
-
-        file = open(fname, 'r')
+        f = open(filename, 'r')
         # Print out 7th entry in each line.
-        for line in file:
+        for line in f:
 
-            if len(line) == 1 : continue # ignore empty lines
-            #print len(line),  ' Line: ', line
+            if len(line) == 1:
+                continue # ignore empty lines
 
             list_of_fields = line.split()
 
-            if list_of_fields[0] == 'Quad' : # Treat quad header lines
+            if list_of_fields[0] == 'Quad': # Treat quad header lines
                 self.quad = int(list_of_fields[1])
-                print 'Stuff for quad', self.quad  
+                if verbose: print 'Stuff for quad', self.quad  
                 continue
 
             if list_of_fields[0] == 'Sensor' : # Treat the title lines
-                print 'Comment line:', line  
+                if verbose: print 'Comment line:', line  
                 continue
             
             if len(list_of_fields) != 4 : # Ignore lines with non-expected number of fields
-                print 'len(list_of_fields) =', len(list_of_fields),
+                print 'WARNING: len(list_of_fields) =', len(list_of_fields),
                 print 'RECORD IS IGNORED due to unexpected format of the line:',line
                 continue              
 
@@ -102,10 +83,6 @@ class Main :
             X = int(list_of_fields[1])
             Y = int(list_of_fields[2])
             Z = int(list_of_fields[3])
-            #Title = list_of_fields[4]
-            
-            #record = [point, X, Y, Z, Title]
-            print 'ACCEPT RECORD:', point, X, Y, Z #, Title
 
             self.arr[self.quad,point,0] = point
             self.arr[self.quad,point,1] = X
@@ -115,32 +92,6 @@ class Main :
         file.close()
 
         print 'Array of alignment info:\n', self.arr
-
-
-    def convert_optic_to_my_coordinates(self,quad,Xopt,Yopt,Zopt) :
-    # DEPRICATED: New version has the same orientation as in optical measurement
-
-        self.Zmy = Zopt
-
-        if quad == 0 :
-            self.Xmy = Xopt - 10796
-            self.Ymy = Yopt - 10469 
-
-        if quad == 1 :
-            self.Xmy = Xopt - 10737   
-            self.Ymy = Yopt - 10452    
-
-        if quad == 2 :
-            self.Xmy = Xopt - 11369
-            self.Ymy = Yopt - 10688     
-
-        if quad == 3 :
-            self.Xmy = Xopt - 10786
-            self.Ymy = Yopt - 10451    
-
-        return ( self.Xmy, self.Ymy, self.Zmy )
-
-
 
 
     def get_center_coordinates(self) :
@@ -213,15 +164,6 @@ class Main :
         self.print_formatted_array(self.arrX,' ', format='%7.2f ')
         self.print_formatted_array(self.arrY,' ', format='%7.2f ')
         self.print_formatted_array(self.arrZ,' ', format='%7.2f ')
-
-
-    def print_formatted_array(self, arr, title='Array', format='%7.2f,') :
-        print title
-
-        for row in range(4) :
-            for col in range(8) :
-                print format % (arr[row][col]),
-            print ' '
 
 
     def get_length_width_angle(self) :
@@ -324,92 +266,3 @@ class Main :
         self.print_formatted_array(self.angDegree,'\ndPhi (w/o comma):','%8.5f ')
 
 
-#----------------------------------
-
-    def drawOpticalAlignmentFile(self): 
-        print 'drawOpticalAlignmentFile()'
-
-        sizex, sizey = shape = (100,100)
-        #arr   = np.arange(sizex*sizey)
-        #arr.shape = shape
-        #arr   = np.zeros(shape)
-        fig   = plt.figure(figsize=(10,10), dpi=100, facecolor='w',edgecolor='w',frameon=True)
-        axes  = fig.add_subplot(111)        
-        axes.set_xlim((-50,1750))
-        axes.set_ylim((-50,1750))
-        #axes1 = plt.imshow(arr, origin='lower', interpolation='nearest',extent=ax_range) 
-
-        for quad in range(4) :
-            #print '\nQuad:', quad
-            self.drawOneQuad(quad,axes)
-
-        plt.show()
-        fig.savefig(self.fname_plot_det)
-        print 'Image saved in file:', self.fname_plot_det
-
-
-    def drawOneQuad(self,quad,axes):
-        print 'drawOneQuad(' + str(quad) + ')'
-
-        line_point = 0
-        self.xlp = [0,0,0,0,0]
-        self.ylp = [0,0,0,0,0]
-        for point in range(1,33) :
-            N = self.arr[quad,point,0]
-            X = self.arr[quad,point,1]
-            Y = self.arr[quad,point,2]
-            Z = self.arr[quad,point,3]                
-            #print 'N,X,Y =', N,X,Y
-
-            x = self.xlp[line_point] = X / self.pixelSize
-            y = self.ylp[line_point] = Y / self.pixelSize
-            plt.text(x, y, str(N), fontsize=7, color='k', ha='left', rotation=45)
-
-            if N==1 :
-                x, y = self.xlp[0] + 100, self.ylp[0] + 100
-                plt.text(x, y, 'Quad:'+str(quad), fontsize=12, color='k', ha='left', rotation=0)
-
-            if line_point == 3 :
-                #print 'Add new line:'
-                #print 'x=',self.xlp                   
-                #print 'y=',self.ylp
-                self.xlp[4] = self.xlp[0]
-                self.ylp[4] = self.ylp[0]
-                line = lines.Line2D(self.xlp, self.ylp, linewidth=1, color='r')        
-                axes.add_artist(line)
-                line_point = -1
-                self.xlp = [0,0,0,0,0]
-                self.ylp = [0,0,0,0,0]
-            line_point += 1
-
-#----------------------------------
-
-    def drawQuadsSeparately(self): 
-        print 'drawQuadsSeparately()'
-
-        sizex, sizey = shape = (100,100)
-        fig   = plt.figure(figsize=(10,10), dpi=100, facecolor='w',edgecolor='w',frameon=True)
-
-        quadlims = (-50,870)
-        
-        for quad in range(4) :
-            axes = fig.add_subplot(221+quad)
-            axes.set_xlim(quadlims)
-            axes.set_ylim(quadlims)
-            self.drawOneQuad(quad,axes)
-
-        plt.show()
-        fig.savefig(self.fname_plot_quads)
-        print 'Image saved in file:', self.fname_plot_quads
-
-
-#----------------------------------
-
-def main():
-    run = Main()
-    sys.exit()
-
-if __name__ == '__main__':
-    main()
-
-#----------------------------------

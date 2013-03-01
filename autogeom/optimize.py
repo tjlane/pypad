@@ -103,7 +103,9 @@ class Optimizer(object):
                              ' radial projection to optimize, must contain an '
                              'even number of entries.')
         else:
-            self.radius_range.sort()
+            self.radius_range = np.sort(np.array(self.radius_range, dtype=np.float))
+            self.radius_range *= 0.10992 # convert to mm
+            print self.radius_range
         
         return
 
@@ -322,13 +324,10 @@ class Optimizer(object):
         
         # if plotting is requested, plot away!
         if self.plot_each_iteration:
-            
             self._axL.cla()
             self._axR.cla()
-            
             utils.sketch_2x1s(self.cspad.pixel_positions, self._axL)
             self._axR.plot(bin_centers, bin_values, lw=2, color='k')
-            
             blob_circ = plt_patches.Circle(self.beam_loc, 15, fill=False, lw=2, 
                                            ec='orange')
             self._axL.add_patch(blob_circ)
@@ -345,6 +344,7 @@ class Optimizer(object):
         # ----------------------------------------------------------------------
         
         print "objective value: %f, number of peaks: %d" % (obj, n_maxima)
+        print param_vals
         
         return obj
     
@@ -381,7 +381,7 @@ class Optimizer(object):
         initial_guesses = np.concatenate([ self.beam_loc, initial_guesses ])
 
         # turn on interactive plotting -- this is the only way I've gotten it to work
-        if self.plot_each_iteration:
+        if self.plot_each_iteration:            
             plt.ion()
             self._fig = plt.figure(figsize=(18,9))
             self._axL = self._fig.add_subplot(121)

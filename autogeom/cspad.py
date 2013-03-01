@@ -220,8 +220,6 @@ class CSPad(object):
         shape-(3, 4, 8, 185, 388), indexed as: (x/y/z, quad, 2x1, slow, fast)
         """
         
-        # WARNING: method untested
-        
         bg = self._generate_basis()
         pix_pos = np.zeros((3, 4, 8, 185, 388))
         for i in range(4):
@@ -644,6 +642,7 @@ class Metrology(object):
         print "Generating metrology from: %s" % metrology_file
         self.load(metrology_file)
         self.quad_offset = np.zeros((3,4))
+        self.pixel_size = 0.10992
         
     
     @property
@@ -785,7 +784,7 @@ class Metrology(object):
 
                 dS = np.array([ abs(input_y[0,0]-input_y[1,0])/185,
                                 abs(input_y[0,1]-input_y[1,1])/185, 
-                                 abs(input_x[0,0]-input_x[1,0])/185,
+                                abs(input_x[0,0]-input_x[1,0])/185,
                                 abs(input_x[0,1]-input_x[1,1])/185 ])
                 dShort[quad,sec] = dS[dS>100] # filter out the nonsense ones
 
@@ -821,6 +820,61 @@ class Metrology(object):
             if quad==3 :
                 self.x_coordinates[quad] = origin[quad][0] - self.x_coordinates[quad]
                 self.y_coordinates[quad] = origin[quad][1] + self.y_coordinates[quad]        
+        
+        # ----------------------------------------------------------------------
+        # this is supremely stupid, but to ensure that (at least for now) I am
+        # consistent w/Mikhail, I am going to re-parse the metrology file and
+        # apply exactly his scheme. Why there is no unified codebase in pyana,
+        # I don't know...
+
+        self.points_for_quadrants = [ [ 6, 2,14,10,18,22,30,26],
+                                      [ 6, 2,14,10,18,22,30,26],
+                                      [ 6, 2,14,10,18,22,30,26],
+                                      [ 6, 2,14,10,18,22,30,26] ]
+
+        #Base index for 2x1:
+        #             0  1   2  3   4   5   6   7
+        self.ibase = [5, 1, 13, 9, 17, 21, 29, 25]
+
+        self.metrology_array = np.zeros( (4,33,4), dtype=np.int32 )
+
+        f = open(metrology_file, 'r')
+        # Print out 7th entry in each line.
+        for line in f:
+
+            # ignore empty lines
+            if len(line) == 1:
+                continue 
+
+            list_of_fields = line.split()
+
+            # ignore quad header lines
+            if list_of_fields[0] == 'Quad': 
+                quad = int(list_of_fields[1])
+                continue
+
+            # ignore the title lines
+            if list_of_fields[0] == 'Sensor':
+                continue
+            
+            # Ignore lines with non-expected number of fields
+            if len(list_of_fields) != 4:
+                if verbose:
+                    print 'WARNING: len(list_of_fields) =', len(list_of_fields)
+                    print 'RECORD IS IGNORED due to unexpected format of the line:',line
+                continue              
+
+            point = int(list_of_fields[0])
+            X = int(list_of_fields[1])
+            Y = int(list_of_fields[2])
+            Z = int(list_of_fields[3])
+
+            self.metrology_array[quad,point,0] = point
+            self.metrology_array[quad,point,1] = X
+            self.metrology_array[quad,point,2] = Y
+            self.metrology_array[quad,point,3] = Z
+
+        f.close()
         
         return
         
@@ -886,15 +940,181 @@ class Metrology(object):
         return bg
     
         
+    def _compute_center_coordinates(self):
+        """
+        Compute the center positions of each 2x1
+        """
+
+        # this is *not* pixel units (why on earth is dtype ints)?!?
+        arrXmu = np.zeros( (4,8), dtype=np.int32 )
+        arrYmu = np.zeros( (4,8), dtype=np.int32 )
+        arrZmu = np.zeros( (4,8), dtype=np.int32 )
+        
+        # store the pixel unit computation
+        self.centers = np.zeros( (3,4,8), dtype=np.float )
+
+        ix = 1
+        iy = 2
+        iz = 3
+
+        for quad in range(4) :
+            for pair in range(8) :
+
+                icor1 = self.ibase[pair]   
+                icor2 = self.ibase[pair] + 1
+                icor3 = self.ibase[pair] + 2
+                icor4 = self.ibase[pair] + 3
+
+                X = 0.25 * ( self.metrology_array[quad,icor1,ix]
+                           + self.metrology_array[quad,icor2,ix]
+                           + self.metrology_array[quad,icor3,ix]
+                           + self.metrology_array[quad,icor4,ix] )
+
+                Y = 0.25 * ( self.metrology_array[quad,icor1,iy]
+                           + self.metrology_array[quad,icor2,iy]
+                           + self.metrology_array[quad,icor3,iy]
+                           + self.metrology_array[quad,icor4,iy] ) 
+
+                Z = 0.25 * ( self.metrology_array[quad,icor1,iz]
+                           + self.metrology_array[quad,icor2,iz]
+                           + self.metrology_array[quad,icor3,iz]
+                           + self.metrology_array[quad,icor4,iz] ) 
+
+                arrXmu[quad][pair] = X
+                arrYmu[quad][pair] = Y
+                arrZmu[quad][pair] = Z
+
+                xyz = np.array((X, Y, Z)).astype(np.float)
+                self.centers[:,quad,pair] = xyz / self.pixel_size
+                
+        self.centers = self.centers.reshape(12,8)
+                
+        return
+    
+
+    def _compute_length_width_angle(self):
+        """
+        Really all this is used for right now is to compute the `tilt` parameter
+        """
+        
+        # MORE supreme stupidity -- this again duplicates a lot of the
+        # computation already done, but I'm copying it to generate a test case
+
+        S1  = np.zeros( (4,8), dtype=np.int32 )
+        S2  = np.zeros( (4,8), dtype=np.int32 )
+
+        dS1 = np.zeros( (4,8), dtype=np.int32 )
+        dS2 = np.zeros( (4,8), dtype=np.int32 )
+
+        L1  = np.zeros( (4,8), dtype=np.int32 )
+        L2  = np.zeros( (4,8), dtype=np.int32 )
+
+        dL1 = np.zeros( (4,8), dtype=np.int32 )
+        dL2 = np.zeros( (4,8), dtype=np.int32 )
+
+        D1  = np.zeros( (4,8), dtype=np.int32 )
+        D2  = np.zeros( (4,8), dtype=np.int32 )
+        dD  = np.zeros( (4,8), dtype=np.int32 )
+
+        ddS = np.zeros( (4,8), dtype=np.int32 )
+        ddL = np.zeros( (4,8), dtype=np.int32 )
+
+        self.tilt = np.zeros( (4,8), dtype=np.float32 )
+
+        # no idea on the below...
+        ix = 1
+        iy = 2
+
+        for quad in range(4):
+            for pair in range(8):
+
+                icor1 = self.ibase[pair]   
+                icor2 = self.ibase[pair] + 1
+                icor3 = self.ibase[pair] + 2
+                icor4 = self.ibase[pair] + 3
+
+                if pair == 0 or pair == 1 or pair == 4 or pair == 5:
+
+                    S1[quad][pair] = self.metrology_array[quad,icor2,iy] - self.metrology_array[quad,icor1,iy]
+                    S2[quad][pair] = self.metrology_array[quad,icor3,iy] - self.metrology_array[quad,icor4,iy]
+
+                    dS1[quad][pair] = self.metrology_array[quad,icor4,iy] - self.metrology_array[quad,icor1,iy]
+                    dS2[quad][pair] = self.metrology_array[quad,icor3,iy] - self.metrology_array[quad,icor2,iy]
+
+                    L1[quad][pair] = self.metrology_array[quad,icor4,ix] - self.metrology_array[quad,icor1,ix]
+                    L2[quad][pair] = self.metrology_array[quad,icor3,ix] - self.metrology_array[quad,icor2,ix]
+
+                    dL1[quad][pair] = self.metrology_array[quad,icor2,ix] - self.metrology_array[quad,icor1,ix]
+                    dL2[quad][pair] = self.metrology_array[quad,icor3,ix] - self.metrology_array[quad,icor4,ix]
+
+
+                else:
+
+                    S1[quad][pair] =   self.metrology_array[quad,icor4,ix] - self.metrology_array[quad,icor1,ix]
+                    S2[quad][pair] =   self.metrology_array[quad,icor3,ix] - self.metrology_array[quad,icor2,ix]
+                                                                                       
+                    dS1[quad][pair] = -(self.metrology_array[quad,icor2,ix] - self.metrology_array[quad,icor1,ix]) # sign is chosen 
+                    dS2[quad][pair] = -(self.metrology_array[quad,icor3,ix] - self.metrology_array[quad,icor4,ix]) # for positive phi
+
+                    L1[quad][pair] =   self.metrology_array[quad,icor2,iy] - self.metrology_array[quad,icor1,iy]
+                    L2[quad][pair] =   self.metrology_array[quad,icor3,iy] - self.metrology_array[quad,icor4,iy]
+                                                                                       
+                    dL1[quad][pair] =   self.metrology_array[quad,icor4,iy] - self.metrology_array[quad,icor1,iy]
+                    dL2[quad][pair] =   self.metrology_array[quad,icor3,iy] - self.metrology_array[quad,icor2,iy]
+
+
+                diag1x = float(self.metrology_array[quad,icor1,ix] - self.metrology_array[quad,icor3,ix])
+                diag2x = float(self.metrology_array[quad,icor2,ix] - self.metrology_array[quad,icor4,ix])
+                diag1y = float(self.metrology_array[quad,icor1,iy] - self.metrology_array[quad,icor3,iy])
+                diag2y = float(self.metrology_array[quad,icor2,iy] - self.metrology_array[quad,icor4,iy])
+
+                D1[quad][pair] = int( np.sqrt(diag1x*diag1x + diag1y*diag1y) )
+                D2[quad][pair] = int( np.sqrt(diag2x*diag2x + diag2y*diag2y) )
+                dD[quad][pair] = D1[quad][pair] - D2[quad][pair]
+
+                ddS[quad][pair] = dS1[quad][pair] - dS2[quad][pair]
+                ddL[quad][pair] = dL1[quad][pair] - dL2[quad][pair]
+
+                ang1 = 0
+                ang2 = 0
+                if dL1[quad][pair] != 0:
+                    ang1 = float(dS1[quad][pair]) / L1[quad][pair]
+                if dL2[quad][pair] != 0:
+                    ang2 = float(dS2[quad][pair]) / L2[quad][pair]
+
+                angav = (ang1 + ang2) * 0.5
+                ang_deg = 180.0 / 3.1415927 * angav
+
+                self.tilt[quad][pair] = ang_deg
+        
+        return
+    
+        
     def to_cspad(self):
         """
         Convert the optical metrology to a set of psana alignment parameters,
         in the form of a cspad object.
-        """
-        raise NotImplementedError()
-        return
         
+        Returns
+        -------
+        cs : cspad.CSPad
+            A CSPad object with the tilt/center parameters changed to reflect
+            the metrology. The rest of the parameters are set to the pyana
+            default values.
+        """
+        
+        # compute the necessary quantities for the parameters: centers, tilt
+        self._compute_center_coordinates()
+        self._compute_length_width_angle()
+        
+        # get a default CSPad object and set centers, tilt
+        cs = CSPad.default()
+        cs.set_param('center', self.centers)
+        cs.set_param('tilt', self.tilt)
+        
+        return cs
     
+        
     def to_dir(self, dirname):
         """
         A quick and dirty save method. Probably should write h5s.
