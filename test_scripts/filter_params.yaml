@@ -1,0 +1,5 @@
+beam_loc: [900.0, 870.0]
+medf_size: 5
+minf_size: 3
+radius_range: [447.3076923076924, 589.0384615384619]
+threshold: 0.0007138919398820408
