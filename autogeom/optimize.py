@@ -80,9 +80,9 @@ class Optimizer(object):
         self.use_edge_filter     = True
         self.beta                = 10.0
         self.window_size         = 10
-        self.pixel_size          = 0.109 # mm
+        self.pixel_size          = 0.10992 # mm
         self.radius_range        = []
-        self.beam_loc            = (900.0, 870.0)
+        self.beam_loc            = np.array((900.0, 870.0))
         self.plot_each_iteration = True
         
         self.params_to_optimize = params_to_optimize
@@ -104,8 +104,12 @@ class Optimizer(object):
                              'even number of entries.')
         else:
             self.radius_range = np.sort(np.array(self.radius_range, dtype=np.float))
-            self.radius_range *= 0.10992 # convert to mm
-            print self.radius_range
+            #self.radius_range *= self.pixel_size # convert to mm
+        
+        if not len(self.beam_loc) == 2:
+            raise ValueError('`beam_loc` must be len 2')
+        self.beam_loc = np.array(self.beam_loc)
+        #self.beam_loc *= self.pixel_size
         
         return
 
@@ -172,7 +176,8 @@ class Optimizer(object):
             pixel_pos = pixel_pos[:2]
             
         # compute radii
-        radii = np.sqrt( np.sum( np.power( pixel_pos, 2 ), axis=0 ) )
+        radii = np.sqrt( np.power(pixel_pos[0]-center[0], 2) + \
+                         np.power(pixel_pos[1]-center[1], 2) )
         
         # generate the histogram
         if self.n_bins == None:
@@ -230,16 +235,29 @@ class Optimizer(object):
         spline = interpolate.UnivariateSpline(x, vector - vector.max()*bar, s=3)
         roots = spline.roots()
         
+        # measure the distance between the roots
         if len(roots) % 2 == 0:
             width_sum = np.sum(roots[1::2] - roots[::2])
-        elif len(roots) == 0:
-            raise RuntimeError('Width finder failed -- odd number of roots at '
-                               'all horizontal cuts.')
+            
+        # if we missed all the peaks return a big number to let optimizer know 
+        # this is a bad parameter set
+        elif len(roots) < 2:
+            print ('Warning: width finder failed -- odd number of roots at '
+                   'all horizontal cuts.')
+            width_sum = 1e10 
+            
+        # other wise move the bar up and try again
         else:
-            newbar = bar + (1.-bar) / 8.
+            newbar = bar + (1.-bar) / 4.
             width_sum = self._all_widths(vector, newbar)
         
         return width_sum
+    
+    
+    def _simple_width(self, vector, bar=0.25):
+        m = bar * vector.max()
+        width = np.sum((vector > m))
+        return width
     
         
     def _maxima_indices(self, a):
@@ -268,12 +286,12 @@ class Optimizer(object):
         
         param_dict = {}
 
-        start = 1 # the first two parameter values are reserved for beam_loc
+        start = 2 # the first two positions are reserved for beam_loc
         for p in self.params_to_optimize:
             param_arr_shape = cspad._array_sizes[p]
             num_params_expected = np.product( param_arr_shape )
             end = start + num_params_expected
-            if end > len(flat_param_array) - 1:
+            if end > len(flat_param_array):
                 raise RuntimeError('array overrun on `flat_param_array`')
             param_dict[p] = flat_param_array[start:end].reshape(param_arr_shape)
             start = end
@@ -312,8 +330,9 @@ class Optimizer(object):
         # the absolute center will always be the first two elements by convention
         self.beam_loc = param_vals[:2]
         
+        pp = self.cspad.pixel_positions / self.pixel_size
         bin_centers, bin_values = self._bin_intensities_by_radius(self.beam_loc, 
-                                          self.cspad.pixel_positions, raw_image)
+                                                                  pp, raw_image)
         max_inds = self._maxima_indices(bin_values)
         
         # only count big maxima for regularization purposes
@@ -326,7 +345,7 @@ class Optimizer(object):
         if self.plot_each_iteration:
             self._axL.cla()
             self._axR.cla()
-            utils.sketch_2x1s(self.cspad.pixel_positions, self._axL)
+            utils.sketch_2x1s(pp, self._axL)
             self._axR.plot(bin_centers, bin_values, lw=2, color='k')
             blob_circ = plt_patches.Circle(self.beam_loc, 15, fill=False, lw=2, 
                                            ec='orange')
@@ -338,13 +357,15 @@ class Optimizer(object):
         # but it may also be good to keep this static, once we have something
         # nice and robust.
         
-        obj = self._all_widths(bin_values) - 0.1 * np.mean(bin_values[max_inds]) + \
+        # obj = self._all_widths(bin_values) - 0.1 * np.mean(bin_values[max_inds]) + \
+        #       self.peak_regulization * n_maxima
+        
+        obj = self._simple_width(bin_values) - 0.1 * bin_values.max() + \
               self.peak_regulization * n_maxima
         
         # ----------------------------------------------------------------------
         
         print "objective value: %f, number of peaks: %d" % (obj, n_maxima)
-        print param_vals
         
         return obj
     
@@ -395,8 +416,8 @@ class Optimizer(object):
                                      medf_size=self.medf_size)
 
         # run simplex minimization
-        opt_params = optimize.fmin(self._objective, initial_guesses, 
-                                   args=(image,), xtol=1e-2, ftol=1e-2)
+        opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
+                                          args=(image,), xtol=1e-2, ftol=1e-2)
                                    
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()

@@ -119,7 +119,7 @@ class CSPad(object):
              'tilt' :           (4, 8)
              
         """
-
+        
         self._param_list = _array_sizes.keys()
         
         self._check_params(param_dict)
@@ -136,7 +136,7 @@ class CSPad(object):
     
     def __call__(self, raw_image):
         """
-        Takes a raw image (8, 188, 3xx) and assembles it into a two-dimensional
+        Takes a raw image and assembles it into a two-dimensional
         view.
         
         Returns
@@ -161,17 +161,19 @@ class CSPad(object):
         """
         Parameter setter.
         """
-                
-        if param_name in self._param_list:
+        if param_name == 'offset_corr_xy':
+            if value.shape == _array_sizes[param_name]:
+                self.offset_corr[:2,:] = value
+        elif param_name in self._param_list:
             if value.shape == _array_sizes[param_name]:
                 self.__dict__[param_name] = value
-                if process:
-                    self._process_parameters()
             else:
                 raise ValueError('`value` has wrong shape for: %s' % param_name)
                 
         else:
             raise ValueError('No parameter with name: %s' % param_name)
+        if process:
+            self._process_parameters()
     
     
     def set_many_params(self, param_names, param_values):
@@ -240,7 +242,7 @@ class CSPad(object):
         """
         Alignment calibrations as defined for psana. Injects
         
-        -- self.tilt_array
+        -- self.tilt
         -- self.sec_offset
         -- self.section_centers
         
@@ -251,21 +253,15 @@ class CSPad(object):
         
         # angle of each section = rotation (nx90 degrees) + tilt (small angles)
         # ... (4 rows (quads) x 8 columns (sections))
-        self.rotation_array = self.rotation
-        self.tilt_array     = self.tilt
-        self.section_angles = self.rotation_array + self.tilt_array
+        self.section_angles = self.rotation + self.tilt
         
         # position of sections in each quadrant (quadrant coordinates)
         # ... (3*4 rows (4 quads, 3 xyz coordinates) x 8 columns (sections))
-        centers              = self.center
-        center_corrections   = self.center_corr
-        self.section_centers = np.reshape( centers + center_corrections, (3,4,8) )
+        self.section_centers = np.reshape( self.center + self.center_corr, (3,4,8) )
         
         # quadrant offset parameters (w.r.t. image 0,0 in upper left coner)
         # ... (3 rows (xyz) x 4 columns (quads) )
-        quad_pos      = self.offset
-        quad_pos_corr = self.offset_corr
-        quad_position = quad_pos + quad_pos_corr
+        quad_position = self.offset + self.offset_corr
 
         # ... (3 rows (x,y,z) x 4 columns (section offset, quad offset, 
         # quad gap, quad shift)
@@ -373,8 +369,8 @@ class CSPad(object):
 
                 # now, apply `tilt` correction - a small rotation in x-y
                 if self.small_angle_tilt:
-                    s = self._rotate_xy(s, self.tilt_array[quad_index][i])
-                    f = self._rotate_xy(f, self.tilt_array[quad_index][i])
+                    s = self._rotate_xy(s, self.tilt[quad_index][i])
+                    f = self._rotate_xy(f, self.tilt[quad_index][i])
 
                 # find the center of the 2x1
                 cx = self.sec_offset[0] + self.section_centers[0][quad_index][i]
@@ -449,7 +445,7 @@ class CSPad(object):
                pairs.append( pair )
 
                if self.small_angle_tilt:
-                   pair = interp.rotate(pair, self.tilt_array[quad_index][i],
+                   pair = interp.rotate(pair, self.tilt[quad_index][i],
                                         output=pair.dtype)
 
            # make the array for this quadrant
@@ -945,7 +941,7 @@ class Metrology(object):
         Compute the center positions of each 2x1
         """
 
-        # this is *not* pixel units (why on earth is dtype ints)?!?
+        # this is *not* pixel units (why on earth is dtype int)?!?
         arrXmu = np.zeros( (4,8), dtype=np.int32 )
         arrYmu = np.zeros( (4,8), dtype=np.int32 )
         arrZmu = np.zeros( (4,8), dtype=np.int32 )

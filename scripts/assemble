@@ -28,5 +28,5 @@ raw_image = utils.load_raw_image(args.image)
 cs1 = cspad.CSPad.from_dir(args.param_dir)
 
 plt.figure()
-plt.imshow( cs1(raw_image).T, origin='lower' )
+plt.imshow( cs1(raw_image).T, origin='lower', vmin=0, vmax=500, interpolation='nearest' )
 plt.show()
