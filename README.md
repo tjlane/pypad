@@ -1,8 +1,8 @@
 autogeom
 ========
 
-Algorithms for Automatically Reconstructing CSPAD Geometries
-TJ Lane <tjlane@stanford.edu> | Doniach Scattering Group
+Algorithms for Automatically Reconstructing CSPAD Geometries //
+TJ Lane <tjlane@stanford.edu> // Doniach Scattering Group
 
 --------------------------------------------------------------------------------
 
@@ -31,7 +31,7 @@ Install
 
 Installation should be as easy as downloading this package and running:
 
- python setup.py install
+> python setup.py install
 
 This will automatically install the API in your python distribution and put the scripts in your path. Autogeom depends on:
 
@@ -51,23 +51,22 @@ Below, I'll go through a quick example of how to use the autogeom scripts, and d
 
 (1) Generate a filter that will remove experimental noise:
 
-  calibrate-filter tutorial/gold_avg.npz --param-dir data/ex_params/
+`calibrate-filter tutorial/gold_avg.npz --param-dir data/ex_params/`
 
 
 (2) Optimize the geometry:
 
-  optgeom tutorial/gold_avg.npz filter_params.yaml --param-dir tutorial/cspad_params/
+`optgeom tutorial/gold_avg.npz filter_params.yaml --param-dir tutorial/cspad_params/`
 
 
 (3) Score your optimized geometry:
 
-  score --energy 9394.363725 --path-len 129.0 --cal-type Au --param-dir \
-  my_cspad_params tutorial/gold_avg.npz
+`score --energy 9394.363725 --path-len 129.0 --cal-type Au --param-dir \ my_cspad_params tutorial/gold_avg.npz`
 
 this should generate a directory `my_cspad_params`, containing your new parameters.
 
 (4) Take a look at the result!
 
-  assemble -param-dir my_cspad_params
+`assemble -param-dir my_cspad_params`
 
 
