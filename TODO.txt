@@ -1,8 +1,5 @@
 
 To Do for autogeom
 ------------------
-
--- make sure optimization works
 -- automatic miller index matching (in score)
--- write default param yaml
 -- GPL everything

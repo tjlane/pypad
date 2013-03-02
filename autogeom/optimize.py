@@ -72,11 +72,12 @@ class Optimizer(object):
         
         # parameters -- default values
         self.n_bins              = None
-        self.peak_regulization   = 10.0
+        self.peak_weight         = 10.0
+        self.max_weight          = 0.1
         self.threshold           = 4.5e-04
         self.minf_size           = 3
         self.medf_size           = 8
-        self.horizontal_cut      = 0.1
+        self.horizontal_cut      = 0.25
         self.use_edge_filter     = True
         self.beta                = 10.0
         self.window_size         = 10
@@ -356,12 +357,10 @@ class Optimizer(object):
         # TJL: I will think about smart ways to inject other functions in here,
         # but it may also be good to keep this static, once we have something
         # nice and robust.
-        
-        # obj = self._all_widths(bin_values) - 0.1 * np.mean(bin_values[max_inds]) + \
-        #       self.peak_regulization * n_maxima
-        
-        obj = self._simple_width(bin_values) - 0.1 * bin_values.max() + \
-              self.peak_regulization * n_maxima
+                
+        obj = self._simple_width(bin_values, bar=self.horizontal_cut) - \
+              self.max_weight * bin_values.max() + \
+              self.peak_weight * n_maxima
         
         # ----------------------------------------------------------------------
         
@@ -392,7 +391,7 @@ class Optimizer(object):
         print ""
         print "Beginning optimization..."
         print "Optimizing:", self.params_to_optimize
-        print "Objective function:  Sum[peak_widths] + %.2f * num_peaks" % self.peak_regulization
+        print "Objective function:  Sum[peak_widths] + %.2f * num_peaks" % self.peak_weight
         print ""
 
         initial_guesses = np.concatenate([ self.cspad.get_param(p).flatten() \

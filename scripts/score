@@ -8,6 +8,11 @@ ToDo
 Extract energy/path length from psana directly...
 """
 
+import argparse
+import numpy as np
+
+import matplotlib.pyplot as plt
+
 from autogeom import cspad
 from autogeom import score
 from autogeom import utils
@@ -16,15 +21,17 @@ parser = argparse.ArgumentParser(description='''Score an optimized geometry by
                                            testing it on a reference sample.''')
 
 parser.add_argument('image', help='The (raw) image file of the calibration sample.')
-parser.add_argument('--energy', help='The energy of the beam (in eV).', required=True)
-parser.add_argument('--path-len', required=True, 
+parser.add_argument('--energy', help='The energy of the beam (in eV).', type=float, required=True)
+parser.add_argument('--path-len', required=True, type=float,
                     help='The distance from the sample to the detector (in mm).')
 parser.add_argument('--cal-type', default='unknown', type=str, 
                     choices=['AgBe', 'Ag', 'Au', 'unknown'],
                     help='The kind of sample, can be one of {AgBe, Ag, Au, unknown}')
-parser.add_argument('--param-dir', default=None, 
+parser.add_argument('--param-dir', default=None, required=True,
                     help='''The cspad alignment parameters to use as a starting point, should be
-                            a directory. Default: use the pyana default geometry.''')
+                            a directory.''')
+
+args = parser.parse_args()
 
 # assemble the image
 print "Loading: %s" % args.image
@@ -34,9 +41,40 @@ asm_image = cs1(raw_image)
 
 # find the real-space peak locations || a is shorthand for `bin_values`
 bin_centers, a = utils.radial_profile(asm_image, cs1.beam_loc)
+a = utils.smooth(a, beta=10.0, window_size=10)
 max_inds = np.where(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True] == True)[0]
 real_peak_locations = bin_centers[max_inds]
 
 # score the sample
-sref = score.PowderReference.agbe(real_peak_locations, args.energy, args.path_length)
+if args.cal_type == "AgBe":
+    sref = score.PowderReference.agbe(real_peak_locations, args.energy, args.path_len)
+elif args.cal_type == "Ag":
+    sref = score.PowderReference.silver(real_peak_locations, args.energy, args.path_len)
+elif args.cal_type == "Au":
+    sref = score.PowderReference.gold(real_peak_locations, args.energy, args.path_len)
+elif args.cal_type == "unknown":
+    raise NotImplementedError('Unknown sample...!')
+else:
+    raise ValueError('No registered sample type: %s' % args.cal_type)
+
 sref.score()
+
+# make a plot!
+fig = plt.figure(figsize=(8,6))
+ax = plt.subplot(111)
+
+q_bin_centers = sref.reciprocal(bin_centers)
+
+ax.plot(q_bin_centers, a, lw=2)
+ax.vlines(sref.expt, 0, a.max(), color='k')
+
+for i in range(len(sref.expt)):
+    ax.text(sref.expt[i]-0.25, a.max() + 350, str(sref.millers_included[i]))
+
+ax.set_xlabel(r'q ($\AA^{-1}$)')
+ax.set_ylabel('Intensity')
+
+plt.show()
+
+
+

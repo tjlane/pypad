@@ -129,7 +129,6 @@ class CSPad(object):
             self.__setattr__(k,v)
         
         self._process_parameters()
-        self.small_angle_tilt = True # always true for now
                 
         return
     
@@ -368,9 +367,8 @@ class CSPad(object):
                     f = np.array([ 0.0, 0.10992, 0.0 ])
 
                 # now, apply `tilt` correction - a small rotation in x-y
-                if self.small_angle_tilt:
-                    s = self._rotate_xy(s, self.tilt[quad_index][i])
-                    f = self._rotate_xy(f, self.tilt[quad_index][i])
+                s = self._rotate_xy(s, self.tilt[quad_index][i])
+                f = self._rotate_xy(f, self.tilt[quad_index][i])
 
                 # find the center of the 2x1
                 cx = self.sec_offset[0] + self.section_centers[0][quad_index][i]
@@ -444,9 +442,8 @@ class CSPad(object):
                    pair = pair[::-1,:].T   # reverse rows, switch rows to columns
                pairs.append( pair )
 
-               if self.small_angle_tilt:
-                   pair = interp.rotate(pair, self.tilt[quad_index][i],
-                                        output=pair.dtype)
+               pair = interp.rotate(pair, self.tilt[quad_index][i],
+                                    output=pair.dtype)
 
            # make the array for this quadrant
            quadrant = np.zeros( (850, 850), dtype=raw_image.dtype )

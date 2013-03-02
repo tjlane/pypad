@@ -87,7 +87,7 @@ class PowderReference(object):
         lattice_spacing = 4.09 # ang
         
         n_peaks = len(real_peak_locations)
-        millers_included = [(1,1,1), (2,0,0), (2,2,0), (3,1,1)][:n_peaks]
+        millers_included = [(1,1,1), (2,0,0), (2,2,0), (3,1,1)]
         
         return cls(lattice_spacing, real_peak_locations, energy, path_length,
                    millers_included=millers_included)
@@ -103,7 +103,7 @@ class PowderReference(object):
         lattice_spacing = 4.076
 
         n_peaks = len(real_peak_locations)
-        millers_included = [(1,1,1), (2,0,0), (2,2,0), (3,1,1)][:n_peaks]
+        millers_included = [(1,1,1), (2,0,0), (2,2,0), (3,1,1)]
 
         return cls(lattice_spacing, real_peak_locations, energy, path_length,
                    millers_included=millers_included)
@@ -113,8 +113,16 @@ class PowderReference(object):
         """
         Convert the real-space peaks into reciprocal space.
         """
-        two_thetas = np.arctan(self.real_peak_locations / self.path_length)
-        self.reciprocal_peak_locations = 2.0 * self.k * np.sin( 0.5 * two_thetas )
+        self.reciprocal_peak_locations = self.reciprocal(self.real_peak_locations)
+    
+        
+    def reciprocal(self, real_space):
+        """
+        Convert the real-space peaks into reciprocal space.
+        """
+        two_thetas = np.arctan(real_space / self.path_length)
+        reciprocal_space = 2.0 * self.k * np.sin( 0.5 * two_thetas )
+        return reciprocal_space
     
         
     def _compute_expected_ring_locations(self):
@@ -126,19 +134,30 @@ class PowderReference(object):
         expected = np.zeros(len(self.millers_included))
         
         for i,miller_index in enumerate(self.millers_included):
-        
             zf = np.sqrt( np.sum( np.power( miller_index, 2 ) ) )
             expected[i] = (2.0 * np.pi * zf) / self.lattice_spacing
         
         return expected
     
         
-    def _determine_miller_indicies_to_use():
+    def _match_peaks(self, obsd, expt):
         """
-        Automatically match observed powder rings to miller indices
+        Automatically match observed powder rings to miller indices. Currently
+        will match observed peaks to the closest expected peak.
         """
-        raise NotImplementedError()
-        return miller_indices
+        
+        m_obsd = obsd.copy()
+        m_expt = np.zeros_like(m_obsd)
+        m_millers = []
+        
+        assert len(expt) == len(self.millers_included)
+        
+        for i in range(len(obsd)):
+            match_index  = np.argmin( np.abs(expt - obsd[i]) )
+            m_expt[i]    = expt[match_index]
+            m_millers.append( self.millers_included[match_index] )
+        
+        return m_obsd, m_expt, m_millers
     
         
     def score(self, verbose=True):
@@ -155,10 +174,11 @@ class PowderReference(object):
         
         total_score = 0.0
                 
-        obsd = self.reciprocal_peak_locations
-        expt = self._compute_expected_ring_locations()
+        self.obsd = self.reciprocal_peak_locations
+        self.expt = self._compute_expected_ring_locations()
+        m_obsd, m_expt, m_millers = self._match_peaks(self.obsd, self.expt)
         
-        total_score = np.sqrt( np.sum( np.power( obsd - expt , 2) ) ) / float(len(obsd))
+        total_score = np.sqrt( np.sum( np.power(m_obsd - m_expt, 2) ) ) / float(len(m_obsd))
         
         if verbose:
                         
@@ -169,10 +189,10 @@ class PowderReference(object):
             print "Peak\t  Miller \tObsd (1/A)\tExpd (1/A)\t  Diff.  "
             print "----\t---------\t----------\t----------\t---------"
             
-            for i,miller_index in enumerate(self.millers_included):
-                diff = obsd[i] - expt[i]
+            for i,miller_index in enumerate(m_millers):
+                diff = m_obsd[i] - m_expt[i]
                 print "   %d\t%s\t%.4e\t%.4e\t%.2e" % (i, str(miller_index),
-                                                      obsd[i], expt[i], diff)
+                                                     m_obsd[i], m_expt[i], diff)
             print ""
             print "FINAL SCORE:\t%.4e" % total_score
             print ""
@@ -260,7 +280,7 @@ class PowderReference(object):
 def test_agbe_score():
 
     # peak locations in mm, from Jonas
-    real_peak_locations = [ 2.80296, 5.6334, 8.60124, 11.62404, 14.64684,
+    real_peak_locations = [  2.80296,  5.6334,  8.60124, 11.62404, 14.64684,
                             17.66964, 20.7474, 23.79768, 26.95788 ]
 
     path_length = 129.0148
