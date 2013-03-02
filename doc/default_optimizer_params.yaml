@@ -5,8 +5,8 @@
 # those that you can change are most easily set via the calibrate-filter script
 
 # objective function parameters
-peak_weight:     10.0               # cost of adding another peak in the obj fxn
-max_weight:      0.1                # obj fxn weight on peak height
+peak_weight:     0.0                # cost of adding another peak in the obj fxn
+width_weight:    0.0                # cost of making a peak wider
 
 # image filtering parameters
 use_edge_filter: True               # use a filter on the image

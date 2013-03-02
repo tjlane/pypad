@@ -72,8 +72,8 @@ class Optimizer(object):
         
         # parameters -- default values
         self.n_bins              = None
-        self.peak_weight         = 10.0
-        self.max_weight          = 0.1
+        self.peak_weight         = 0.0
+        self.wigth_weight        = 0.0
         self.threshold           = 4.5e-04
         self.minf_size           = 3
         self.medf_size           = 8
@@ -351,16 +351,20 @@ class Optimizer(object):
             blob_circ = plt_patches.Circle(self.beam_loc, 15, fill=False, lw=2, 
                                            ec='orange')
             self._axL.add_patch(blob_circ)
+            self._axR.set_xlabel('Radius')
+            self._axR.set_ylabel('Intensity')
             plt.draw()
                   
         # --------- HERE IS THE OBJECTIVE FUNCTION -- MODIFY TO PLAY -----------
-        # TJL: I will think about smart ways to inject other functions in here,
-        # but it may also be good to keep this static, once we have something
-        # nice and robust.
                 
-        obj = self._simple_width(bin_values, bar=self.horizontal_cut) - \
-              self.max_weight * bin_values.max() + \
-              self.peak_weight * n_maxima
+        obj = - bin_values.max()
+        
+        if self.width_weight != 0.0:
+            obj += self.width_weight * self._simple_width(bin_values, 
+                                                        bar=self.horizontal_cut)
+            
+        if self.peak_weight != 0.0:
+            obj += self.peak_weight * n_maxima
         
         # ----------------------------------------------------------------------
         
@@ -406,8 +410,6 @@ class Optimizer(object):
             self._fig = plt.figure(figsize=(18,9))
             self._axL = self._fig.add_subplot(121)
             self._axR = self._fig.add_subplot(122)
-            self._axR.set_xlabel('Radius')
-            self._axR.set_ylabel('Intensity')
 
         if self.use_edge_filter:
             image = utils.find_rings(raw_image, threshold=self.threshold, 
