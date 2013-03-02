@@ -1,5 +1,7 @@
 
 To Do for autogeom
 ------------------
--- automatic miller index matching (in score)
+-- make sure default CSPAD available in scripts
+-- finish tutorial (images)
+-- write gospel
 -- GPL everything

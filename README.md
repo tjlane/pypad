@@ -4,6 +4,9 @@ autogeom
 Algorithms for Automatically Reconstructing CSPAD Geometries //
 TJ Lane <tjlane@stanford.edu> // Doniach Scattering Group
 
+<br><br>
+Autogeom is currently v0.0.1 alpha.
+
 --------------------------------------------------------------------------------
 
 Autogeom is a python package that aims to:
@@ -13,6 +16,7 @@ Autogeom is a python package that aims to:
 * assess the quality of a CSPAD geometry via known calibration standards
 * interact with CSPAD optical metrologies and convert those metrologies into parameters specifying a CSPAD geometry
 * provide access to all the above via a clean and intuitive API and CLUI
+
 
 Documentation
 -------------
@@ -31,7 +35,7 @@ Install
 
 Installation should be as easy as downloading this package and running:
 
-> python setup.py install
+`python setup.py install`
 
 This will automatically install the API in your python distribution and put the scripts in your path. Autogeom depends on:
 
@@ -42,16 +46,15 @@ This will automatically install the API in your python distribution and put the 
 * tables
 
 
-
 Tutorial
 --------
+Below, I'll go through a quick example of how to use the autogeom scripts, and demonstrate their function via a relevant example: shifting the CSPAD quads to gain an optimal geometry. For this example we'll use an averaged run from an experiment done on gold nanoparticles at CXI. This file is provided in `tutorial/gold_avg.npz` in numpy zipped format.
 
-Below, I'll go through a quick example of how to use the autogeom scripts, and demonstrate their function via a relevant example: shifting the CSPAD quads to gain an optimal geometry. For this example we'll use 
-
+Note: before you begin with any geometry optimization, you need a decently good geometry to begin with. Our example of this is contained in the set of parameters in `tutorial/cspad_params`. Providing better tools to get to this initial geometry are in the works, but for many purposes the default values should work well (and these are made available in the scripts).
 
 (1) Generate a filter that will remove experimental noise:
 
-`calibrate-filter tutorial/gold_avg.npz --param-dir data/ex_params/`
+`calibrate-filter tutorial/gold_avg.npz --param-dir tutorial/cspad_params/`
 
 
 (2) Optimize the geometry:
@@ -68,5 +71,17 @@ this should generate a directory `my_cspad_params`, containing your new paramete
 (4) Take a look at the result!
 
 `assemble -param-dir my_cspad_params`
+
+
+Contribute & Future
+-------------------
+
+If you would like to add to autogeom or suggest an enhancement, please do! The usual GitHub features (issues & pull requests) should suffice for these purposes. Any questions, contact TJ (email above).
+
+There are a few items already on the to do list:
+
+* Provide interactive tools for getting to a decent initial geometry manually.
+* Write unit and integration tests.
+* Clean and unify code in `cspad.py`, where redundancies exist from code copied from pyana.
 
 
