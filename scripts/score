@@ -72,7 +72,7 @@ axL.imshow(asm_image.T, vmin=0, vmax=100)
 real_expt = sref.real_space(sref.expt) / 0.10992 # conv to pixel units
 
 for i in range(len(real_expt)):
-    blob_circ = plt_patches.Circle(cs1.beam_loc, real_expt[i], fill=False, lw=0.5, 
+    blob_circ = plt_patches.Circle(cs1.beam_location, real_expt[i], fill=False, lw=0.5, 
                                    ec='white')
     # axL.text(real_expt[i] + cs1.beam_loc[0],
     #          real_expt[i] + cs1.beam_loc[1],

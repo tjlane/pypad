@@ -1,11 +1,12 @@
 
 To Do for autogeom
 ------------------
--- make simple asm process robust
 -- add rotations, but fix first quads rotation
+-- optimization for many peaks
 -- switch definitions to new psana convention
 -- compute curvature of each quad separately
 -- add in scrolling rescaling for scripts: score, assemble
+-- add intensity_profile to metrology
 
 -- finish tutorial (images)
 -- write gospel

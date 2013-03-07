@@ -45,7 +45,7 @@ class Optimizer(object):
             optically to better precision than you can hope for!
             
             If `geometry` is a Metrology object, then the only things updated
-            will be the quad positions and beam_loc.
+            will be the quad positions and beam_location.
             
             Note that the absolute center of the image (beam position) is also
             always found by optimization.
@@ -85,7 +85,7 @@ class Optimizer(object):
         self.window_size         = 3
         self.pixel_size          = 0.10992 # mm
         self.radius_range        = []
-        self.beam_loc            = np.array((900.0, 870.0))
+        self.beam_location       = np.array((900.0, 870.0))
         self.plot_each_iteration = True
         
         self.params_to_optimize = params_to_optimize
@@ -108,9 +108,9 @@ class Optimizer(object):
         else:
             self.radius_range = np.sort(np.array(self.radius_range, dtype=np.float))
         
-        if not len(self.beam_loc) == 2:
-            raise ValueError('`beam_loc` must be len 2')
-        self.beam_loc = np.array(self.beam_loc)
+        if not len(self.beam_location) == 2:
+            raise ValueError('`beam_location` must be len 2')
+        self.beam_location = np.array(self.beam_location)
         
         return
 
@@ -131,7 +131,7 @@ class Optimizer(object):
                                              rank_size=self.rank_size,
                                              sobel=self.sobel)
             assembled_image = self.cspad(raw_image)
-            bc, bv = self._bin_intensities_by_radius(self.beam_loc,
+            bc, bv = self._bin_intensities_by_radius(self.beam_location,
                                                      assembled_image)
             maxima_locations = self._maxima_indices(bv)
             return self.cspad, maxima_locations
@@ -234,7 +234,7 @@ class Optimizer(object):
         
         param_dict = {}
 
-        #start = 2 # the first two positions are reserved for beam_loc
+        #start = 2 # the first two positions are reserved for beam_location
         start = 0 # got rid of center opt. -- now it defines origin
         for p in self.params_to_optimize:
             param_arr_shape = cspad._array_sizes[p]
@@ -277,12 +277,12 @@ class Optimizer(object):
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
                 
         # the absolute center will always be the first two elements by convention
-        #self.beam_loc = param_vals[:2]
+        #self.beam_location = param_vals[:2]
         
         pp = self.cspad.pixel_positions / self.pixel_size
-        bin_centers, bin_values = self.cspad.intensity_profile(raw_image, 
+        bc, bv = self.cspad.intensity_profile(raw_image, 
                                    beta=self.beta, window_size=self.window_size)
-        bin_centers, bin_values = self._slice(bin_centers, bin_values)
+        bin_centers, bin_values = self._slice(bc / self.cspad.pixel_size, bv)
                                                                   
         max_inds = self._maxima_indices(bin_values)
         
@@ -298,7 +298,7 @@ class Optimizer(object):
             self._axR.cla()
             utils.sketch_2x1s(pp, self._axL)
             self._axR.plot(bin_centers, bin_values, lw=2, color='k')
-            blob_circ = plt_patches.Circle(self.beam_loc, 15, fill=False, lw=2, 
+            blob_circ = plt_patches.Circle(self.beam_location, 15, fill=False, lw=2, 
                                            ec='orange')
             self._axL.add_patch(blob_circ)
             self._axR.set_xlabel('Radius')
@@ -352,7 +352,7 @@ class Optimizer(object):
                                            for p in self.params_to_optimize ])
                                            
         # add in the absolute center -- we need to optimize this as well!
-        #initial_guesses = np.concatenate([ self.beam_loc, initial_guesses ])
+        #initial_guesses = np.concatenate([ self.beam_location, initial_guesses ])
 
         # turn on interactive plotting -- this is the only way I've gotten it to work
         if self.plot_each_iteration:            

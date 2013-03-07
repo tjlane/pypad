@@ -34,7 +34,8 @@ _array_sizes = { 'center' :         (12, 8),
                  'quad_tilt' :      (4,),
                  'rotation' :       (4, 8),
                  'tilt' :           (4, 8),
-                 'beam_loc' :       (2,) }         # our addition
+                 'beam_location' :  (2,),  # new in psana
+                 'beam_vector' :    (3,) } # new in psana
                  
 
 # the parameters that we can expect any psana project to serve up
@@ -55,7 +56,7 @@ _psana_params = [ 'center',
 
 # we have some additions of our own, enumerated here, that we don't expect
 # a psana project to have at the beginning
-_autogeom_additional_parameters = ['beam_loc', 'offset_corr_xy']
+_autogeom_additional_parameters = ['beam_location', 'offset_corr_xy']
 
 
 class CSPad(object):
@@ -262,7 +263,7 @@ class CSPad(object):
         """
 
         pixel_pos = self.pixel_positions
-        center = self.beam_loc * self.pixel_size
+        center = self.beam_location * self.pixel_size
         
         if not pixel_pos.shape[1:] == raw_image.shape:
             raise ValueError('`pixel_pos` and `intensities` must have same'
@@ -565,9 +566,15 @@ class CSPad(object):
         Build each of the four quads, and put them together.
         """
         
-        raw_image = utils.enforce_raw_img_shape(raw_image)
+        # shift the quad offset so that the image bounds arent less than (0,0)
+        quad_offset = self.quad_offset
+        for i in range(3):
+            quad_offset[i] -= quad_offset[i].min()
         
-        assembled_image = np.zeros((2*850+100, 2*850+100), dtype=raw_image.dtype)
+        # set up the raw image and the assembled template
+        raw_image = utils.enforce_raw_img_shape(raw_image)
+        bounds = 2*850+100
+        assembled_image = np.zeros((bounds, bounds), dtype=raw_image.dtype)
         
         # iterate over quads
         for quad_index in range(4):
@@ -580,6 +587,11 @@ class CSPad(object):
 
             qoff_x = int( self.quad_offset[0,quad_index] )
             qoff_y = int( self.quad_offset[1,quad_index] )
+            
+            if (qoff_x < 0) or (qoff_x >= bounds):
+                raise Exception('qoff_x: %d out of bounds [0,%d)' % (qoff_x, bounds))
+            if (qoff_y < 0) or (qoff_y >= bounds):
+                raise Exception('qoff_y: %d out of bounds [0,%d)' % (qoff_y, bounds))
             
             assembled_image[qoff_x:qoff_x+850, qoff_y:qoff_y+850] = quad_index_image
 
@@ -658,7 +670,8 @@ class CSPad(object):
             A CSPad object.
         """
         
-        defaults = { 'beam_loc'       : np.array([900.0, 870.0]),
+        defaults = { 'beam_location'  : np.array([900.0, 870.0]),
+                     'beam_vector'    : np.array([0.0, 0.0, 100.0]),
                      'offset_corr_xy' : np.zeros((2, 4))       # never accessed
                    }
         

@@ -257,12 +257,12 @@ class InteractiveFilter(object):
         beam_loc = [float(x) for x in self.beam_loc]
         
         
-        param_dict = { 'threshold'    : float( np.power(10, self.threshold_slider.val) ),
-                       'sigma'        : float(self.sigma_slider.val),
-                       'minf_size'    : int(self.minf_slider.val),
-                       'rank_size'    : int(self.rank_slider.val),
-                       'radius_range' : radius_range,
-                       'beam_loc'     : list(beam_loc) }
+        param_dict = { 'threshold'     : float( np.power(10, self.threshold_slider.val) ),
+                       'sigma'         : float(self.sigma_slider.val),
+                       'minf_size'     : int(self.minf_slider.val),
+                       'rank_size'     : int(self.rank_slider.val),
+                       'radius_range'  : radius_range,
+                       'beam_location' : list(beam_loc) }
         
         print "\nFinal Parameters:"
         pprint(param_dict)
