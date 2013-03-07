@@ -1,12 +1,11 @@
 
 To Do for autogeom
 ------------------
--- fix position of first quad (or center...)
+-- make simple asm process robust
 -- add rotations, but fix first quads rotation
 -- switch definitions to new psana convention
--- improve scoring display (rings on asm img, radial plots for each quad indpt)
 -- compute curvature of each quad separately
-
+-- add in scrolling rescaling for scripts: score, assemble
 
 -- finish tutorial (images)
 -- write gospel

@@ -578,8 +578,9 @@ class CSPad(object):
                 # reorient the quad_index_image as needed
                 quad_index_image = np.rot90( quad_index_image, 4-quad_index )
 
-            qoff_x = self.quad_offset[0,quad_index]
-            qoff_y = self.quad_offset[1,quad_index]
+            qoff_x = int( self.quad_offset[0,quad_index] )
+            qoff_y = int( self.quad_offset[1,quad_index] )
+            
             assembled_image[qoff_x:qoff_x+850, qoff_y:qoff_y+850] = quad_index_image
 
         return assembled_image
