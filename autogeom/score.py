@@ -123,6 +123,15 @@ class PowderReference(object):
         two_thetas = np.arctan(real_space / self.path_length)
         reciprocal_space = 2.0 * self.k * np.sin( 0.5 * two_thetas )
         return reciprocal_space
+        
+        
+    def real_space(self, reciprocal_space):
+        """
+        Convert from momentum to real-space
+        """
+        q = reciprocal_space
+        real = self.path_length * np.tan(2.0 * np.arcsin( q / (2.0*self.k) ))
+        return real
     
         
     def _compute_expected_ring_locations(self):

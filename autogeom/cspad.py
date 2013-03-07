@@ -121,6 +121,7 @@ class CSPad(object):
         """
         
         self._param_list = _array_sizes.keys()
+        self.pixel_size = 0.10992
         
         self._check_params(param_dict)
         
@@ -236,6 +237,78 @@ class CSPad(object):
         
         return pix_pos
     
+    
+    def intensity_profile(self, raw_image, n_bins=None, quad='all', beta=10.0,
+                          window_size=10):
+        """
+        Bin pixel intensities by their radius.
+
+        Parameters
+        ----------            
+        raw_image : np.ndarray
+            The intensity at each pixel, same shape as pixel_pos
+        n_bins : int
+            The number of bins to employ. If `None` guesses a good value.
+        quad : int
+            Bin only for a single quad. "all" means all quads.
+
+        Returns
+        -------
+        bin_centers : ndarray, float
+            The radial center of each bin.
+
+        bin_values : ndarray, int
+            The total intensity in the bin.
+        """
+
+        pixel_pos = self.pixel_positions
+        center = self.beam_loc * self.pixel_size
+        
+        if not pixel_pos.shape[1:] == raw_image.shape:
+            raise ValueError('`pixel_pos` and `intensities` must have same'
+                             ' shape format. Current shapes: %s and %s respectively.' %\
+                              (str(pixel_pos.shape), str(intensities.shape)))
+
+        if not ((pixel_pos.shape[0] == 2) or (pixel_pos.shape[0] == 3)):
+            raise ValueError('`pixel_pos` must have first dimension be 2 or 3.'
+                             'Current shape: %s' % str(pixel_pos.shape))
+
+        # use only x,y for now
+        if (pixel_pos.shape[0] == 3):
+            pixel_pos = pixel_pos[:2]
+
+        # compute radii
+        if quad == 'all':
+            radii = np.sqrt( np.power(pixel_pos[0]-center[0], 2) + \
+                             np.power(pixel_pos[1]-center[1], 2) )
+            intensities = raw_image
+        elif type(quad) == int:
+            radii = np.sqrt( np.power(pixel_pos[0,quad]-center[0], 2) + \
+                             np.power(pixel_pos[1,quad]-center[1], 2) )
+            intensities = raw_image[quad,:,:,:]
+        else:
+            raise ValueError('`quad` must be {0,1,2,3} or "all", got %s' % str(quad))
+
+
+        # generate the histogram
+        if n_bins == None:
+            n_bins = np.sqrt( np.product(intensities.shape) ) / 2.
+
+        assert radii.shape == intensities.shape
+
+        if intensities.dtype == np.bool:
+            bin_values, bin_edges = np.histogram( radii * intensities, bins=n_bins )
+        else:
+            bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
+
+        bin_values = bin_values[1:]
+        bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+
+        bin_values = utils.smooth(bin_values, beta=beta, 
+                                  window_size=window_size)
+        
+        return bin_centers, bin_values
+    
         
     def _process_parameters(self):
         """
@@ -296,6 +369,32 @@ class CSPad(object):
         self.offset_corr_xy = self.offset_corr[:2,:]
         
         return
+        
+
+    def _recenter(data):
+        """
+        Subtract the mean from the first dimension of an array, "re-centering" it.
+
+        Parameters
+        ----------
+        data : ndarray, float
+            An 3 x N array, where the first dimension is x/y/z and gets re-centered.
+
+        Returns
+        -------
+        centered : ndarray, float
+            `data` with the means along the frist dimension subtracted.
+        """
+
+        if not (data.shape[0] == 3):
+            raise ValueError('`data`s first dimension must be len 3')
+
+        centered = data.copy()
+
+        for i in range(3):
+            centered[i] -= np.mean( data[i] )
+
+        return centered        
     
     
     def _rotate_xy(self, vector, degrees_cw):

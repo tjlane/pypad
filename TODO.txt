@@ -1,7 +1,13 @@
 
 To Do for autogeom
 ------------------
--- make sure default CSPAD available in scripts
+-- fix position of first quad (or center...)
+-- add rotations, but fix first quads rotation
+-- switch definitions to new psana convention
+-- improve scoring display (rings on asm img, radial plots for each quad indpt)
+-- compute curvature of each quad separately
+
+
 -- finish tutorial (images)
 -- write gospel
 -- GPL everything

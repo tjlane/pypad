@@ -12,11 +12,13 @@ import argparse
 import numpy as np
 
 import matplotlib.pyplot as plt
+import matplotlib.patches as plt_patches
 
 from autogeom import cspad
 from autogeom import score
 from autogeom import utils
 
+# parse
 parser = argparse.ArgumentParser(description='''Score an optimized geometry by
                                            testing it on a reference sample.''')
 
@@ -39,8 +41,8 @@ raw_image = utils.load_raw_image(args.image)
 cs1 = cspad.CSPad.from_dir(args.param_dir)
 asm_image = cs1(raw_image)
 
-# find the real-space peak locations || a is shorthand for `bin_values`
-bin_centers, a = utils.radial_profile(asm_image, cs1.beam_loc)
+# now bin for combined quads to figure out where peaks are
+bin_centers, a = cs1.intensity_profile(raw_image)
 a = utils.smooth(a, beta=10.0, window_size=10)
 max_inds = np.where(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True] == True)[0]
 real_peak_locations = bin_centers[max_inds]
@@ -60,19 +62,42 @@ else:
 sref.score()
 
 # make a plot!
-fig = plt.figure(figsize=(8,6))
-ax = plt.subplot(111)
+fig = plt.figure(figsize=(12,6))
+axL = plt.subplot(121)
+axR = plt.subplot(122)
 
-q_bin_centers = sref.reciprocal(bin_centers)
+# plot left panel, the assemled image with ring predictions overlaid
+axL.imshow(asm_image.T, vmin=0, vmax=100)
 
-ax.plot(q_bin_centers, a, lw=2)
-ax.vlines(sref.expt, 0, a.max(), color='k')
+real_expt = sref.real_space(sref.expt) / 0.10992 # conv to pixel units
 
-for i in range(len(sref.expt)):
-    ax.text(sref.expt[i]-0.25, a.max() + 350, str(sref.millers_included[i]))
+for i in range(len(real_expt)):
+    blob_circ = plt_patches.Circle(cs1.beam_loc, real_expt[i], fill=False, lw=0.5, 
+                                   ec='white')
+    # axL.text(real_expt[i] + cs1.beam_loc[0],
+    #          real_expt[i] + cs1.beam_loc[1],
+    #          str(sref.millers_included[i]), color='white')
+    axL.add_patch(blob_circ)
 
-ax.set_xlabel(r'q ($\AA^{-1}$)')
-ax.set_ylabel('Intensity')
+
+# compute the radial profile for each 
+n_bins = 300
+quad_color = ['k', 'g', 'purple', 'b']
+
+for i in range(4):
+    bin_centers, a = cs1.intensity_profile(raw_image, n_bins=n_bins, quad=i)
+    a /= a.max()
+    a += 0.5 * i
+    q_bin_centers = sref.reciprocal(bin_centers)
+    axR.plot(q_bin_centers, a, color=quad_color[i], lw=2)
+    
+axR.vlines(sref.expt, 0, a.max(), color='k', linestyles='dashed')
+
+# for i in range(len(sref.expt)):
+#     axR.text(sref.expt[i]-0.25, a.max() + 350, str(sref.millers_included[i]))
+
+axR.set_xlabel(r'q ($\AA^{-1}$)')
+axR.set_ylabel('Intensity')
 
 plt.show()
 

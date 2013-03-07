@@ -10,11 +10,13 @@ import tables
 import numpy as np
 from scipy.ndimage import filters
 from scipy import interpolate
+from skimage import filter as skf
 
 import matplotlib.pyplot as plt
 
 
-def find_rings(raw_image, threshold=0.0025, minf_size=1, medf_size=8, sobel=True):
+def find_rings(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
+               rank_size=1, sobel=False):
     """
     Applies an edge filter followed by a noise reduction filter. Very good
     at locating powder rings and filtering everything else out.
@@ -50,7 +52,12 @@ def find_rings(raw_image, threshold=0.0025, minf_size=1, medf_size=8, sobel=True
         raise ValueError('`raw_image` should be 2d or shape-(4,8,185,388), got'
                          ': %s' % str(raw_image.shape))
     
-    image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
+    # apply rank filter & sobel filter
+    image = filters.rank_filter(image, -1, size=rank_size)
+    image = filters.gaussian_filter(image, sigma=sigma)
+    
+    if sobel:
+        image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
     
     # do a "common-mode"-esque normalization (seems to help)
     if image.shape == (32, 185, 388):
@@ -66,10 +73,11 @@ def find_rings(raw_image, threshold=0.0025, minf_size=1, medf_size=8, sobel=True
     assert image.min() == 0
     assert image.max() > 0
     
-    image = (image > (image.max() * threshold)).astype(np.bool)
+    # threshold
+    image = (image > (image.max() * threshold))
     
-    image = filters.minimum_filter(image, size=minf_size)
-    image = filters.median_filter(image, size=medf_size)
+    if minf_size > 1:
+        image = filters.minimum_filter(image, size=minf_size)
     
     if non_flat_img:
         image = enforce_raw_img_shape( image.astype(np.bool) )
@@ -221,6 +229,8 @@ def load_raw_image(filename, image_in_file=0):
     image : np.ndarray
         A numpy array of the image.
     """
+    
+    print "Loading: %s" % filename
     
     if filename.endswith('.h5'):
         f = tables.File(filename)

@@ -77,7 +77,7 @@ Follow the instructions that get printed to screen. You'll want to select region
 
 (3) Score your optimized geometry:
 
-`score --energy 9394.363725 --path-len 129.0 --cal-type Au --param-dir \ my_cspad_params tutorial/gold_avg.npz`
+`score --energy 9394.363725 --path-len 129.0 --cal-type Au --param-dir  my_cspad_params tutorial/gold_avg.npz`
 
 this should generate a directory `my_cspad_params`, containing your new parameters.
 

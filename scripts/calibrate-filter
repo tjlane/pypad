@@ -107,20 +107,23 @@ class InteractiveFilter(object):
         # display the image with sliders for each parameter
         axcolor = 'lightgoldenrodyellow'
         ax_thsd = plt.axes([0.25, 0.10, 0.65, 0.03], axisbg=axcolor)
-        ax_minf = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)
-        ax_medf = plt.axes([0.25, 0.20, 0.65, 0.03], axisbg=axcolor)
+        ax_sigm = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)
+        ax_minf = plt.axes([0.25, 0.20, 0.65, 0.03], axisbg=axcolor)
+        ax_rank = plt.axes([0.25, 0.25, 0.65, 0.03], axisbg=axcolor)
 
         self.threshold_slider = Slider(ax_thsd, 'Threshold', -5.0, 0.0, valinit=-2.0) # log10 scale
-        self.minf_slider      = Slider(ax_minf, 'Min Filter', 1, 25, valinit=3)
-        self.medf_slider      = Slider(ax_medf, 'Med Filter', 1, 25, valinit=8)
+        self.sigma_slider     = Slider(ax_sigm, 'Gaussian Filter', 0.0, 5.0, valinit=1.0)
+        self.minf_slider      = Slider(ax_minf, 'Minimum Filter', 1, 25, valinit=3)
+        self.rank_slider      = Slider(ax_rank, 'Rank 1 Filter', 1, 25, valinit=8)
 
         ax_reset = plt.axes([0.8, 0.025, 0.1, 0.04])
         self.button = Button(ax_reset, 'Reset', color=axcolor, hovercolor='0.975')
         
         # link mouse actions to functions
         self.threshold_slider.on_changed(self.update_image)
+        self.sigma_slider.on_changed(self.update_image)
         self.minf_slider.on_changed(self.update_image)
-        self.medf_slider.on_changed(self.update_image)
+        self.rank_slider.on_changed(self.update_image)
         self.button.on_clicked(self.reset)
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
     
@@ -177,11 +180,13 @@ class InteractiveFilter(object):
         If a slider gets moved, update the panels
         """
         thd = np.power( 10, self.threshold_slider.val )
+        sig = self.sigma_slider.val
         mnf = int( self.minf_slider.val )
-        mdf = int( self.medf_slider.val )
+        rnk = int( self.rank_slider.val )
         filtered_image = find_rings(self.raw_unfiltered_image, 
-                                    threshold=thd, minf_size=mnf, 
-                                    medf_size=mdf, sobel=True)
+                                    threshold=thd, 
+                                    sigma=sig, minf_size=mnf, 
+                                    rank_size=rnk, sobel=False)
         
         self.axL.imshow(filtered_image.T, origin='lower')
         
@@ -230,7 +235,7 @@ class InteractiveFilter(object):
     def reset(self, event):
         self.threshold_slider.reset()
         self.minf_slider.reset()
-        self.medf_slider.reset()
+        self.rank_slider.reset()
         self.regions = []
         self.update_image(event)
         return
@@ -253,8 +258,9 @@ class InteractiveFilter(object):
         
         
         param_dict = { 'threshold'    : float( np.power(10, self.threshold_slider.val) ),
+                       'sigma'        : float(self.sigma_slider.val),
                        'minf_size'    : int(self.minf_slider.val),
-                       'medf_size'    : int(self.medf_slider.val),
+                       'rank_size'    : int(self.rank_slider.val),
                        'radius_range' : radius_range,
                        'beam_loc'     : list(beam_loc) }
         
