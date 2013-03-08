@@ -101,7 +101,7 @@ class InteractiveFilter(object):
         self.beam_loc = (900.0, 870.0)
         self.regions = []
         
-        self.im = self.axL.imshow(raw_unfiltered_image.T, origin='lower')
+        self.im = self.axL.imshow(raw_unfiltered_image.T, origin='lower', vmin=0)
         self.draw_projection(raw_unfiltered_image)
 
         # display the image with sliders for each parameter

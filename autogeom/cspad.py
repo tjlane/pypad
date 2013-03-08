@@ -366,6 +366,16 @@ class CSPad(object):
                                 
         self.quad_offset = quad_position + quad_offset + quad_gap + quad_shift
         
+        # shift the quads so that the description of the detector begins at
+        # (0,0) in the coordinate system, and is not translated far from the
+        # origin
+
+        for i in range(2): # TJL : could cover z as well, right now just x/y
+            min_offset = np.min(self.quad_offset[i,:])
+            self.quad_offset[i,:] -= min_offset
+            self.beam_location[i] -= min_offset
+            # TJL : could include beam_vector here too
+        
         # inject offset_corr_xy
         self.offset_corr_xy = self.offset_corr[:2,:]
         
@@ -465,9 +475,9 @@ class CSPad(object):
                 # overlap. This remains true to psana convention.
                                 
                 # perform the rotation
-                s = self._rotate_xy( s, 90*(4-quad_index) + self.quad_rotation[quad_index])
-                f = self._rotate_xy( f, 90*(4-quad_index) + self.quad_rotation[quad_index])
-                p = self._rotate_xy( p, 90*(4-quad_index) + self.quad_rotation[quad_index])
+                s = self._rotate_xy( s, 90*(4-quad_index) ) #+ self.quad_rotation[quad_index])
+                f = self._rotate_xy( f, 90*(4-quad_index) ) #+ self.quad_rotation[quad_index])
+                p = self._rotate_xy( p, 90*(4-quad_index) ) #+ self.quad_rotation[quad_index])
                 
                 # now translate so that the top-left corners of an 850 x 850 box
                 # overlap
@@ -539,17 +549,7 @@ class CSPad(object):
         """
         Build each of the four quads, and put them together.
         """
-        
-        # shift the quads so that the description of the detector begins at
-        # (0,0) in the coordinate system, and is not translated far from the
-        # origin
-
-        # for i in range(2): # TJL : could cover z as well, right now just x/y
-        #     min_offset = np.min(self.quad_offset[i,:])
-        #     self.quad_offset[i,:]   -= min_offset
-        #     self.beam_location[i] -= min_offset
-            # TJL : could include beam_vector here too
-        
+                
         # set up the raw image and the assembled template
         raw_image = utils.enforce_raw_img_shape(raw_image)
         bounds = 2*850+100

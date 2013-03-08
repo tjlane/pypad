@@ -81,7 +81,7 @@ for i in range(len(real_expt)):
 
 
 # compute the radial profile for each 
-n_bins = 300
+n_bins = 800
 quad_color = ['k', 'g', 'purple', 'b']
 
 for i in range(4):

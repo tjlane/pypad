@@ -71,6 +71,7 @@ class Optimizer(object):
             raise TypeError('`geometry` must be one of {None, dict, CSPad, Metrology}')
         
         # parameters -- default values
+        self.objective_type      = 'overlap'
         self.n_bins              = 1000
         self.peak_weight         = 0.0
         self.width_weight        = 10.0
@@ -312,15 +313,35 @@ class Optimizer(object):
             plt.draw()
                   
         # --------- HERE IS THE OBJECTIVE FUNCTION -- MODIFY TO PLAY -----------
-                
-        obj = - bin_values.max()
-        
-        if self.width_weight != 0.0:
-            obj += self.width_weight * self._simple_width(bin_values, 
-                                                        bar=self.horizontal_cut)
+
+        # new objective function : overlap integral
+        if self.objective_type == 'overlap':
+            bc_perm = bc.copy()
+            quad_profiles = np.zeros((4, len(bc_perm)-2))
+
+            for i in range(4):
+                bc, bv = self.cspad.intensity_profile(raw_image,
+                                                      n_bins=bin_centers,
+                                                      beta=self.beta, 
+                                                      window_size=self.window_size,
+                                                      quad=i)
+                quad_profiles[i,:] = bv
             
-        if self.peak_weight != 0.0:
-            obj += self.peak_weight * n_maxima
+            obj = - np.log10( np.sum(np.product(quad_profiles, axis=0)) )
+                                       
+        # old objective function : peak height
+        elif self.objective_type == 'peak_height':
+            obj = - bin_values.max()
+        
+            if self.width_weight != 0.0:
+                obj += self.width_weight * self._simple_width(bin_values, 
+                                                            bar=self.horizontal_cut)
+            
+            if self.peak_weight != 0.0:
+                obj += self.peak_weight * n_maxima
+        
+        else:
+            raise ValueError('No implemented objective_type: %s' % objective_type)
         
         # ----------------------------------------------------------------------
         
@@ -376,7 +397,7 @@ class Optimizer(object):
 
         # run simplex minimization
         opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
-                                          args=(image,), xtol=1e-2, ftol=1e-6)
+                                          args=(image,), xtol=1e-2, ftol=1e-3)
                                    
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()
