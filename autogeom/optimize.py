@@ -395,10 +395,10 @@ class Optimizer(object):
                                      sobel=self.sobel)
 
         # run minimization
-        # opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
-        #                                   args=(image,), xtol=1e-2, ftol=1e-3)
-        opt_params = optimize.fmin(self._objective, initial_guesses, 
+        opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
                                           args=(image,), xtol=1e-2, ftol=1e-3)
+        # opt_params = optimize.fmin(self._objective, initial_guesses, 
+        #                                   args=(image,), xtol=1e-2, ftol=1e-3)
                                    
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()
