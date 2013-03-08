@@ -369,33 +369,7 @@ class CSPad(object):
         # inject offset_corr_xy
         self.offset_corr_xy = self.offset_corr[:2,:]
         
-        return
-        
-
-    def _recenter(data):
-        """
-        Subtract the mean from the first dimension of an array, "re-centering" it.
-
-        Parameters
-        ----------
-        data : ndarray, float
-            An 3 x N array, where the first dimension is x/y/z and gets re-centered.
-
-        Returns
-        -------
-        centered : ndarray, float
-            `data` with the means along the frist dimension subtracted.
-        """
-
-        if not (data.shape[0] == 3):
-            raise ValueError('`data`s first dimension must be len 3')
-
-        centered = data.copy()
-
-        for i in range(3):
-            centered[i] -= np.mean( data[i] )
-
-        return centered        
+        return     
     
     
     def _rotate_xy(self, vector, degrees_cw):
@@ -491,9 +465,9 @@ class CSPad(object):
                 # overlap. This remains true to psana convention.
                                 
                 # perform the rotation
-                s = self._rotate_xy( s, 90*(4-quad_index) )
-                f = self._rotate_xy( f, 90*(4-quad_index) )
-                p = self._rotate_xy( p, 90*(4-quad_index) )
+                s = self._rotate_xy( s, 90*(4-quad_index) + self.quad_rotation[quad_index])
+                f = self._rotate_xy( f, 90*(4-quad_index) + self.quad_rotation[quad_index])
+                p = self._rotate_xy( p, 90*(4-quad_index) + self.quad_rotation[quad_index])
                 
                 # now translate so that the top-left corners of an 850 x 850 box
                 # overlap
@@ -566,10 +540,15 @@ class CSPad(object):
         Build each of the four quads, and put them together.
         """
         
-        # shift the quad offset so that the image bounds arent less than (0,0)
-        quad_offset = self.quad_offset
-        for i in range(3):
-            quad_offset[i] -= quad_offset[i].min()
+        # shift the quads so that the description of the detector begins at
+        # (0,0) in the coordinate system, and is not translated far from the
+        # origin
+
+        # for i in range(2): # TJL : could cover z as well, right now just x/y
+        #     min_offset = np.min(self.quad_offset[i,:])
+        #     self.quad_offset[i,:]   -= min_offset
+        #     self.beam_location[i] -= min_offset
+            # TJL : could include beam_vector here too
         
         # set up the raw image and the assembled template
         raw_image = utils.enforce_raw_img_shape(raw_image)

@@ -43,7 +43,7 @@ asm_image = cs1(raw_image)
 
 # now bin for combined quads to figure out where peaks are
 bin_centers, a = cs1.intensity_profile(raw_image)
-a = utils.smooth(a, beta=10.0, window_size=10)
+a = utils.smooth(a, beta=10.0, window_size=20)
 max_inds = np.where(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True] == True)[0]
 real_peak_locations = bin_centers[max_inds]
 
@@ -72,7 +72,7 @@ axL.imshow(asm_image.T, vmin=0, vmax=100)
 real_expt = sref.real_space(sref.expt) / 0.10992 # conv to pixel units
 
 for i in range(len(real_expt)):
-    blob_circ = plt_patches.Circle(cs1.beam_location, real_expt[i], fill=False, lw=0.5, 
+    blob_circ = plt_patches.Circle(cs1.beam_location, real_expt[i], fill=False, lw=2.0, 
                                    ec='white')
     # axL.text(real_expt[i] + cs1.beam_loc[0],
     #          real_expt[i] + cs1.beam_loc[1],

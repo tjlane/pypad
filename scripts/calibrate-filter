@@ -92,7 +92,7 @@ class InteractiveFilter(object):
         self.raw_unfiltered_image = raw_unfiltered_image
 
         # initialize the plot
-        self.fig = plt.figure( figsize=(18,9))
+        self.fig = plt.figure( figsize=(12,6))
         self.axL = plt.subplot(121)
         self.axR = plt.subplot(122)
         plt.subplots_adjust(left=0.25, bottom=0.35)

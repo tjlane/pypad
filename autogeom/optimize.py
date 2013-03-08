@@ -71,9 +71,9 @@ class Optimizer(object):
             raise TypeError('`geometry` must be one of {None, dict, CSPad, Metrology}')
         
         # parameters -- default values
-        self.n_bins              = None
+        self.n_bins              = 1000
         self.peak_weight         = 0.0
-        self.width_weight        = 0.0
+        self.width_weight        = 10.0
         self.threshold           = 4.5e-04
         self.sigma               = 1.0
         self.minf_size           = 3
@@ -234,8 +234,8 @@ class Optimizer(object):
         
         param_dict = {}
 
-        #start = 2 # the first two positions are reserved for beam_location
-        start = 0 # got rid of center opt. -- now it defines origin
+        start = 2 # the first two positions are reserved for beam_location
+        #start = 0 # got rid of center opt. -- now it defines origin
         for p in self.params_to_optimize:
             param_arr_shape = cspad._array_sizes[p]
             num_params_expected = np.product( param_arr_shape )
@@ -275,12 +275,18 @@ class Optimizer(object):
         # un-ravel & inject the param values in the geometry object
         param_dict = self._unravel_params(param_vals)
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
+        
                 
         # the absolute center will always be the first two elements by convention
-        #self.beam_location = param_vals[:2]
+        # note this means we're actually overspecifying the number of free
+        # parameters (x/y for each quad + center), but this seems to optimize
+        # to a better geometry, since the center acts as a kind of global move
+        
+        self.beam_location = param_vals[:2]
+        self.cspad.set_param('beam_location', param_vals[:2])
         
         pp = self.cspad.pixel_positions / self.pixel_size
-        bc, bv = self.cspad.intensity_profile(raw_image, 
+        bc, bv = self.cspad.intensity_profile(raw_image, n_bins=self.n_bins,
                                    beta=self.beta, window_size=self.window_size)
         bin_centers, bin_values = self._slice(bc / self.cspad.pixel_size, bv)
                                                                   
@@ -352,12 +358,12 @@ class Optimizer(object):
                                            for p in self.params_to_optimize ])
                                            
         # add in the absolute center -- we need to optimize this as well!
-        #initial_guesses = np.concatenate([ self.beam_location, initial_guesses ])
+        initial_guesses = np.concatenate([ self.beam_location, initial_guesses ])
 
         # turn on interactive plotting -- this is the only way I've gotten it to work
         if self.plot_each_iteration:            
             plt.ion()
-            self._fig = plt.figure(figsize=(18,9))
+            self._fig = plt.figure(figsize=(12,6))
             self._axL = self._fig.add_subplot(121)
             self._axR = self._fig.add_subplot(122)
 
@@ -370,7 +376,7 @@ class Optimizer(object):
 
         # run simplex minimization
         opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
-                                          args=(image,), xtol=1e-2, ftol=1e-2)
+                                          args=(image,), xtol=1e-2, ftol=1e-6)
                                    
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()
