@@ -71,8 +71,8 @@ class Optimizer(object):
             raise TypeError('`geometry` must be one of {None, dict, CSPad, Metrology}')
         
         # parameters -- default values
-        self.objective_type      = 'overlap'
-        self.n_bins              = 1000
+        self.objective_type      = 'peak_height'
+        self.n_bins              = 500
         self.peak_weight         = 0.0
         self.width_weight        = 10.0
         self.threshold           = 4.5e-04
@@ -316,8 +316,7 @@ class Optimizer(object):
 
         # new objective function : overlap integral
         if self.objective_type == 'overlap':
-            bc_perm = bc.copy()
-            quad_profiles = np.zeros((4, len(bc_perm)-2))
+            quad_profiles = np.zeros((4, len(bin_centers)-2))
 
             for i in range(4):
                 bc, bv = self.cspad.intensity_profile(raw_image,
@@ -372,7 +371,7 @@ class Optimizer(object):
         print ""
         print "Beginning optimization..."
         print "Optimizing:", self.params_to_optimize
-        print "Objective function:  Sum[peak_widths] + %.2f * num_peaks" % self.peak_weight
+        print "Objective function:  %s" % self.objective_type
         print ""
 
         initial_guesses = np.concatenate([ self.cspad.get_param(p).flatten() \
@@ -395,8 +394,10 @@ class Optimizer(object):
                                      rank_size=self.rank_size,
                                      sobel=self.sobel)
 
-        # run simplex minimization
-        opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
+        # run minimization
+        # opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
+        #                                   args=(image,), xtol=1e-2, ftol=1e-3)
+        opt_params = optimize.fmin(self._objective, initial_guesses, 
                                           args=(image,), xtol=1e-2, ftol=1e-3)
                                    
         # turn off interactive plotting
