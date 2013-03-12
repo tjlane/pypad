@@ -751,6 +751,7 @@ class Metrology(object):
         self.pixel_size = 0.10992
         self._parameters = ['offset_corr', 'offset_corr_xy', 'beam_location',
                             'quad_rotation']
+        self._set_defaults()
                             
         print "Warning: some aspects of Metrology are currently untested. Use with caution."
         
@@ -1086,16 +1087,19 @@ class Metrology(object):
         psana_default = [180.0, 90.0, 0.0, 270.0]
         
         for i in range(4):
-            angle = self.quad_rotation[i] - psana_default[i]
+            degrees_cw = self.quad_rotation[i] - psana_default[i]
+            
+            if degrees_cw != 0.0:
         
-            ct = np.cos( np.deg2rad(degrees_cw) )
-            st = np.sin( np.deg2rad(degrees_cw) )
+                ct = np.cos( np.deg2rad(degrees_cw) )
+                st = np.sin( np.deg2rad(degrees_cw) )
             
-            Rx = np.array([ct, st])
-            Ry = np.array([-st, ct])
-            
-            self.x_coordinates[i] = np.dot(Rx, self.x_coordinates[i].flatten()).reshape(8,185,388)
-            self.y_coordinates[i] = np.dot(Rx, self.y_coordinates[i].flatten()).reshape(8,185,388)
+                R = np.array([[ct, -st], [st, ct]])
+                v = np.vstack([ self.x_coordinates[i].flatten(), self.y_coordinates[i].flatten() ])
+                vp = np.dot(R, v)
+                
+                self.x_coordinates[i] = vp[0,:].reshape(8,185,388)
+                self.y_coordinates[i] = vp[1,:].reshape(8,185,388)
         
         return
     
