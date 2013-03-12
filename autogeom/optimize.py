@@ -348,7 +348,7 @@ class Optimizer(object):
         
         # ----------------------------------------------------------------------
         
-        print "objective value: %.4e, number of peaks: %d" % (obj, n_maxima)
+        print "objective value: %.4e" % obj
         
         return obj
     
@@ -397,6 +397,8 @@ class Optimizer(object):
                                      minf_size=self.minf_size,
                                      rank_size=self.rank_size,
                                      sobel=self.sobel)
+        else:
+            image = raw_image
 
         # run minimization
         opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
