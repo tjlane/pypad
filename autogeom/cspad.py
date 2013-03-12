@@ -16,6 +16,7 @@ import scipy.ndimage.interpolation as interp
 import matplotlib.pyplot as plt
 
 from autogeom import utils
+from autogeom import export
 from autogeom import default
 
 
@@ -648,6 +649,16 @@ class CSPad(object):
                 np.savetxt(fname, self.get_param(key), fmt='%.2f')
             print "Wrote: %s" % fname
     
+        return
+    
+    
+    def to_cheetah(self):
+        export.to_cheetah(self)
+        return
+        
+        
+    def to_odin(self, filename):
+        export.to_odin(self, filename)
         return
     
     @classmethod
@@ -1310,6 +1321,16 @@ class Metrology(object):
         cs.set_param('tilt', self.tilt)
         
         return cs
+    
+        
+    def to_cheetah(self):
+        export.to_cheetah(self)
+        return
+    
+
+    def to_odin(self, filename):
+        export.to_odin(self, filename)
+        return
     
         
     def to_dir(self, dirname):

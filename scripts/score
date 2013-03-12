@@ -35,6 +35,15 @@ parser.add_argument('--param-dir', default=None, required=True,
 
 args = parser.parse_args()
 
+
+print "\n\t--- SCOREING CSPAD GEOMETRY ---\t\n"
+print " Figure Explanation:"
+print " Left Panel:  The assembled image, superimposed with white circles where"
+print "              theoretically there should be powder rings."
+print " Right Panel: The radial projection for each individual quad, dotted"
+print "              lines are theoretical peak predictions."
+print ""
+
 # assemble the image
 raw_image = utils.load_raw_image(args.image)
 cs1 = cspad.CSPad.from_dir(args.param_dir)

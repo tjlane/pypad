@@ -42,11 +42,12 @@ def find_rings(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
                 x_stop  = 185 * (i+1)
                 y_start = 388 * j
                 y_stop  = 388 * (j+1)
-                psind = i + j * 8
                 image[x_start:x_stop,y_start:y_stop] = raw_image[j,i,:,:].astype(np.float)
+                
     elif len(raw_image.shape) == 2:
         non_flat_img = False
         image = raw_image.astype(np.float)
+        
     else:
         raise ValueError('`raw_image` should be 2d or shape-(4,8,185,388), got'
                          ': %s' % str(raw_image.shape))
@@ -256,26 +257,6 @@ def load_raw_image(filename, image_in_file=0):
     return raw_image
 
     
-def cheetah_to_3Dpsana(cheetah_image):
-    """
-    Takes a raw cheetah image (2D) and returns it in psana format (3D)
-    """
-
-    psana_image = np.zeros((32, 185, 388))
-    assert cheetah_image.shape == (1480, 1552)
-
-    for i in range(8):
-        for j in range(4):
-            x_start = 185 * i
-            x_stop  = 185 * (i+1)
-            y_start = 388 * j
-            y_stop  = 388 * (j+1)
-            psind = i + j * 8 # confirmed visually
-            psana_image[psind,:,:] = cheetah_image[x_start:x_stop,y_start:y_stop]
-
-    return psana_image
-    
-
 def enforce_raw_img_shape(raw_image):
     """
     Make sure that the `raw_image` has shape: (4,8,185,388).
@@ -315,8 +296,8 @@ def enforce_raw_img_shape(raw_image):
                 x_stop  = 185 * (i+1)
                 y_start = 388 * j
                 y_stop  = 388 * (j+1)
-                psind = i + j * 8
-                new_image[j,i,:,:] = raw_image[x_start:x_stop,y_start:y_stop]
+                ps_quad = (j + 2) % 4
+                new_image[ps_quad,i,:,:] = raw_image[x_start:x_stop,y_start:y_stop]
     
     else:
         raise ValueError("Cannot understand `raw_image`: does not have any"
