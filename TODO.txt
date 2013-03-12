@@ -2,10 +2,9 @@
 To Do for autogeom
 ------------------
 -- add rotations, but fix first quads rotation
--- optimization for many peaks
--- compute curvature of each quad separately
--- add in scrolling rescaling for scripts: score, assemble
--- add intensity_profile to metrology
+-- add intensity_profile, quad rotation correction to metrology
+-- metrology/psana comparison
+-- energy/distance calibration
 
 -- finish tutorial (images)
 -- write gospel

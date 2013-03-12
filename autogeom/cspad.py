@@ -155,7 +155,7 @@ class CSPad(object):
         if param_name in self._param_list:
             return self.__dict__[param_name]
         else:
-            raise ValueError('No parameter with name: %s' % param_name)
+            raise ValueError('No parameter with name: %s, (check input file)' % param_name)
     
             
     def set_param(self, param_name, value, process=True):
@@ -464,10 +464,18 @@ class CSPad(object):
                 # them so that the top-left corners of an 850 x 850 pixel box
                 # overlap. This remains true to psana convention.
                                 
+                # we may want a small correction to the quad rotations. psana
+                # has a quad_rotation parameter, that is filled with silly
+                # values describing the non-relative orientations of the quads
+                # (and the value meanings are ambiguous) -- so here we subtract
+                # those values and apply just the small correction
+                quad_rot_corr_defaults = [180.0, 90.0, 0.0, 270.0]
+                quad_rot_corr = self.quad_rotation[quad_index] - quad_rot_corr_defaults[quad_index]
+                
                 # perform the rotation
-                s = self._rotate_xy( s, 90*(4-quad_index) ) #+ self.quad_rotation[quad_index])
-                f = self._rotate_xy( f, 90*(4-quad_index) ) #+ self.quad_rotation[quad_index])
-                p = self._rotate_xy( p, 90*(4-quad_index) ) #+ self.quad_rotation[quad_index])
+                s = self._rotate_xy( s, 90*(4-quad_index) + quad_rot_corr)
+                f = self._rotate_xy( f, 90*(4-quad_index) + quad_rot_corr)
+                p = self._rotate_xy( p, 90*(4-quad_index) + quad_rot_corr)
                 
                 # now translate so that the top-left corners of an 850 x 850 box
                 # overlap
@@ -543,7 +551,6 @@ class CSPad(object):
         # shift the quads so that the description of the detector begins at
         # (0,0) in the coordinate system, and is not translated far from the
         # origin
-
         # TJL : could include beam_vector here too
 
         for i in range(2): # TJL : could cover z as well, right now just x/y
@@ -562,17 +569,28 @@ class CSPad(object):
 
             quad_index_image = self._assemble_quad( raw_image[quad_index], quad_index )
 
-            if quad_index>0:
-                # reorient the quad_index_image as needed
-                quad_index_image = np.rot90( quad_index_image, 4-quad_index )
+            # reorient the quad_index_image as needed
+            #quad_index_image = np.rot90( quad_index_image, 4-quad_index )
+                
+            # we may want a small correction to the quad rotations. psana
+            # has a quad_rotation parameter, that is filled with silly
+            # values describing the non-relative orientations of the quads
+            # (and the value meanings are ambiguous) -- so here we subtract
+            # those values and apply just the small correction
+            quad_rot_corr_defaults = [180.0, 90.0, 0.0, 270.0]
+            quad_rot_corr = self.quad_rotation[quad_index] - quad_rot_corr_defaults[quad_index]
+            quad_index_image = interp.rotate( quad_index_image, 
+                                              90.0*(4-quad_index) + quad_rot_corr,
+                                              reshape=False,
+                                              output=quad_index_image.dtype )
 
             qoff_x = int( self.quad_offset[0,quad_index] )
             qoff_y = int( self.quad_offset[1,quad_index] )
             
             if (qoff_x < 0) or (qoff_x >= bounds):
-                raise Exception('qoff_x: %d out of bounds [0,%d)' % (qoff_x, bounds))
+                raise ValueError('qoff_x: %d out of bounds [0,%d)' % (qoff_x, bounds))
             if (qoff_y < 0) or (qoff_y >= bounds):
-                raise Exception('qoff_y: %d out of bounds [0,%d)' % (qoff_y, bounds))
+                raise ValueError('qoff_y: %d out of bounds [0,%d)' % (qoff_y, bounds))
             
             assembled_image[qoff_x:qoff_x+850, qoff_y:qoff_y+850] = quad_index_image
 

@@ -36,7 +36,6 @@ parser.add_argument('--param-dir', default=None, required=True,
 args = parser.parse_args()
 
 # assemble the image
-print "Loading: %s" % args.image
 raw_image = utils.load_raw_image(args.image)
 cs1 = cspad.CSPad.from_dir(args.param_dir)
 asm_image = cs1(raw_image)
@@ -87,7 +86,7 @@ quad_color = ['k', 'g', 'purple', 'b']
 for i in range(4):
     bin_centers, a = cs1.intensity_profile(raw_image, n_bins=n_bins, quad=i)
     a /= a.max()
-    a += 0.5 * i
+    a += 0.7 * i
     q_bin_centers = sref.reciprocal(bin_centers)
     axR.plot(q_bin_centers, a, color=quad_color[i], lw=2)
     

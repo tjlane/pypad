@@ -10,7 +10,6 @@ import tables
 import numpy as np
 from scipy.ndimage import filters
 from scipy import interpolate
-from skimage import filter as skf
 
 import matplotlib.pyplot as plt
 

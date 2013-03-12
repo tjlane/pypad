@@ -328,7 +328,7 @@ class Optimizer(object):
                                                       quad=i)
                 quad_profiles[i,:] = bv + 1e-100
             
-            obj = - np.log10( np.sum(np.product(quad_profiles, axis=0)) )
+            obj = - np.sum(np.product(quad_profiles, axis=0))
                                        
         # old objective function : peak height
         elif self.objective_type == 'peak_height':
@@ -346,7 +346,7 @@ class Optimizer(object):
         
         # ----------------------------------------------------------------------
         
-        print "objective value: %f, number of peaks: %d" % (obj, n_maxima)
+        print "objective value: %.4e, number of peaks: %d" % (obj, n_maxima)
         
         return obj
     
@@ -398,7 +398,7 @@ class Optimizer(object):
 
         # run minimization
         opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
-                                          args=(image,), xtol=1e-2, ftol=1e-3)
+                                          args=(image,), xtol=1e-2, ftol=1e-6)
                                    
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()
