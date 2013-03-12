@@ -747,7 +747,12 @@ class Metrology(object):
         print "Generating metrology from: %s" % metrology_file
         self.load(metrology_file)
         self.quad_offset = np.zeros((3,4))
+        
         self.pixel_size = 0.10992
+        self._parameters = ['offset_corr', 'offset_corr_xy', 'beam_location',
+                            'quad_rotation']
+                            
+        print "Warning: some aspects of Metrology are currently untested. Use with caution."
         
     
     @property
@@ -768,9 +773,18 @@ class Metrology(object):
                          
     
     # the following methods are an attempt to provide an interface similar
-    # to that of CSPad -- the only parameter we really have, though, is
-    # "offset", which is the quad offset
+    # to that of CSPad
     
+    def _set_defaults(self):
+        """
+        Insert some default values for parameters we can't infer from the
+        metrology file
+        """
+        self.beam_location = np.array((900.0, 870.0))
+        self.quad_rotation = np.array([180.0, 90.0, 0.0, 270.0]) # psana default
+        return
+    
+
     def get_param(self, param_name):
         """
         Parameter getter function.
@@ -790,18 +804,22 @@ class Metrology(object):
         """
         Parameter setter.
         """
-        if param_name == 'offset_corr':
-            if value.shape == (3,4):
-                self.quad_offset = value
-            else:
-                raise ValueError('`offset_corr` should have shape (3,4),'
-                                 ' got: %s' % str(value.shape))
-        elif param_name == 'offset_corr_xy':
+        if param_name == 'offset_corr_xy':
             if value.shape == (2,4):
                 self.quad_offset[:2,:] = value
             else:
                 raise ValueError('`offset_corr_xy` should have shape (2,4),'
                                  ' got: %s' % str(value.shape))
+                                 
+        elif param_name in self._parameters:
+            if value.shape == _array_sizes[param_name]:
+                self.__dict__[param_name] = value
+            else:
+                raise ValueError('`%s` should have shape %s,' \
+                                 ' got: %s' % ( param_name, 
+                                                str(_array_sizes[param_name]),
+                                                str(value.shape) ))
+                                 
         else:
             raise ValueError('Metrology objects only has `offset_corr` and '
                              '`offset_corr_xy` parameters, got: %s' % param_name)
@@ -984,65 +1002,102 @@ class Metrology(object):
         return
         
         
-    def apply_quad_offset(self, quad_offset):
+    def intensity_profile(self, raw_image, n_bins=None, quad='all', beta=10.0,
+                          window_size=10):
         """
-        Apply specific geometry corrections, defined by the psana parameters,
-        to the metrology pixel map.
-        
+        Bin pixel intensities by their radius.
+
         Parameters
-        ----------
-        quad_offset : np.ndarray
-            A shape-(3,4) array describing the (x,y) offset to apply to each
-            quad.
-        
+        ----------            
+        raw_image : np.ndarray
+            The intensity at each pixel, same shape as pixel_pos
+        n_bins : int
+            The number of bins to employ. If `None` guesses a good value.
+        quad : int
+            Bin only for a single quad. "all" means all quads.
+
         Returns
         -------
-        x, y, z : np.ndarrays of shape (4,8,185,388)
-            The x,y,z locations of each pixel in real-space, corrected.
+        bin_centers : ndarray, float
+            The radial center of each bin.
+
+        bin_values : ndarray, int
+            The total intensity in the bin.
+        """
+
+        pixel_pos = self.pixel_positions
+        center = self.beam_location * self.pixel_size
+
+        if not pixel_pos.shape[1:] == raw_image.shape:
+            raise ValueError('`pixel_pos` and `intensities` must have same'
+                             ' shape format. Current shapes: %s and %s respectively.' %\
+                              (str(pixel_pos.shape), str(intensities.shape)))
+
+        if not ((pixel_pos.shape[0] == 2) or (pixel_pos.shape[0] == 3)):
+            raise ValueError('`pixel_pos` must have first dimension be 2 or 3.'
+                             'Current shape: %s' % str(pixel_pos.shape))
+
+        # use only x,y for now
+        if (pixel_pos.shape[0] == 3):
+            pixel_pos = pixel_pos[:2]
+
+        # compute radii
+        if quad == 'all':
+            radii = np.sqrt( np.power(pixel_pos[0]-center[0], 2) + \
+                             np.power(pixel_pos[1]-center[1], 2) )
+            intensities = raw_image
+        elif type(quad) == int:
+            radii = np.sqrt( np.power(pixel_pos[0,quad]-center[0], 2) + \
+                             np.power(pixel_pos[1,quad]-center[1], 2) )
+            intensities = raw_image[quad,:,:,:]
+        else:
+            raise ValueError('`quad` must be {0,1,2,3} or "all", got %s' % str(quad))
+
+
+        # generate the histogram
+        if n_bins == None:
+            n_bins = np.sqrt( np.product(intensities.shape) ) / 2.
+
+        assert radii.shape == intensities.shape
+
+        if intensities.dtype == np.bool:
+            bin_values, bin_edges = np.histogram( radii * intensities, bins=n_bins )
+        else:
+            bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
+
+        bin_values = bin_values[1:]
+        bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+
+        bin_values = utils.smooth(bin_values, beta=beta, 
+                                  window_size=window_size)
+
+        return bin_centers, bin_values
+    
+        
+    def _rotate_quads(self):
+        """
+        Apply the `quad_rotation` parameter, and rotate the quads by a small
+        amount
         """
         
-        if not quad_offset.shape == (3,4):
-            raise ValueError('`quad_offset` is wrong shape, must be (3,4), got'
-                             ' %s' % str(quad_offset.shape))
-        
-        # keep track of the total offsets applied so far
-        self.quad_offset += quad_offset
+        # for some reason psana has a trivial but still confusing default:
+        # we are in the habit of just removing it, since the fixed quad rotation
+        # gets applied elsewhere...
+        psana_default = [180.0, 90.0, 0.0, 270.0]
         
         for i in range(4):
-            self.x_coordinates[i] += quad_offset[0,i]
-            self.y_coordinates[i] += quad_offset[1,i]
-            self.z_coordinates[i] += quad_offset[2,i]
+            angle = self.quad_rotation[i] - psana_default[i]
+        
+            ct = np.cos( np.deg2rad(degrees_cw) )
+            st = np.sin( np.deg2rad(degrees_cw) )
+            
+            Rx = np.array([ct, st])
+            Ry = np.array([-st, ct])
+            
+            self.x_coordinates[i] = np.dot(Rx, self.x_coordinates[i].flatten()).reshape(8,185,388)
+            self.y_coordinates[i] = np.dot(Rx, self.y_coordinates[i].flatten()).reshape(8,185,388)
         
         return
-        
-        
-    def to_basisgrid(self):
-        """
-        Convert the optical metrology to a basis grid representation.
-        
-        Returns
-        -------
-        bg : cspad.BasisGrid
-            A basis representation of the metrology.
-        """
-        
-        bg = BasisGrid()
-        
-        for i in range(4):
-            for j in range(8):
-                p = np.array([ self.x_coordinates[i,j,0,0],
-                               self.y_coordinates[i,j,0,0],
-                               self.z_coordinates[i,j,0,0] ])
-                s = np.array([ self.x_coordinates[i,j,1,0] - self.x_coordinates[i,j,0,0],
-                               self.y_coordinates[i,j,1,0] - self.x_coordinates[i,j,0,0],
-                               self.z_coordinates[i,j,1,0] - self.x_coordinates[i,j,0,0] ])
-                f = np.array([ self.x_coordinates[i,j,0,1] - self.x_coordinates[i,j,0,0],
-                               self.y_coordinates[i,j,0,1] - self.x_coordinates[i,j,0,0],
-                               self.z_coordinates[i,j,0,1] - self.x_coordinates[i,j,0,0] ])
-                shape = (185, 388)
-                bg.add_grid(p, s, f, shape)
-        
-        return bg
     
         
     def _compute_center_coordinates(self):
@@ -1104,6 +1159,7 @@ class Metrology(object):
         
         # MORE supreme stupidity -- this again duplicates a lot of the
         # computation already done, but I'm copying it to generate a test case
+        # and alpha version
 
         S1  = np.zeros( (4,8), dtype=np.int32 )
         S2  = np.zeros( (4,8), dtype=np.int32 )
@@ -1195,6 +1251,37 @@ class Metrology(object):
         return
     
         
+    def to_basisgrid(self):
+        """
+        Convert the optical metrology to a basis grid representation.
+
+        Returns
+        -------
+        bg : cspad.BasisGrid
+            A basis representation of the metrology.
+        """
+
+        self._rotate_quads()
+
+        bg = BasisGrid()
+
+        for i in range(4):
+            for j in range(8):
+                p = np.array([ self.x_coordinates[i,j,0,0],
+                               self.y_coordinates[i,j,0,0],
+                               self.z_coordinates[i,j,0,0] ])
+                s = np.array([ self.x_coordinates[i,j,1,0] - self.x_coordinates[i,j,0,0],
+                               self.y_coordinates[i,j,1,0] - self.x_coordinates[i,j,0,0],
+                               self.z_coordinates[i,j,1,0] - self.x_coordinates[i,j,0,0] ])
+                f = np.array([ self.x_coordinates[i,j,0,1] - self.x_coordinates[i,j,0,0],
+                               self.y_coordinates[i,j,0,1] - self.x_coordinates[i,j,0,0],
+                               self.z_coordinates[i,j,0,1] - self.x_coordinates[i,j,0,0] ])
+                shape = (185, 388)
+                bg.add_grid(p, s, f, shape)
+
+        return bg
+    
+        
     def to_cspad(self):
         """
         Convert the optical metrology to a set of psana alignment parameters,
@@ -1211,6 +1298,7 @@ class Metrology(object):
         # compute the necessary quantities for the parameters: centers, tilt
         self._compute_center_coordinates()
         self._compute_length_width_angle()
+        self._rotate_quads()
         
         # get a default CSPad object and set centers, tilt
         cs = CSPad.default()

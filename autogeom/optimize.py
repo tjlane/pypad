@@ -70,9 +70,10 @@ class Optimizer(object):
         else:
             raise TypeError('`geometry` must be one of {None, dict, CSPad, Metrology}')
         
-        # parameters -- default values
+        # -------- optimization algorithm parameters -- default values ---------
+        
         self.objective_type      = 'overlap'
-        self.n_bins              = 1000
+        self.n_bins              = 2000
         self.peak_weight         = 0.0
         self.width_weight        = 10.0
         self.threshold           = 4.5e-04
@@ -89,8 +90,9 @@ class Optimizer(object):
         self.beam_location       = np.array((900.0, 870.0))
         self.plot_each_iteration = True
         
-        self.params_to_optimize = params_to_optimize
+        self.params_to_optimize  = params_to_optimize
         
+        # ----------------------------------------------------------------------
         
         # parse kwargs into self -- this will replace the defaults above
         print ""
