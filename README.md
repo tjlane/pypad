@@ -9,9 +9,9 @@ PyPad provides a software-independent and intuitive way to:
 * CSPAD Analytics (Energy, Pixel Statistics, etc.)
 
 <br>
-Principle Authors:
-TJ Lane        ||  <tjlane@stanford.edu>         ||  Doniach Group
-Jonas Sellberg ||  <sellberg@slac.stanford.edu>  ||  Nilsson Group
+Principle Authors:<br>
+TJ Lane        ||  <tjlane@stanford.edu>         ||  Doniach Group<br>
+Jonas Sellberg ||  <sellberg@slac.stanford.edu>  ||  Nilsson Group<br>
 <br>
 PyPad is currently v0.0.1 alpha.
 
