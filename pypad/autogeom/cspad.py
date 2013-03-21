@@ -15,9 +15,9 @@ import numpy as np
 import scipy.ndimage.interpolation as interp
 import matplotlib.pyplot as plt
 
-from autogeom import utils
-from autogeom import export
-from autogeom import default
+from pypad.autogeom import utils
+from pypad.autogeom import export
+from pypad.autogeom import default
 
 
 # the expected size of each parameter array

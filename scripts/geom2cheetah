@@ -7,7 +7,7 @@ Convert either a metrology or cspad object to Cheetah's x/y/z position files.
 import os
 import argparse
 
-from autogeom import cspad
+from pypad.autogeom import cspad
 
 parser = argparse.ArgumentParser(description='''Convert either a set of psana 
 parameters or a metrology (txt) file to Cheetah's geometry specification (h5 

@@ -2,8 +2,8 @@
 import numpy as np
 from scipy import optimize, interpolate
 
-from autogeom import cspad
-from autogeom import utils
+from pypad.autogeom import cspad
+from pypad.autogeom import utils
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as plt_patches

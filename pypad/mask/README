@@ -1,0 +1,26 @@
+MASKING SCRIPTS
+- run with pyana
+pyana xtc25410/*r0067*xtc -c myana_avg.cfg -v -n 1000
+pyana xtc25410/*r0068*xtc -c myana_cspad.cfg -v -n 2000
+
+- run on written HDF5 files from cheetah
+maskRaw.py
+maskHit.py
+maskType.py
+
+- automatic masking
+maskVariance.py
+maskNonbondedPixels.py
+maskGain.py
+maskBorders.py
+increaseAutoMask.py
+
+- helper scripts to modify masks
+mergeMasks.py
+invertMask.py
+
+- view cheetah output with/without applied mask
+viewMaskedRaw.py
+viewMaskedHit.py
+viewHit.py
+viewRaw.py

@@ -8,10 +8,10 @@ import yaml
 import tables
 import argparse
 
-from autogeom import optimize as opt
-from autogeom import cspad
-from autogeom import score
-from autogeom import utils
+from pypad.autogeom import optimize as opt
+from pypad.autogeom import cspad
+from pypad.autogeom import score
+from pypad.autogeom import utils
 
 import numpy as np
 import matplotlib.pyplot as plt
