@@ -125,27 +125,6 @@ class PadMask(object):
         	for acol in range(8):
         		for n in range(0,COLS,10):
         			m[arow*COLS+n,acol*ROWS+n] = 0
-    
-        
-    def mask_by_darkcal(self, darkcal_file, threshold, file_is_variance=False):
-        """
-        Mask out pixels that fluctuate wildly during a dark run.
-        
-        Parameters
-        ----------
-        threshold : float
-            The ADU variance to mask.
-            
-        Optional Parameters
-        -------------------
-        file_is_variance
-        """
-        
-        # TJL may need help
-        
-        raise NotImplementedError()
-        
-        self._inject_mask('threshold', m)
         
         return
     
@@ -189,6 +168,18 @@ class PadMask(object):
         Merge two masks, masking with an OR operator for masked pixels.
         """
         pass
+        
+        
+    def invert(self):
+        """
+        Invert the mask. Usually "True" is a good pixel, and "False" is a bad
+        one, but this flips them.
+        
+        Returns
+        -------
+        """
+        return
+        
         
         
 class InteractiveMask(object):
