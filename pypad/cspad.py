@@ -15,8 +15,8 @@ import numpy as np
 import scipy.ndimage.interpolation as interp
 import matplotlib.pyplot as plt
 
-from pypad.autogeom import utils
-from pypad.autogeom import export
+from pypad import utils
+from pypad import export
 from pypad.autogeom import default
 
 
