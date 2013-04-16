@@ -14,7 +14,6 @@ c = 299792458 * 1.0e10         # speed of light  | Ang / s
 # ----------------------------
 
 
-
 class PowderReference(object):
     """
     A class that provides for scoring a detector geometry based on a known

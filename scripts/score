@@ -14,9 +14,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as plt_patches
 
-from pypad.autogeom import cspad
+from pypad import cspad
+from pypad import utils
 from pypad.autogeom import score
-from pypad.autogeom import utils
+
 
 # parse
 parser = argparse.ArgumentParser(description='''Score an optimized geometry by

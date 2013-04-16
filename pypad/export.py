@@ -7,10 +7,7 @@ Library for exporting autogeom geometries to other software packages.
 """
 
 import numpy as np
-import tables, h5py # should use only one or the other...
-
-#from autogeom.cspad import CSPad, Metrology
-
+import h5py
 
 def _check_geometry(geometry):
     # if not (isinstance(geometry, CSPad) or isinstance(geometry, Metrology)):
