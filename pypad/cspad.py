@@ -652,8 +652,8 @@ class CSPad(object):
         return
     
     
-    def to_cheetah(self):
-        export.to_cheetah(self)
+    def to_cheetah(self, filename="pixelmap-cheetah-raw.h5"):
+        export.to_cheetah(self, filename)
         return
         
         
