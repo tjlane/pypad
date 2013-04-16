@@ -38,9 +38,10 @@ def parse_n_load():
     if args.param_dir:
         print "ASSEMBLING IMAGE..."
         geom  = cspad.CSPad.from_dir(args.param_dir)
-        image = geom(raw_image)
     else:
-        image = raw_image
+        geom = cspad.CSPad.default()
+        
+    image = geom(raw_image)
         
     return image, args.output
     
@@ -90,6 +91,7 @@ class InteractiveFilter(object):
     def __init__(self, raw_unfiltered_image):
         
         self.raw_unfiltered_image = raw_unfiltered_image
+        print raw_unfiltered_image.shape
 
         # initialize the plot
         self.fig = plt.figure( figsize=(12,6))
