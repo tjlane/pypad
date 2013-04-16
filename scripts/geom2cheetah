@@ -14,6 +14,7 @@ parameters or a metrology (txt) file to Cheetah's geometry specification (h5
 files with x/y/z coordinate positions).''')
                                  
 parser.add_argument('geometry', help='Metrology file or CSPad alignment parameter dir')
+parser.add_argument('--filename', help='output cheetah filename (default: pixelmap-cheetah-raw.h5)', default='pixelmap-cheetah-raw.h5', required=False)
 args = parser.parse_args()
 
 
@@ -27,7 +28,6 @@ else:
     raise ValueError('Cannot understand: %s, is not a parameter dir or metrology'
                      ' file' % args.geometry)
                      
-geom.to_cheetah()
-
+geom.to_cheetah(args.filename)
 
 

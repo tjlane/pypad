@@ -402,7 +402,7 @@ class Optimizer(object):
 
         # run minimization
         opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
-                                          args=(image,), xtol=1e-2, ftol=1e-6)
+                                          args=(image,), xtol=1e-2, ftol=1e-3)
                                    
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()

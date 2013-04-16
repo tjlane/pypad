@@ -18,11 +18,11 @@ def _check_geometry(geometry):
     return
 
     
-def to_cheetah(geometry):
+def to_cheetah(geometry, filename="pixelmap-cheetah-raw.h5"):
     """
     Convert a CSPad or Metrology object to Cheetah x/y/z h5 files.
     
-    Writes: 'pixX_raw.h5', 'pixY_raw.h5', 'pixZ_raw.h5'
+    88Writes: 'pixX_raw.h5', 'pixY_raw.h5', 'pixZ_raw.h5'
     
     Parameters
     ----------
@@ -33,16 +33,19 @@ def to_cheetah(geometry):
     _check_geometry(geometry)
     
     print "Exporting to Cheetah format..."
-    filenames = ['pixX_raw.h5', 'pixY_raw.h5', 'pixZ_raw.h5']
+    coordinates = ['x', 'y', 'z']
     
     pp = geometry.pixel_positions
     assert pp.shape == (3, 4, 8, 185, 388)
     
-    # iterate over x/y/z
-    for x in range(3):
-        
-        cheetah_image = np.zeros((1480, 1552))
+    # write an h5
+    f = h5py.File(filename, 'w')
     
+    # iterate over x/y/z
+    for x in range(len(coordinates)):
+        
+        cheetah_image = np.zeros((1480, 1552), dtype=np.float32)
+        
         # iterate over each 2x1/quad (note switch)
         for i in range(8):
             for j in range(4):
@@ -52,13 +55,11 @@ def to_cheetah(geometry):
                 y_stop  = 388 * (j+1)
                 quad = (j + 2) % 4 # cheetah's quads are not quite the same...
                 cheetah_image[x_start:x_stop,y_start:y_stop] = pp[x,quad,i,:,:]
-                
-        # write an h5
-        f = h5py.File(filenames[x], 'w')
-        f['/data/data'] = cheetah_image
-        f.close()
+        
+        f['/%s' % coordinates[x]] = cheetah_image
     
-        print "Wrote: %s" % filenames[x]
+    print "Wrote: %s" % (filename)
+    f.close()
     
     return
 
