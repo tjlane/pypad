@@ -401,9 +401,18 @@ class ToggleButton(Button):
         self.on = default_state # keep track of state
         
         # we split observers into onstate/offstate_observers
+        del self.cnt
         del self.observers
+        
+        self.cnt_on = 0
         self.onstate_observers  = {}
+        
+        self.cnt_off = 0
         self.offstate_observers = {}
+        
+        self.connect_event('button_press_event', self._click)
+        self.connect_event('button_release_event', self._release)
+        self.connect_event('motion_notify_event', self._motion)
         
         return
     
@@ -430,15 +439,26 @@ class ToggleButton(Button):
                 
         # and toggle!
         self.on = not(self.on)
+
+        
+    def disconnect(self, cid):
+        """remove the observer with connection id *cid*"""
+        try:
+            if cid in self.onstate_observers:
+                del self.onstate_observers[cid]
+            else:
+                del self.offstate_observers[cid]
+        except KeyError:
+            pass
     
         
     def on_turned_on(self, func):
         """
         Call function `func` in the on state.
         """
-        cid = self.cnt
+        cid = self.cnt_on
         self.onstate_observers[cid] = func
-        self.cnt += 1
+        self.cnt_on += 1
         return cid
     
         
@@ -446,64 +466,12 @@ class ToggleButton(Button):
         """
         Call function `func` in the off state.
         """
-        cid = self.cnt
+        cid = self.cnt_off
         self.offstate_observers[cid] = func
-        self.cnt += 1
+        self.cnt_off += 1
         return cid
     
     
-def create_masktoggler(label, location, padmask, masktype, exargs=None, 
-                       default_state=False):
-    """
-    Create a ToggleButton that is connected to a PadMask.
-    
-    Parameters
-    ----------
-    label : str
-        The text to display in the button.
-        
-    location : tuple
-        A 4-tuple, (x_min, x_max, y_min, y_max) dictating where to draw the
-        button.
-        
-    padmask : padmask.Padmask
-        The mask object to affect.
-        
-    masktype : str
-        One of the masking methods of `padmask` to connect to the button.
-        
-    exargs : tuple
-        Extra arguments required by the method `masktype` to pass through.
-        
-    default_state : bool
-        Start off (False, default) or on (True).
-    """
-    
-    axcolor = 'lightgoldenrodyellow'
-    ax = plt.axes(location)
-    button = ToggleButton(ax, label, color=axcolor, hovercolor='0.975')
-    
-    def fon(event):
-        """ 
-        helper fxn that gets called when button is on -- calls the mask method
-        """
-        print "Applying: %s" % masktype
-        f = padmask.__getattribute__(masktype)
-        f(*exargs)
-        
-    def foff(event):
-        """
-        helper fxn that gets called when button is off -- removes the mask
-        """
-        print "Removing: %s" % masktype
-        padmask.remove_mask(masktype)
-        
-    button.on_turned_on(fon)
-    button.on_turned_off(foff)
-        
-    return button
-
-
 class MaskGUI(object):
 
     def __init__(self, raw_image, mask=None, filename='my_mask', fmt='pypad'):
@@ -573,22 +541,109 @@ class MaskGUI(object):
         
         plt.xlim([0, self.log_image.shape[0]])
         plt.ylim([0, self.log_image.shape[1]])
+        
+        self.ax.get_xaxis().set_ticks([])
+        self.ax.get_yaxis().set_ticks([])
 
         
         # add toggle buttons that allow the user to turn on and off std masks
-        create_masktoggler('nonbonded', [0.02, 0.7, 0.12, 0.08], self.mask,
-                           'mask_nonbonded', default_state=True)
-        create_masktoggler('row 13', [0.02, 0.6, 0.12, 0.08], self.mask,
-                           'mask_row13', default_state=True)
-        create_masktoggler('borders', [0.02, 0.5, 0.12, 0.08], self.mask,
-                           'mask_borders', default_state=True)
-        create_masktoggler('threshold', [0.02, 0.4, 0.12, 0.08], self.mask,
-                           'mask_threshold', default_state=True)
+        
+        
+        def create_masktoggler(ax, label, location, padmask, masktype, exargs=None, 
+                               default_state=False):
+            """
+            Create a ToggleButton that is connected to a PadMask.
+
+            Parameters
+            ----------
+            label : str
+                The text to display in the button.
+
+            location : tuple
+                A 4-tuple, (x_min, x_max, y_min, y_max) dictating where to draw the
+                button.
+
+            padmask : padmask.Padmask
+                The mask object to affect.
+
+            masktype : str
+                One of the masking methods of `padmask` to connect to the button.
+
+            exargs : tuple
+                Extra arguments required by the method `masktype` to pass through.
+
+            default_state : bool
+                Start off (False, default) or on (True).
+            """
+
+            axcolor = 'lightgoldenrodyellow'
+            button = ToggleButton(ax, label, color=axcolor, hovercolor='0.975')
+
+            def fon(event):
+                """ 
+                helper fxn that gets called when button is on -- calls the mask method
+                """
+                print "Applying: %s" % masktype
+                f = padmask.__getattribute__(masktype)
+                f(*exargs)
+
+            def foff(event):
+                """
+                helper fxn that gets called when button is off -- removes the mask
+                """
+                print "Removing: %s" % masktype
+                padmask.remove_mask(masktype)
+
+            button.on_turned_on(fon)
+            button.on_turned_off(foff)
+
+            return button
+        
+        axb = plt.axes([0.04, 0.3, 0.12, 0.08])
+        create_masktoggler(axb, 'nonbonded', [0.04, 0.7, 0.12, 0.08], self.mask,
+                                 'mask_nonbonded', default_state=True)
+        # create_masktoggler('row 13', [0.04, 0.6, 0.12, 0.08], self.mask,
+        #                    'mask_row13', default_state=True)
+        # create_masktoggler('borders', [0.04, 0.5, 0.12, 0.08], self.mask,
+        #                    'mask_borders', default_state=True)
+        # create_masktoggler('threshold', [0.04, 0.4, 0.12, 0.08], self.mask,
+        #                    'mask_threshold', default_state=True)
+                     
+        # def printtest(event): print 'clicked', event
+        # 
+        # axb = plt.axes([0.04, 0.3, 0.12, 0.08])    
+        # 
+        # axcolor = 'lightgoldenrodyellow'
+        # button = ToggleButton(axb, 'label', color=axcolor, hovercolor='0.975')
+        # 
+        # def fon(event):
+        #     """ 
+        #     helper fxn that gets called when button is on -- calls the mask method
+        #     """
+        #     print "Applying: %s" % masktype
+        #     f = padmask.__getattribute__(masktype)
+        #     f(*exargs)
+        # 
+        # def foff(event):
+        #     """
+        #     helper fxn that gets called when button is off -- removes the mask
+        #     """
+        #     print "Removing: %s" % masktype
+        #     padmask.remove_mask(masktype)
+        # 
+        # button.on_turned_on(fon)
+        # button.on_turned_off(foff)
+          
+        # bprev = Button(axb, 'Test')
+        # bprev.on_clicked(printtest)
 
                            
         plt.show()
         
         return
+        
+        
+
     
 
     def on_click(self, event):
