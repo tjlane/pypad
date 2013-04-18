@@ -34,5 +34,8 @@ nosetests.xml
 .project
 .pydevproject
 
+# Emacs
+*~
+
 .DS_Store
 

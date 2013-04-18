@@ -25,11 +25,11 @@ def parse_n_load():
     """
     
     # parse arguments
-    parser = argparse.ArgumentParser(description='Set filter parameters')
-    parser.add_argument('image_file', help='The (raw) image file to process')
-    parser.add_argument('--param-dir', help='The CSPAD alignment parameters to use', default=None)
+    parser = argparse.ArgumentParser(description='Generate filter parameters')
+    parser.add_argument('image_file', help='The (raw) image file of the calibration standard')
+    parser.add_argument('--param-dir', help='The CSPAD alignment parameters to use (default: pyana default geometry)', default=None)
     parser.add_argument('--output', default='filter_params.yaml',
-                        help='Write the parameters to a specific file after you\'re done')
+                        help='Write the output filter parameters to file after you\'re done (default: filter_params.yaml)')
     args = parser.parse_args()
     
     raw_image = load_raw_image(args.image_file)
@@ -76,8 +76,7 @@ def print_instructions():
     print " be written to disk in a file that can be interpreted by the "
     print " 'optgeom' script, which will give you a final, optimized geometry."
     print ""
-    print " PS. The rendering can be a bit slow... sorry. Please be a bit "
-    print " patient!\n\n"
+    print " PS. The rendering can be a bit slow... Please be patient!\n"
     
     return
 

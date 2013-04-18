@@ -19,23 +19,23 @@ import matplotlib.pyplot as plt
     
 def parse():
     
-    parser = argparse.ArgumentParser(description='''Optimize the CSPad geometry 
-                                     using a calibration standard.''')
-    parser.add_argument('std_image', help='The (raw) image file of the calibration standard.')
+    parser = argparse.ArgumentParser(description='''Optimize the CSPAD geometry 
+                                     using a calibration standard''')
+    parser.add_argument('image_file', help='The (raw) image file of the calibration standard')
     parser.add_argument('filter_params', default='filter_params.yaml',
-                        help=''''The filter parameters to employ, can be easily
-                             generated from the `calibrate-filter` script.''')
+                        help='''The filter parameters to employ (default: filter_params.yaml),
+                                can be easily generated from the `calibrate-filter` script''')
     parser.add_argument('--param-dir', default=None, 
-                        help='''The cspad alignment parameters to use as a starting point, should be
-                                a directory. Default: use the pyana default geometry.''')
+                        help='''The CSPAD alignment parameters to use as a starting point, should be
+                                a directory (default: pyana default geometry)''')
     parser.add_argument('--metrology', default=None, 
-                        help='''Metrology file''')
+                        help='''Metrology file to use as a starting point instead of CSPAD alignment parameters''')
     parser.add_argument('--run-range', default='0-end', 
                         help="""What range of runs these parameters correspond 
-                        to. Should be a string of form X-Y, with X and Y run 
-                        numbers (ints). Default is 0-end, which is all runs.""")
+                        to. Should be a string of form X-Y, where X and Y are run 
+                        numbers (default: 0-end, which is all runs).""")
     parser.add_argument('--output', default='my_cspad_params', type=str,
-                        help='The directory which to write the optimized parameters to.')
+                        help='The directory which to write the optimized CSPAD parameters to (default: my_cspad_params)')
                         
     args = parser.parse_args()
     
@@ -66,7 +66,7 @@ def main():
             raise ValueError('`run-range` argument passed incorrectly -- check input.')
     
     # load the calibration image
-    cal_image = utils.load_raw_image(args.std_image)
+    cal_image = utils.load_raw_image(args.image_file)
     
     # load the filter_params
     print "Loading: %s" % args.filter_params
