@@ -4,7 +4,11 @@ Provides a "mask" object for CSPads
 """
 
 import numpy as np
+import h5py
 import matplotlib.pyplot as plt
+from matplotlib.nxutils import points_inside_poly
+
+from pypad import utils
 
 
 class PadMask(object):
@@ -24,7 +28,14 @@ class PadMask(object):
     
     @property
     def mask(self):
-        return np.product( np.array(self._masks.values()) )
+        m = np.product( np.array(self._masks.values()), axis=0 )
+        assert m.shape == (4,8,185,388)
+        return m
+        
+        
+    @property
+    def mask2d(self):
+        return utils.flatten_2x1s( self.mask )
     
     
     @property
@@ -103,7 +114,7 @@ class PadMask(object):
         """
         Utility function that just returns a blank mask.
         """
-        return np.ones((4, 8, 185, 388), dtype=np.bool)
+        return np.ones((4, 8, 185, 388), dtype=np.int32)
     
         
     # ----------
@@ -208,17 +219,18 @@ class PadMask(object):
         
         for i in range(4):
             for j in range(8):
-        		for p in range(0, 185, 10):
-        		    
-        		    if nearest_neighbours:
-            		    xl = max(0, p-1)
-            		    xh = min(184, p+1)
-            		    yl = max(0, p-1)
-            		    yh = min(387, p+1)
+                for p in range(0, 185, 10):
+                    
+                    if nearest_neighbours:                      
+                        xl = max(0, p-1)
+                        xh = min(184, p+1)
+                        yl = max(0, p-1)
+                        yh = min(387, p+1)
                         m[xl:xh,yl:yh] = 0
+                        
                     else:
                         m[p,p] = 0
-        			
+                    
         self._inject_mask('nonbonded', m)
         
         return
@@ -258,6 +270,17 @@ class PadMask(object):
         
         return
     
+        
+    def mask_row13(self):
+        
+        raise NotImplementedError()
+        
+        #this is for masking out row13 of the CSPAD
+        col=181
+        for i in range(8):
+            self.automask[:,col]=1
+            col+= 194
+    
     # ----------
         
     def merge(self, *args):
@@ -276,197 +299,270 @@ class PadMask(object):
         return
     
         
-class InteractiveMask(object):
+    def save(self, filename, fmt='pypad'):
+        """
+        Save the PadMask object to one of many possible formats:
+        
+        -- pypad : An hdf5 format that includes all metadata associated with the
+                   mask. Not read by other software (suffix: .mask).
+                   
+        -- twod  : Stores the mask as a two-dimensional array in an HDF5 format.
+                   Easily read into Cheetah and Odin (suffix: .h5).
+        
+        Parameters
+        ----------
+        filename : str
+            The name of the file to write. This function will append an 
+            appropriate suffix if none is provided.
+            
+        fmt : str, {'pypad', 'twod'}
+            The format to save in. See above for documentation.
+        """
+        
+        if fmt == 'pypad':
+            if not filename.endswith('.mask'):
+                filename += '.mask'
+            
+            f = h5py.File(filename, 'w')
+            for k in self._masks.keys():
+                f['/' + k] = self._masks[k]
+            f.close()
+            
+            
+        elif fmt == 'twod':
+            if not filename.endswith('.h5'):
+                filename += '.h5'
+                
+                # need jonas to dbl check this is right for Cheetah
+                f = h5py.File(filename, 'w')
+                f['/data'] = self.mask
+                f.close()
+            
+            
+        else:
+            raise IOError('Unrecognized format for PadMask: %s. Should be one of'
+                          ' {"pypad", "twod"}' % fmt)
+        
+        print "Wrote: %s" % filename
+        return
+    
+    
+    @classmethod    
+    def load(cls, filename):
+        """
+        Load a saved mask
+        
+        Parameters
+        ----------
+        filename : str
+            The name of the file to read.
+        """
+        
+        if not filename.endswith('.mask'):
+            raise IOError('Can only read files with .mask format -- got: %s' % filename)
+            
+        m = cls()
+        
+        f = h5py.File(filename, 'r')
+        for k in f:
+            m._masks[k] = np.array(f[k])
+        f.close()
+        
+        return
 
-   def __init__(self, data, mask_file, threshold=0, row13=False):
-      self.key=[]  
-      self.x=0
-      self.y=0
-      self.xy=[]
-      self.xx=[]
-      self.yy=[]
-      self.data=data
-      self.lx,self.ly=p.shape(self.data)
-      self.points=[]
-      for i in range(self.lx):
-          for j in range(self.ly):
-           self.points.append([i,j]) 
-      self.mask_file=mask_file
-      if os.path.exists(self.mask_file) is True:
-#         if 'edf' in self.mask_file:
-#            mask_f=EdfFile.EdfFile(self.mask_file)
-#            self.mymask=mask_f.GetData(0)
-#            num_masks=mask_f.GetNumImages()
-#            if num_masks==2:
-#               self.automask=mask_f.GetData(1)
-#               self.anisotropic_mask=0*self.mymask
-#            if num_masks==3:
-#               self.automask=mask_f.GetData(1)
-#               self.anisotropic_mask=mask_f.GetData(2)
-#            else:
-#               self.automask=0*self.mymask
-#               self.anisotropic_mask=0*self.mymask
-#            if p.shape(self.mymask)!=p.shape(self.data):
-#               self.mymask=n.zeros((self.lx,self.ly))
-#         elif 'h5' in self.mask_file:
-         if 'h5' in self.mask_file:
-            newfile=self.make_name
-            self.open_mask()
-            self.anisotropic_mask=0*self.mymask
-      else:
-         self.mymask=n.zeros((self.lx,self.ly))
-         self.automask=n.zeros((self.lx,self.ly))
-         self.anisotropic_mask=n.zeros((self.lx,self.ly))
-      self.old_mymask=self.mymask
-      self.old_automask=self.automask
-      self.automask[n.where(self.data<=threshold)]=1
-      print "automatically masking out " + str(int(self.automask.sum())) + " pixels below or equal to threshold=%s" % (threshold)
-      #this is for masking out row13 of the CSPAD
-      if (row13):
-         print "automatically masking out row13 of CSPAD"
-         col=181
-         for i in range(8):
-            self.automask[:,col]=1
-            col+= 194
-      #end of CSPAD part
-      palette=p.cm.jet
-      palette.set_bad('w',1.0)
-      p.rc('image',origin = 'lower')
-      p.rc('image',interpolation = 'nearest')
-      p.figure(2)
-      self.px=p.subplot(111)
-      self.data=p.log(self.data+1)
-      self.im=p.imshow(masked_array(self.data,self.mymask+self.automask+self.anisotropic_mask), cmap=palette)
-      p.title('Select a ROI. Press m to mask it or u to unmask it. k to save/exit, q to exit without saving')
-      self.lc,=self.px.plot((0,0),(0,0),'-+m',linewidth=1,markersize=8,markeredgewidth=1)
-      self.lm,=self.px.plot((0,0),(0,0),'-+m',linewidth=1,markersize=8,markeredgewidth=1)
-      self.px.set_xlim(0,self.ly)
-      self.px.set_ylim(0,self.lx)
-      self.colorbar=p.colorbar(self.im,pad=0.01)
-      cidb=p.connect('button_press_event',self.on_click)
-      cidk=p.connect('key_press_event',self.on_click)
-      cidm=p.connect('motion_notify_event',self.on_move)
-      p.show()
-      
-   def on_click(self,event):
-       if not event.inaxes: 
-           self.xy=[]
-           return
-       self.x,self.y=int(event.xdata), int(event.ydata)
-       self.key=event.key
-       self.xx.append([self.x])
-       self.yy.append([self.y])
-       self.xy.append([self.y,self.x])
-       self.lc.set_data(self.xx,self.yy)
-       if self.key=='m': 
-           print 'masking'
-           self.xx[-1]=self.xx[0]
-           self.yy[-1]=self.yy[0]
-           self.xy[-1]=self.xy[0]
-           ind=p.nonzero(points_inside_poly(self.points,self.xy))
-           self.mymask=self.mymask.reshape(self.lx*self.ly,1)
-           self.mymask[ind]=1
-           self.mymask=self.mymask.reshape(self.lx,self.ly)
-           datamasked=masked_array(self.data,self.mymask+self.automask+self.anisotropic_mask)
-           self.im.set_data(datamasked)
-           self.xx=[]
-           self.yy=[]
-           self.xy=[] 
-           self.lc.set_data(self.xx,self.yy)
-           self.lm.set_data(self.xx,self.yy)
-#           self.im.set_clim(vmax=(2*self.data.mean()))
-           self.im.autoscale()
-           p.draw()
-           self.x=0
-           self.y=0 
-       if self.key=='u':
-           print 'unmasking'
-           self.xx[-1]=self.xx[0]
-           self.yy[-1]=self.yy[0]
-           self.xy[-1]=self.xy[0]
-           ind=p.nonzero(points_inside_poly(self.points,self.xy))
-           self.mymask=self.mymask.reshape(self.lx*self.ly,1)
-           self.mymask[ind]=0
-           self.mymask=self.mymask.reshape(self.lx,self.ly)
-           datanew=masked_array(self.data,self.mymask+self.automask+self.anisotropic_mask)
 
-           self.im.set_data(datanew)
-           self.xx=[]
-           self.yy=[]
-           self.xy=[]
-           self.lc.set_data(self.xx,self.yy)
-           self.lm.set_data(self.xx,self.yy)
-#           self.im.set_clim(vmax=(2*self.data.mean()))
-           self.im.autoscale()
-           p.draw()
-           self.x=0
-           self.y=0
+class MaskGUI(object):
 
-       if self.key=='r':
-           print 'unmasking all'
-           self.mymask=0*self.mymask
-           datanew=masked_array(self.data,self.mymask+self.automask+self.anisotropic_mask)
-           self.im.set_data(datanew)
-           self.xx=[]
-           self.yy=[]
-           self.xy=[] 
-           self.lc.set_data(self.xx,self.yy)
-           self.lm.set_data(self.xx,self.yy)
+    def __init__(self, raw_image, mask=None, filename='my_mask', fmt='pypad'):
+        
+        if not raw_image.shape == (4, 8, 185, 388):
+            raise ValueError("`raw_image` must have shape: (4, 8, 185, 388)")
+            
+        if mask == None:
+            self.mask = PadMask()
+        elif isinstance(mask, PadMask):
+            self.mask = mask
+        else:
+            raise TypeError('`mask` argument must be a pypad.padmask.PadMask object')
+        
+        
+        # inject a new mask type into our PadMask obj
+        m = self.mask._blank_mask()
+        self.mask._inject_mask('manual', m)
+        
+        
+        # deal with negative values
+        self.mask._inject_mask('negatives', m.copy())
+        self.mask._masks['negatives'][raw_image < 0.0] = 0
+        print "Masked: %d negative pixels" % np.sum(np.logical_not(self.mask._masks['negatives']))
+        
+        
+        # we're going to plot the log of the image, so do that up front
+        self.raw_image = utils.flatten_2x1s(raw_image)
+        
+        self.log_image = self.raw_image.copy()
+        self.log_image[self.log_image < 0.0] = 0.0
+        self.log_image = np.log10(self.log_image + 1.0)
+        
+        
+        # populate an array containing the indices of all pixels in the image
+        mg = np.meshgrid( np.arange(self.raw_image.shape[0]),
+                          np.arange(self.raw_image.shape[1]) )
+        self.points = np.vstack((mg[0].flatten(), mg[1].flatten())).T
+        
+        
+        palette = plt.cm.jet
+        palette.set_bad('w',1.0)
+                
+        plt.figure()
+        
+        self.ax = plt.subplot(111)
+        self.im = plt.imshow( (self.log_image * self.mask.mask2d).T, cmap=palette,
+                              origin='lower', interpolation='nearest', vmin=0, 
+                              extent=[0, self.log_image.shape[0], 0, self.log_image.shape[1]] )
 
-#           self.im.set_clim(vmax=(2*self.data.mean()))
-           self.im.autoscale()
-           p.draw()
-           self.x=0
-           self.y=0 
-       if self.key=='k':
-          print 'save and exit'
-          self.save_mask()
-          print 'Mask saved in file:', self.mask_file
-#          mask_f=EdfFile.EdfFile(self.mask_file)
-#          mask_f.WriteImage({},self.mymask,0)
-#          mask_f.WriteImage({},self.automask,1)
-#          mask_f.WriteImage({},self.anisotropic_mask,2)
-#          del(mask_f)
-          p.close()
-          return self.mymask+self.automask
-       if self.key=='q':
-          print 'exit without saving'
-          p.close()
-          return self.old_mymask+self.old_automask
+        plt.title('Press m : mask || u : unmask || r : reset || k : save & exit || q : exit w/o saving')
 
-   def on_move(self,event):
-       if not event.inaxes: return
-       xm,ym=int(event.xdata), int(event.ydata)
-       # update the line positions
-       if self.x!=0: 
-           self.lm.set_data((self.x,xm),(self.y,ym))
-           p.draw()
+        self.lc, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
+        self.lm, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
+        
+        self.line_corner = (0,0)
+        self.xy = None
 
-   def save_mask(self):
-       newfile=self.make_name()
-       h5file = h.File(newfile,'w')
-       datagroup = h5file.create_group("masks")
-       dataset = datagroup.create_dataset("user",self.mymask.shape,dtype="float")
-       dataset[...] = self.mymask[:,:]
-       dataset2 = datagroup.create_dataset("auto",self.mymask.shape,dtype="float")
-       dataset2[...] = self.automask[:,:]
-       h5file.close()
-       tosave=abs(n.ceil((self.mymask+self.automask)/2)-1)
-       h5file = h.File(self.mask_file,'w')
-       datagroup = h5file.create_group("data")
-       dataset = datagroup.create_dataset("data",tosave.shape,dtype="int16")
-       dataset[...] = tosave[:,:]
-       h5file.close()
-       
-   def open_mask(self):
-       newfile=self.make_name()
-       h5file = h.File(newfile,'r')
-       self.mymask=n.array(h5file.get("masks/user"))
-       self.automask=n.array(h5file.get("masks/auto"))
-       
-   def make_name(self):
-       dirname,filename=os.path.split(self.mask_file)
-       base,ext=filename.split('.')
-       newname=base+'_2masks.'+ext
-       newfile=os.path.join(dirname,newname)
-       return newfile
+        self.colorbar = plt.colorbar(self.im, pad=0.01)
+        self.colorbar.set_label(r'$\log_10$ Intensity')
+
+        cidb = plt.connect('button_press_event',  self.on_click)
+        cidk = plt.connect('key_press_event',     self.on_keypress)
+        cidm = plt.connect('motion_notify_event', self.on_move)
+        
+        plt.xlim([0, self.log_image.shape[0]])
+        plt.ylim([0, self.log_image.shape[1]])
+
+        plt.show()
+        return
+    
+
+    def on_click(self, event):
+         
+        if not event.inaxes: return
+        
+        if self.xy != None:
+            self.xy = np.vstack(( self.xy, np.array([int(event.xdata), int(event.ydata)]) ))
+        else:
+            self.xy = np.array([int(event.xdata), int(event.ydata)])
+            
+        self.lc.set_data(self.xy.T) # draws lines
+        self.line_corner = (int(event.xdata), int(event.ydata))
+        
+        return
+
+
+    def on_keypress(self, event):
+
+        if event.key in ['m', 'u']:
+           
+            # wrap around to close polygon
+            self.xy = np.vstack(( self.xy, self.xy[0,:] ))
+            inds = self.points[points_inside_poly(self.points, self.xy)]
+
+            # if we're going to mask, mask
+            if event.key == 'm':
+                print 'Masking convex area...'
+                x = self._conv_2dinds_to_4d(inds)
+                self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 0
+                
+            # if we're unmasking, unmask
+            elif event.key == 'u':
+                print 'Unmasking convex area...'
+                x = self._conv_2dinds_to_4d(inds)
+                self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 1
+            
+            # draw and reset
+            self.im.set_data( (self.log_image * self.mask.mask2d).T )
+
+            self._reset()
+            self.im.autoscale()
+            plt.draw()
+
+        elif event.key == 'r':
+            print 'Unmasking all'
+            
+            self.mask._masks['manual'] = self.mask._blank_mask()
+            
+            self.im.set_data( (self.log_image * self.mask.mask2d).T )
+            
+            self._reset()
+            self.im.autoscale()
+            plt.draw()
+           
+        elif event.key == 'k':
+            self.mask.save(self.filename, fmt=self.file_fmt)
+            plt.close()
+            return
+          
+        elif event.key == 'q':
+            print 'Exiting without saving...'
+            plt.close()
+            return
+          
+        else:
+            print "Could not understand key: %d" % event.key
+            print "Valid options: {m, u, r, k, q}"
+            
+        return
+    
+
+    def on_move(self, event):
+        if not event.inaxes: return
+        xm, ym = int(event.xdata), int(event.ydata)
+        
+        # update the line positions
+        if self.line_corner != (0,0):
+            self.lm.set_data((self.line_corner[0],xm), (self.line_corner[1],ym))
+            plt.draw()
+            
+        return
+    
+        
+    def _reset(self):
+        self.xy = None
+        self.lc.set_data([], [])
+        self.lm.set_data([], [])
+        self.line_corner = (0, 0)
+        return
+    
+        
+    def _conv_2dinds_to_4d(self, inds):
+        """
+        Convert indices in a Cheetah array to (4,8,185,388).
+        
+        Parameters
+        ----------
+        inds : np.ndarray, int
+            An N x 2 array, where the first column indexes x on the 2d image,
+            and the second column indexes y.
+            
+        Returns
+        -------
+        inds_4d : np.ndarray, int
+            An N x 4 array, with each column indexing quads/2x1/x/y,
+        """
+        
+        inds_4d = np.zeros((inds.shape[0], 4), dtype=np.int32)
+        
+        # abs 2x1 index = x / num_x + y / num_y * 2x1s-in-x
+        of32 = (inds[:,0] / 185) + (inds[:,1] / 388) * 8
+        assert np.all(of32 < 32)
+        
+        # quads / 2x1s
+        inds_4d[:,0] = of32 % 4
+        inds_4d[:,1] = of32 / 4
+        
+        # x / y
+        inds_4d[:,2] = inds[:,0] % 185
+        inds_4d[:,3] = inds[:,1] % 388
+        
+        return inds_4d
+        
+        
