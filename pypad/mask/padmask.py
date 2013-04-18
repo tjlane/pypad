@@ -7,6 +7,7 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 from matplotlib.nxutils import points_inside_poly
+from matplotlib.widgets import Button
 
 from pypad import utils
 
@@ -369,6 +370,138 @@ class PadMask(object):
         f.close()
         
         return
+        
+        
+class ToggleButton(Button):
+    
+    def __init__(self, ax, label, default_state=False, **kwargs):
+        """
+        Create a matplotlib Button that can "toggle".
+        
+        When pressed, it flips state from either "on" to "off" of vice versa, 
+        calling `on_func` or `off_func` as appropriate.
+        
+        Parameters
+        ----------
+        ax : matplotlib.axes
+            The axes to draw the button on.
+            
+        label : str
+            The name that appears in the middle of the button.
+        
+        default_state : bool
+            Start off (False, default) or on (True).
+        """
+        
+        # call Button(ax, label)
+        super( ToggleButton, self ).__init__(ax, label, **kwargs)
+        
+        if not type(default_state) == bool:
+            raise TypeError('`default_state` must be type: bool')
+        self.on = default_state # keep track of state
+        
+        # we split observers into onstate/offstate_observers
+        del self.observers
+        self.onstate_observers  = {}
+        self.offstate_observers = {}
+        
+        return
+    
+        
+    # override Button's release
+    def _release(self, event):
+        if self.ignore(event):
+            return
+        if event.canvas.mouse_grabber != self.ax:
+            return
+        event.canvas.release_mouse(self.ax)
+        if not self.eventson:
+            return
+        if event.inaxes != self.ax:
+            return
+            
+        # call either the on or off function
+        if self.on:
+            for cid, func in self.onstate_observers.iteritems():
+                func(event)
+        else:
+            for cid, func in self.offstate_observers.iteritems():
+                func(event)
+                
+        # and toggle!
+        self.on = not(self.on)
+    
+        
+    def on_turned_on(self, func):
+        """
+        Call function `func` in the on state.
+        """
+        cid = self.cnt
+        self.onstate_observers[cid] = func
+        self.cnt += 1
+        return cid
+    
+        
+    def on_turned_off(self, func):
+        """
+        Call function `func` in the off state.
+        """
+        cid = self.cnt
+        self.offstate_observers[cid] = func
+        self.cnt += 1
+        return cid
+    
+    
+def create_masktoggler(label, location, padmask, masktype, exargs=None, 
+                       default_state=False):
+    """
+    Create a ToggleButton that is connected to a PadMask.
+    
+    Parameters
+    ----------
+    label : str
+        The text to display in the button.
+        
+    location : tuple
+        A 4-tuple, (x_min, x_max, y_min, y_max) dictating where to draw the
+        button.
+        
+    padmask : padmask.Padmask
+        The mask object to affect.
+        
+    masktype : str
+        One of the masking methods of `padmask` to connect to the button.
+        
+    exargs : tuple
+        Extra arguments required by the method `masktype` to pass through.
+        
+    default_state : bool
+        Start off (False, default) or on (True).
+    """
+    
+    axcolor = 'lightgoldenrodyellow'
+    ax = plt.axes(location)
+    button = ToggleButton(ax, label, color=axcolor, hovercolor='0.975')
+    
+    def fon(event):
+        """ 
+        helper fxn that gets called when button is on -- calls the mask method
+        """
+        print "Applying: %s" % masktype
+        f = padmask.__getattribute__(masktype)
+        f(*exargs)
+        
+    def foff(event):
+        """
+        helper fxn that gets called when button is off -- removes the mask
+        """
+        print "Removing: %s" % masktype
+        padmask.remove_mask(masktype)
+        
+    button.on_turned_on(fon)
+    button.on_turned_off(foff)
+        
+    return button
 
 
 class MaskGUI(object):
@@ -414,6 +547,8 @@ class MaskGUI(object):
         palette = plt.cm.jet
         palette.set_bad('w',1.0)
                 
+                
+        # draw the main GUI, which is an image that can be interactively masked
         plt.figure()
         
         self.ax = plt.subplot(111)
@@ -430,7 +565,7 @@ class MaskGUI(object):
         self.xy = None
 
         self.colorbar = plt.colorbar(self.im, pad=0.01)
-        self.colorbar.set_label(r'$\log_10$ Intensity')
+        self.colorbar.set_label(r'$\log_{10}$ Intensity')
 
         cidb = plt.connect('button_press_event',  self.on_click)
         cidk = plt.connect('key_press_event',     self.on_keypress)
@@ -439,7 +574,20 @@ class MaskGUI(object):
         plt.xlim([0, self.log_image.shape[0]])
         plt.ylim([0, self.log_image.shape[1]])
 
+        
+        # add toggle buttons that allow the user to turn on and off std masks
+        create_masktoggler('nonbonded', [0.02, 0.7, 0.12, 0.08], self.mask,
+                           'mask_nonbonded', default_state=True)
+        create_masktoggler('row 13', [0.02, 0.6, 0.12, 0.08], self.mask,
+                           'mask_row13', default_state=True)
+        create_masktoggler('borders', [0.02, 0.5, 0.12, 0.08], self.mask,
+                           'mask_borders', default_state=True)
+        create_masktoggler('threshold', [0.02, 0.4, 0.12, 0.08], self.mask,
+                           'mask_threshold', default_state=True)
+
+                           
         plt.show()
+        
         return
     
 
