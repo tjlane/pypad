@@ -17,14 +17,16 @@ def _check_geometry(geometry):
     
 def to_cheetah(geometry, filename="pixelmap-cheetah-raw.h5"):
     """
-    Convert a CSPad or Metrology object to Cheetah x/y/z h5 files.
+    Convert a CSPad or Metrology object to a Cheetah h5 pixel map.
     
-    88Writes: 'pixX_raw.h5', 'pixY_raw.h5', 'pixZ_raw.h5'
+    88Writes: 'pixelmap-cheetah-raw.h5'
     
     Parameters
     ----------
     geometry : cspad.CSPad OR cspad.Metrology
         The detector geometry to write to disk
+	filename : string
+		The file name for the output pixel map
     """
     
     _check_geometry(geometry)
