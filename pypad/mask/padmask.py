@@ -4,25 +4,53 @@ Provides a "mask" object for CSPads
 """
 
 import numpy as np
+import h5py
+import matplotlib.pyplot as plt
+from matplotlib.nxutils import points_inside_poly
+from matplotlib.widgets import Button
+
+from pypad import utils
 
 
 class PadMask(object):
+    """
+    An mask for a CSPad object.
+    """
+    
     
     def __init__(self):
         """
         Initialize a CSPad mask object.
         """
-        
         self._masks = {}
-        
+        self._masks['base'] = self._blank_mask()
         return
     
     
     @property
     def mask(self):
-        return np.product( np.array(self._masks.values() ) )
-    
+        m = np.product( np.array(self._masks.values()), axis=0 )
+        assert m.shape == (4,8,185,388)
+        return m
         
+        
+    @property
+    def mask2d(self):
+        return utils.flatten_2x1s( self.mask )
+    
+    
+    @property
+    def inverted(self):
+        """
+        Invert the mask. Usually "True" is a good pixel, and "False" is a bad
+        one, but this flips them.
+        
+        Returns
+        -------
+        """
+        return np.logical_not(self.mask)
+        
+    
     @property
     def num_masked(self):
         """
@@ -30,6 +58,28 @@ class PadMask(object):
         """
         inv_mask = 1.0 - self.mask
         return np.sum(inv_mask)
+        
+        
+    @property
+    def types_applied(self):
+        return self._masks.keys()
+    
+    
+    def remove_mask(self, mask_name):
+        """
+        Remove a mask that has been applied.
+        """
+        
+        if mask_name == 'base': # this one is special
+            self._masks['base'] = self._blank_mask()
+        elif not mask_name in self._masks.keys():
+            raise KeyError('Mask: %s not applied' % mask_name)
+        else:
+            x = self._masks.pop(mask_name)
+            
+        print "Removed mask: %s" % mask_name
+            
+        return
     
         
     def _inject_mask(self, mask_name, mask):
@@ -65,7 +115,7 @@ class PadMask(object):
         """
         Utility function that just returns a blank mask.
         """
-        return np.ones((4, 8, 185, 388), dtype=np.bool)
+        return np.ones((4, 8, 185, 388), dtype=np.int32)
     
         
     # ----------
@@ -74,6 +124,52 @@ class PadMask(object):
     
     # to add a new kind of mask, make a new method here. Follow mask_threshold
     # as a template
+    
+    def mask_pixel(self, quad, two_by_one, x, y):
+        """
+        Mask a single pixel, or series of pixels. To do the latter, pass arrays
+        as the arguments (even though the below says int).
+        
+        Parameters
+        ----------
+        quad : int
+            [0,1,2,3], denoting the quad.
+            
+        two_by_one : int
+            Int in [0,7], denoting 2x1.
+            
+        x : int
+            Int in [0,184], denoting x position.
+        
+        y : int
+            Int in [0,388], denoting x position.
+        """
+        self._masks['base'][quad, two_by_one, x, y] = 0
+        return
+    
+        
+    def unmask_pixel(self, quad, two_by_one, x, y):
+        """
+        Mask a single pixel, or series of pixels. To do the latter, pass arrays
+        as the arguments (even though the below says int).
+        
+        Parameters
+        ----------
+        quad : int
+            [0,1,2,3], denoting the quad.
+            
+        two_by_one : int
+            Int in [0,7], denoting 2x1.
+            
+        x : int
+            Int in [0,184], denoting x position.
+        
+        y : int
+            Int in [0,388], denoting x position.
+        """
+        self._masks['base'][quad, two_by_one, x, y] = 1
+        return
+    
         
     def mask_threshold(self, image, upper=None, lower=None):
         """
@@ -109,27 +205,39 @@ class PadMask(object):
         return
     
         
-    def mask_nonbonded(self):
+    def mask_nonbonded(self, nearest_neighbours=True):
         """
         Mask pixels on the CSPad that were never bonded.
+        
+        Optional Parameters
+        -------------------
+        nearest_neighbours : bool
+            Also mask four of their nearest neighbours, which give anomoulous 
+            responses.
         """
-        
-        # TJL to Jonas : I think I need your help on this one...
-        #                not sure about the nearest neighbour search
-        
-        raise NotImplementedError()
         
         m = self._blank_mask()
         
-        for arow in range(8):
-        	for acol in range(8):
-        		for n in range(0,COLS,10):
-        			m[arow*COLS+n,acol*ROWS+n] = 0
+        for i in range(4):
+            for j in range(8):
+                for p in range(0, 185, 10):
+                    
+                    if nearest_neighbours:                      
+                        xl = max(0, p-1)
+                        xh = min(184, p+1)
+                        yl = max(0, p-1)
+                        yh = min(387, p+1)
+                        m[xl:xh,yl:yh] = 0
+                        
+                    else:
+                        m[p,p] = 0
+                    
+        self._inject_mask('nonbonded', m)
         
         return
     
         
-    def mask_borders(self, num_pixels):
+    def mask_borders(self, num_pixels=1):
         """
         Mask the border of each ASIC, to a width of `num_pixels`.
         
@@ -141,6 +249,9 @@ class PadMask(object):
         
         n = int(num_pixels)        
         m = self._blank_mask()
+        
+        if (num_pixels < 0) or (num_pixels > 194):
+            raise ValueError('`num_pixels` must be >0, <194')
         
         for i in range(4):
             for j in range(8):
@@ -159,84 +270,447 @@ class PadMask(object):
         self._inject_mask('border', m)        
         
         return
+    
         
+    def mask_row13(self):
         
+        raise NotImplementedError()
+        
+        #this is for masking out row13 of the CSPAD
+        col=181
+        for i in range(8):
+            self.automask[:,col]=1
+            col+= 194
+    
     # ----------
         
     def merge(self, *args):
         """
-        Merge two masks, masking with an OR operator for masked pixels.
+        Merge two or more masks, masking with an OR operator for masked pixels.
         """
-        pass
         
+        for mask in args:
+            for mtype in mask._masks.keys():
+                if mtype in self._masks.keys():
+                    self._masks[mtype] = np.logical_not( np.logical_or(self._masks[mtype], 
+                                                           mask._masks[mtype]) )
+                else:
+                    self._masks[mtype] = mask._masks[mtype]
         
-    def invert(self):
+        return
+    
+        
+    def save(self, filename, fmt='pypad'):
         """
-        Invert the mask. Usually "True" is a good pixel, and "False" is a bad
-        one, but this flips them.
+        Save the PadMask object to one of many possible formats:
         
-        Returns
-        -------
+        -- pypad : An hdf5 format that includes all metadata associated with the
+                   mask. Not read by other software (suffix: .mask).
+                   
+        -- twod  : Stores the mask as a two-dimensional array in an HDF5 format.
+                   Easily read into Cheetah and Odin (suffix: .h5).
+        
+        Parameters
+        ----------
+        filename : str
+            The name of the file to write. This function will append an 
+            appropriate suffix if none is provided.
+            
+        fmt : str, {'pypad', 'twod'}
+            The format to save in. See above for documentation.
         """
+        
+        if fmt == 'pypad':
+            if not filename.endswith('.mask'):
+                filename += '.mask'
+            
+            f = h5py.File(filename, 'w')
+            for k in self._masks.keys():
+                f['/' + k] = self._masks[k]
+            f.close()
+            
+            
+        elif fmt == 'twod':
+            if not filename.endswith('.h5'):
+                filename += '.h5'
+                
+                # need jonas to dbl check this is right for Cheetah
+                f = h5py.File(filename, 'w')
+                f['/data'] = self.mask
+                f.close()
+            
+            
+        else:
+            raise IOError('Unrecognized format for PadMask: %s. Should be one of'
+                          ' {"pypad", "twod"}' % fmt)
+        
+        print "Wrote: %s" % filename
+        return
+    
+    
+    @classmethod    
+    def load(cls, filename):
+        """
+        Load a saved mask
+        
+        Parameters
+        ----------
+        filename : str
+            The name of the file to read.
+        """
+        
+        if not filename.endswith('.mask'):
+            raise IOError('Can only read files with .mask format -- got: %s' % filename)
+            
+        m = cls()
+        
+        f = h5py.File(filename, 'r')
+        for k in f:
+            m._masks[k] = np.array(f[k])
+        f.close()
+        
         return
         
         
+class ToggleButton(Button):
+    
+    def __init__(self, ax, label, default_state=False, **kwargs):
+        """
+        Create a matplotlib Button that can "toggle".
         
-class InteractiveMask(object):
+        When pressed, it flips state from either "on" to "off" of vice versa, 
+        calling `on_func` or `off_func` as appropriate.
+        
+        Parameters
+        ----------
+        ax : matplotlib.axes
+            The axes to draw the button on.
+            
+        label : str
+            The name that appears in the middle of the button.
+        
+        default_state : bool
+            Start off (False, default) or on (True).
+        """
+        
+        # call Button(ax, label)
+        super( ToggleButton, self ).__init__(ax, label, **kwargs)
+        
+        if not type(default_state) == bool:
+            raise TypeError('`default_state` must be type: bool')
+        self.on = default_state # keep track of state
+        
+        # we split observers into onstate/offstate_observers
+        del self.observers
+        self.onstate_observers  = {}
+        self.offstate_observers = {}
+        
+        return
     
-    # TJL the below is just c/p'd, needs work.
+        
+    # override Button's release
+    def _release(self, event):
+        if self.ignore(event):
+            return
+        if event.canvas.mouse_grabber != self.ax:
+            return
+        event.canvas.release_mouse(self.ax)
+        if not self.eventson:
+            return
+        if event.inaxes != self.ax:
+            return
+            
+        # call either the on or off function
+        if self.on:
+            for cid, func in self.onstate_observers.iteritems():
+                func(event)
+        else:
+            for cid, func in self.offstate_observers.iteritems():
+                func(event)
+                
+        # and toggle!
+        self.on = not(self.on)
     
-	def __init__(self, inarr, filename):
-		self.inarr = inarr
-		self.filename = filename
-		self.cmax = self.inarr.max()
-		self.cmin = self.inarr.min()
+        
+    def on_turned_on(self, func):
+        """
+        Call function `func` in the on state.
+        """
+        cid = self.cnt
+        self.onstate_observers[cid] = func
+        self.cnt += 1
+        return cid
+    
+        
+    def on_turned_off(self, func):
+        """
+        Call function `func` in the off state.
+        """
+        cid = self.cnt
+        self.offstate_observers[cid] = func
+        self.cnt += 1
+        return cid
+    
+    
+def create_masktoggler(label, location, padmask, masktype, exargs=None, 
+                       default_state=False):
+    """
+    Create a ToggleButton that is connected to a PadMask.
+    
+    Parameters
+    ----------
+    label : str
+        The text to display in the button.
+        
+    location : tuple
+        A 4-tuple, (x_min, x_max, y_min, y_max) dictating where to draw the
+        button.
+        
+    padmask : padmask.Padmask
+        The mask object to affect.
+        
+    masktype : str
+        One of the masking methods of `padmask` to connect to the button.
+        
+    exargs : tuple
+        Extra arguments required by the method `masktype` to pass through.
+        
+    default_state : bool
+        Start off (False, default) or on (True).
+    """
+    
+    axcolor = 'lightgoldenrodyellow'
+    ax = plt.axes(location)
+    button = ToggleButton(ax, label, color=axcolor, hovercolor='0.975')
+    
+    def fon(event):
+        """ 
+        helper fxn that gets called when button is on -- calls the mask method
+        """
+        print "Applying: %s" % masktype
+        f = padmask.__getattribute__(masktype)
+        f(*exargs)
+        
+    def foff(event):
+        """
+        helper fxn that gets called when button is off -- removes the mask
+        """
+        print "Removing: %s" % masktype
+        padmask.remove_mask(masktype)
+        
+    button.on_turned_on(fon)
+    button.on_turned_off(foff)
+        
+    return button
 
-	def on_keypress(self,event):
-		if event.key == 'p':
-			if not os.path.exists(write_dir + runtag):
-				os.mkdir(write_dir + runtag)
-			pngtag = write_dir + "pixel_mask_cxi74613_%s_variance_%s-%sADUs.png" % (self.filename, str(options.dead), str(options.threshold))
-			print "saving image as " + pngtag 
-			P.savefig(pngtag)
-		if event.key == 'r':
-			colmin = self.cmin
-			colmax = self.cmax
-			P.clim(colmin, colmax)
-			P.draw()
+
+class MaskGUI(object):
+
+    def __init__(self, raw_image, mask=None, filename='my_mask', fmt='pypad'):
+        
+        if not raw_image.shape == (4, 8, 185, 388):
+            raise ValueError("`raw_image` must have shape: (4, 8, 185, 388)")
+            
+        if mask == None:
+            self.mask = PadMask()
+        elif isinstance(mask, PadMask):
+            self.mask = mask
+        else:
+            raise TypeError('`mask` argument must be a pypad.padmask.PadMask object')
+        
+        
+        # inject a new mask type into our PadMask obj
+        m = self.mask._blank_mask()
+        self.mask._inject_mask('manual', m)
+        
+        
+        # deal with negative values
+        self.mask._inject_mask('negatives', m.copy())
+        self.mask._masks['negatives'][raw_image < 0.0] = 0
+        print "Masked: %d negative pixels" % np.sum(np.logical_not(self.mask._masks['negatives']))
+        
+        
+        # we're going to plot the log of the image, so do that up front
+        self.raw_image = utils.flatten_2x1s(raw_image)
+        
+        self.log_image = self.raw_image.copy()
+        self.log_image[self.log_image < 0.0] = 0.0
+        self.log_image = np.log10(self.log_image + 1.0)
+        
+        
+        # populate an array containing the indices of all pixels in the image
+        mg = np.meshgrid( np.arange(self.raw_image.shape[0]),
+                          np.arange(self.raw_image.shape[1]) )
+        self.points = np.vstack((mg[0].flatten(), mg[1].flatten())).T
+        
+        
+        palette = plt.cm.jet
+        palette.set_bad('w',1.0)
+                
+                
+        # draw the main GUI, which is an image that can be interactively masked
+        plt.figure()
+        
+        self.ax = plt.subplot(111)
+        self.im = plt.imshow( (self.log_image * self.mask.mask2d).T, cmap=palette,
+                              origin='lower', interpolation='nearest', vmin=0, 
+                              extent=[0, self.log_image.shape[0], 0, self.log_image.shape[1]] )
+
+        plt.title('Press m : mask || u : unmask || r : reset || k : save & exit || q : exit w/o saving')
+
+        self.lc, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
+        self.lm, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
+        
+        self.line_corner = (0,0)
+        self.xy = None
+
+        self.colorbar = plt.colorbar(self.im, pad=0.01)
+        self.colorbar.set_label(r'$\log_{10}$ Intensity')
+
+        cidb = plt.connect('button_press_event',  self.on_click)
+        cidk = plt.connect('key_press_event',     self.on_keypress)
+        cidm = plt.connect('motion_notify_event', self.on_move)
+        
+        plt.xlim([0, self.log_image.shape[0]])
+        plt.ylim([0, self.log_image.shape[1]])
+
+        
+        # add toggle buttons that allow the user to turn on and off std masks
+        create_masktoggler('nonbonded', [0.02, 0.7, 0.12, 0.08], self.mask,
+                           'mask_nonbonded', default_state=True)
+        create_masktoggler('row 13', [0.02, 0.6, 0.12, 0.08], self.mask,
+                           'mask_row13', default_state=True)
+        create_masktoggler('borders', [0.02, 0.5, 0.12, 0.08], self.mask,
+                           'mask_borders', default_state=True)
+        create_masktoggler('threshold', [0.02, 0.4, 0.12, 0.08], self.mask,
+                           'mask_threshold', default_state=True)
+
+                           
+        plt.show()
+        
+        return
+    
+
+    def on_click(self, event):
+         
+        if not event.inaxes: return
+        
+        if self.xy != None:
+            self.xy = np.vstack(( self.xy, np.array([int(event.xdata), int(event.ydata)]) ))
+        else:
+            self.xy = np.array([int(event.xdata), int(event.ydata)])
+            
+        self.lc.set_data(self.xy.T) # draws lines
+        self.line_corner = (int(event.xdata), int(event.ydata))
+        
+        return
 
 
-	def on_click(self, event):
-		if event.inaxes:
-			lims = self.axes.get_clim()
-			colmin = lims[0]
-			colmax = lims[1]
-			range = colmax - colmin
-			value = colmin + event.ydata * range
-			if event.button is 1 :
-				if value > colmin and value < colmax :
-					colmin = value
-			elif event.button is 2 :
-				colmin, colmax = self.orglims
-			elif event.button is 3 :
-				if value > colmin and value < colmax:
-					colmax = value
-			P.clim(colmin, colmax)
-			P.draw()
+    def on_keypress(self, event):
 
+        if event.key in ['m', 'u']:
+           
+            # wrap around to close polygon
+            self.xy = np.vstack(( self.xy, self.xy[0,:] ))
+            inds = self.points[points_inside_poly(self.points, self.xy)]
 
-	def draw_img(self):
-		fig = P.figure()
-		cid1 = fig.canvas.mpl_connect('key_press_event', self.on_keypress)
-		cid2 = fig.canvas.mpl_connect('button_press_event', self.on_click)
-		canvas = fig.add_subplot(111)
-		canvas.set_title('pixel_mask_'+self.filename+'_variance')
-		P.rc('image',origin='lower')
-		self.axes = P.imshow(self.inarr, vmin = 0, vmax = options.threshold)
-		self.colbar = P.colorbar(self.axes, pad=0.01)
-		self.orglims = self.axes.get_clim()
-		#P.show()
-		pngtag = write_dir + "pixel_mask_cxi74613_%s_variance_%s-%sADUs.png" % (self.filename, str(options.dead), str(options.threshold))
-		print "saving image as " + pngtag 
-		P.savefig(pngtag)
-		P.close()
+            # if we're going to mask, mask
+            if event.key == 'm':
+                print 'Masking convex area...'
+                x = self._conv_2dinds_to_4d(inds)
+                self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 0
+                
+            # if we're unmasking, unmask
+            elif event.key == 'u':
+                print 'Unmasking convex area...'
+                x = self._conv_2dinds_to_4d(inds)
+                self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 1
+            
+            # draw and reset
+            self.im.set_data( (self.log_image * self.mask.mask2d).T )
+
+            self._reset()
+            self.im.autoscale()
+            plt.draw()
+
+        elif event.key == 'r':
+            print 'Unmasking all'
+            
+            self.mask._masks['manual'] = self.mask._blank_mask()
+            
+            self.im.set_data( (self.log_image * self.mask.mask2d).T )
+            
+            self._reset()
+            self.im.autoscale()
+            plt.draw()
+           
+        elif event.key == 'k':
+            self.mask.save(self.filename, fmt=self.file_fmt)
+            plt.close()
+            return
+          
+        elif event.key == 'q':
+            print 'Exiting without saving...'
+            plt.close()
+            return
+          
+        else:
+            print "Could not understand key: %d" % event.key
+            print "Valid options: {m, u, r, k, q}"
+            
+        return
+    
+
+    def on_move(self, event):
+        if not event.inaxes: return
+        xm, ym = int(event.xdata), int(event.ydata)
+        
+        # update the line positions
+        if self.line_corner != (0,0):
+            self.lm.set_data((self.line_corner[0],xm), (self.line_corner[1],ym))
+            plt.draw()
+            
+        return
+    
+        
+    def _reset(self):
+        self.xy = None
+        self.lc.set_data([], [])
+        self.lm.set_data([], [])
+        self.line_corner = (0, 0)
+        return
+    
+        
+    def _conv_2dinds_to_4d(self, inds):
+        """
+        Convert indices in a Cheetah array to (4,8,185,388).
+        
+        Parameters
+        ----------
+        inds : np.ndarray, int
+            An N x 2 array, where the first column indexes x on the 2d image,
+            and the second column indexes y.
+            
+        Returns
+        -------
+        inds_4d : np.ndarray, int
+            An N x 4 array, with each column indexing quads/2x1/x/y,
+        """
+        
+        inds_4d = np.zeros((inds.shape[0], 4), dtype=np.int32)
+        
+        # abs 2x1 index = x / num_x + y / num_y * 2x1s-in-x
+        of32 = (inds[:,0] / 185) + (inds[:,1] / 388) * 8
+        assert np.all(of32 < 32)
+        
+        # quads / 2x1s
+        inds_4d[:,0] = of32 % 4
+        inds_4d[:,1] = of32 / 4
+        
+        # x / y
+        inds_4d[:,2] = inds[:,0] % 185
+        inds_4d[:,3] = inds[:,1] % 388
+        
+        return inds_4d
+        
+        
