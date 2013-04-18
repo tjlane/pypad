@@ -27,7 +27,7 @@ def parse_n_load():
     # parse arguments
     parser = argparse.ArgumentParser(description='Set filter parameters')
     parser.add_argument('image_file', help='The (raw) image file to process')
-    parser.add_argument('--param-dir', help='The cspad alignment parameters to use', default=None)
+    parser.add_argument('--param-dir', help='The CSPAD alignment parameters to use', default=None)
     parser.add_argument('--output', default='filter_params.yaml',
                         help='Write the parameters to a specific file after you\'re done')
     args = parser.parse_args()
