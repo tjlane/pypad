@@ -192,6 +192,10 @@ class PadMask(object):
         
         if (upper == None) and (lower == None):
             raise ValueError('Either `upper` or `lower` (or both) must be specified')
+            
+        if upper and lower:
+            if upper <= lower:
+                raise ValueError('Must have: `upper` > `lower` to threshold')
         
         self._check_image(image)
         
@@ -513,6 +517,7 @@ class MaskGUI(object):
         
         
         # we're going to plot the log of the image, so do that up front
+        self.raw_image_4d = raw_image
         self.raw_image = utils.flatten_2x1s(raw_image)
         
         self.log_image = self.raw_image.copy()
@@ -568,42 +573,56 @@ class MaskGUI(object):
         axcolor = 'lightgoldenrodyellow'
 
         ax1 = plt.axes([0.04, 0.7, 0.12, 0.08])                       
-        b1 = ToggleButton(ax1, 'nonbonded', color=axcolor, hovercolor='0.975')
-        b1.on_turned_on(self.mask.mask_nonbonded)
-        b1.on_turned_off(self.mask.remove_mask, 'nonbonded')
-        b1.on_turned_on(self.update_image)
-        b1.on_turned_off(self.update_image)
+        self.b1 = ToggleButton(ax1, 'nonbonded', color=axcolor, hovercolor='0.975')
+        self.b1.on_turned_on(self.mask.mask_nonbonded)
+        self.b1.on_turned_off(self.mask.remove_mask, 'nonbonded')
+        self.b1.on_turned_on(self.update_image)
+        self.b1.on_turned_off(self.update_image)
         
         ax2 = plt.axes([0.04, 0.6, 0.12, 0.08])                       
-        b2 = ToggleButton(ax2, 'row 13', color=axcolor, hovercolor='0.975')
-        b2.on_turned_on(self.mask.mask_row13)
-        b2.on_turned_off(self.mask.remove_mask, 'row13')
-        b2.on_turned_on(self.update_image)
-        b2.on_turned_off(self.update_image)
+        self.b2 = ToggleButton(ax2, 'row 13', color=axcolor, hovercolor='0.975')
+        self.b2.on_turned_on(self.mask.mask_row13)
+        self.b2.on_turned_off(self.mask.remove_mask, 'row13')
+        self.b2.on_turned_on(self.update_image)
+        self.b2.on_turned_off(self.update_image)
         
         ax3 = plt.axes([0.04, 0.5, 0.12, 0.08])                       
-        b3 = ToggleButton(ax3, 'borders', color=axcolor, hovercolor='0.975')
-        b3.on_turned_on(self.mask.mask_borders)
-        b3.on_turned_off(self.mask.remove_mask, 'border')
-        b3.on_turned_on(self.update_image)
-        b3.on_turned_off(self.update_image)
+        self.b3 = ToggleButton(ax3, 'borders', color=axcolor, hovercolor='0.975')
+        self.b3.on_turned_on(self._set_borderwidth)
+        self.mask_border_cid = self.b3.on_turned_on(self.mask.mask_borders)
+        self.b3.on_turned_off(self.mask.remove_mask, 'border')
+        self.b3.on_turned_on(self.update_image)
+        self.b3.on_turned_off(self.update_image)
         
         ax4 = plt.axes([0.04, 0.4, 0.12, 0.08])                       
-        b4 = ToggleButton(ax4, 'threshold', color=axcolor, hovercolor='0.975')
-        
-        # interactive
-        def mt():
-            print " --- Enter threshold values --- "
-            upper = raw_input('')
-            return self.mask.mask_threshold, (upper, lower)
-        
-        b4.on_turned_on(mt)
-        b4.on_turned_off(self.mask.remove_mask, 'threshold')
-        b4.on_turned_on(self.update_image)
-        b4.on_turned_off(self.update_image)
+        self.b4 = ToggleButton(ax4, 'threshold', color=axcolor, hovercolor='0.975')
+        self.b4.on_turned_on(self._set_threshold)
+        self.mask_threshold_cid = self.b4.on_turned_on(self.mask.mask_threshold, self.raw_image_4d, None, None)
+        self.b4.on_turned_off(self.mask.remove_mask, 'threshold')
+        self.b4.on_turned_on(self.update_image)
+        self.b4.on_turned_off(self.update_image)
                            
         plt.show()
         
+        return
+        
+        
+    def _set_threshold(self):
+        print "\n --- Enter threshold values --- "
+        self.lower_thld = float( raw_input('Enter lower threshold: ') )
+        self.upper_thld = float( raw_input('Enter upper threshold: ') )
+        self.b4.onstate_exargs[ self.mask_threshold_cid ] = (self.raw_image_4d, self.upper_thld, self.lower_thld)
+        return
+    
+
+    def _set_borderwidth(self):
+        print "\n --- Enter the desired border width --- "
+        raw_in = raw_input('Size of border (in pixels) [1]: ')
+        if raw_in == '':
+            self.borderwidth = 1
+        else:
+            self.borderwidth = int( raw_in )
+        self.b3.onstate_exargs[ self.mask_border_cid ] = (self.borderwidth,)
         return
     
     
@@ -675,9 +694,9 @@ class MaskGUI(object):
             plt.close()
             return
           
-        else:
-            print "Could not understand key: %d" % event.key
-            print "Valid options: {m, u, r, k, q}"
+        # else:
+        #     print "Could not understand key: %s" % event.key
+        #     print "Valid options: {m, u, r, k, q}"
             
         return
     
