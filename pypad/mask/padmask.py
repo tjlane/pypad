@@ -188,8 +188,7 @@ class PadMask(object):
             Values lower than this are masked.
         """
         
-        upper = int(upper)
-        lower = int(lower)
+        print "Masking pixels outside of [%s,%s]" % (str(lower), str(upper))
         
         if (upper == None) and (lower == None):
             raise ValueError('Either `upper` or `lower` (or both) must be specified')
@@ -215,6 +214,8 @@ class PadMask(object):
             Also mask four of their nearest neighbours, which give anomoulous 
             responses.
         """
+        
+        print "Masking nonbonded pixels"
         
         m = self._blank_mask()
         
@@ -247,6 +248,8 @@ class PadMask(object):
             The size of the border region to mask.
         """
         
+        print "Masking %d pixels around the border of each 2x1" % num_pixels
+        
         n = int(num_pixels)        
         m = self._blank_mask()
         
@@ -267,12 +270,14 @@ class PadMask(object):
                 # mask a bar along y in the middle of the 2x1
                 m[i,j,:,194-n:194+n] = np.bool(False)
         
-        self._inject_mask('border', m)        
+        self._inject_mask('border', m)
         
         return
     
         
     def mask_row13(self):
+        
+        print "Masking row 13"
         
         raise NotImplementedError()
         
@@ -281,6 +286,8 @@ class PadMask(object):
         for i in range(8):
             self.automask[:,col]=1
             col+= 194
+            
+        self._inject_mask('row13', m)
     
     # ----------
         
@@ -410,9 +417,8 @@ class ToggleButton(Button):
         self.cnt_off = 0
         self.offstate_observers = {}
         
-        self.connect_event('button_press_event', self._click)
-        self.connect_event('button_release_event', self._release)
-        self.connect_event('motion_notify_event', self._motion)
+        self.onstate_exargs  = {}
+        self.offstate_exargs = {}
         
         return
     
@@ -430,12 +436,18 @@ class ToggleButton(Button):
             return
             
         # call either the on or off function
-        if self.on:
+        if not self.on:
             for cid, func in self.onstate_observers.iteritems():
-                func(event)
+                if len(self.onstate_exargs[cid]) > 0:
+                    func(*self.onstate_exargs[cid])
+                else:
+                    func()
         else:
             for cid, func in self.offstate_observers.iteritems():
-                func(event)
+                if len(self.offstate_exargs[cid]) > 0:
+                    func(*self.offstate_exargs[cid])
+                else:
+                    func()
                 
         # and toggle!
         self.on = not(self.on)
@@ -452,22 +464,24 @@ class ToggleButton(Button):
             pass
     
         
-    def on_turned_on(self, func):
+    def on_turned_on(self, func, *args):
         """
         Call function `func` in the on state.
         """
         cid = self.cnt_on
         self.onstate_observers[cid] = func
+        self.onstate_exargs[cid] = args
         self.cnt_on += 1
         return cid
     
         
-    def on_turned_off(self, func):
+    def on_turned_off(self, func, *args):
         """
         Call function `func` in the off state.
         """
         cid = self.cnt_off
         self.offstate_observers[cid] = func
+        self.offstate_exargs[cid] = args
         self.cnt_off += 1
         return cid
     
@@ -547,105 +561,50 @@ class MaskGUI(object):
 
         
         # add toggle buttons that allow the user to turn on and off std masks
+        # I used to have this in its own nice function, but MPL didn't like 
+        # that for some reason... there is probably a better way, I just dont
+        # know the innerds of MPL enough --TJL
         
+        axcolor = 'lightgoldenrodyellow'
+
+        ax1 = plt.axes([0.04, 0.7, 0.12, 0.08])                       
+        b1 = ToggleButton(ax1, 'nonbonded', color=axcolor, hovercolor='0.975')
+        b1.on_turned_on(self.mask.mask_nonbonded)
+        b1.on_turned_off(self.mask.remove_mask, 'nonbonded')
+        b1.on_turned_on(self.update_image)
+        b1.on_turned_off(self.update_image)
         
-        def create_masktoggler(ax, label, location, padmask, masktype, exargs=None, 
-                               default_state=False):
-            """
-            Create a ToggleButton that is connected to a PadMask.
-
-            Parameters
-            ----------
-            label : str
-                The text to display in the button.
-
-            location : tuple
-                A 4-tuple, (x_min, x_max, y_min, y_max) dictating where to draw the
-                button.
-
-            padmask : padmask.Padmask
-                The mask object to affect.
-
-            masktype : str
-                One of the masking methods of `padmask` to connect to the button.
-
-            exargs : tuple
-                Extra arguments required by the method `masktype` to pass through.
-
-            default_state : bool
-                Start off (False, default) or on (True).
-            """
-
-            axcolor = 'lightgoldenrodyellow'
-            button = ToggleButton(ax, label, color=axcolor, hovercolor='0.975')
-
-            def fon(event):
-                """ 
-                helper fxn that gets called when button is on -- calls the mask method
-                """
-                print "Applying: %s" % masktype
-                f = padmask.__getattribute__(masktype)
-                f(*exargs)
-
-            def foff(event):
-                """
-                helper fxn that gets called when button is off -- removes the mask
-                """
-                print "Removing: %s" % masktype
-                padmask.remove_mask(masktype)
-
-            button.on_turned_on(fon)
-            button.on_turned_off(foff)
-
-            return button
+        ax2 = plt.axes([0.04, 0.6, 0.12, 0.08])                       
+        b2 = ToggleButton(ax2, 'row 13', color=axcolor, hovercolor='0.975')
+        b2.on_turned_on(self.mask.mask_row13)
+        b2.on_turned_off(self.mask.remove_mask, 'row13')
+        b2.on_turned_on(self.update_image)
+        b2.on_turned_off(self.update_image)
         
-        axb = plt.axes([0.04, 0.3, 0.12, 0.08])
-        create_masktoggler(axb, 'nonbonded', [0.04, 0.7, 0.12, 0.08], self.mask,
-                                 'mask_nonbonded', default_state=True)
-        # create_masktoggler('row 13', [0.04, 0.6, 0.12, 0.08], self.mask,
-        #                    'mask_row13', default_state=True)
-        # create_masktoggler('borders', [0.04, 0.5, 0.12, 0.08], self.mask,
-        #                    'mask_borders', default_state=True)
-        # create_masktoggler('threshold', [0.04, 0.4, 0.12, 0.08], self.mask,
-        #                    'mask_threshold', default_state=True)
-                     
-        # def printtest(event): print 'clicked', event
-        # 
-        # axb = plt.axes([0.04, 0.3, 0.12, 0.08])    
-        # 
-        # axcolor = 'lightgoldenrodyellow'
-        # button = ToggleButton(axb, 'label', color=axcolor, hovercolor='0.975')
-        # 
-        # def fon(event):
-        #     """ 
-        #     helper fxn that gets called when button is on -- calls the mask method
-        #     """
-        #     print "Applying: %s" % masktype
-        #     f = padmask.__getattribute__(masktype)
-        #     f(*exargs)
-        # 
-        # def foff(event):
-        #     """
-        #     helper fxn that gets called when button is off -- removes the mask
-        #     """
-        #     print "Removing: %s" % masktype
-        #     padmask.remove_mask(masktype)
-        # 
-        # button.on_turned_on(fon)
-        # button.on_turned_off(foff)
-          
-        # bprev = Button(axb, 'Test')
-        # bprev.on_clicked(printtest)
-
+        ax3 = plt.axes([0.04, 0.5, 0.12, 0.08])                       
+        b3 = ToggleButton(ax3, 'borders', color=axcolor, hovercolor='0.975')
+        b3.on_turned_on(self.mask.mask_borders)
+        b3.on_turned_off(self.mask.remove_mask, 'border')
+        b3.on_turned_on(self.update_image)
+        b3.on_turned_off(self.update_image)
+        
+        ax4 = plt.axes([0.04, 0.4, 0.12, 0.08])                       
+        b4 = ToggleButton(ax4, 'threshold', color=axcolor, hovercolor='0.975')
+        b4.on_turned_on(self.mask.mask_threshold)
+        b4.on_turned_off(self.mask.remove_mask, 'threshold')
+        b4.on_turned_on(self.update_image)
+        b4.on_turned_off(self.update_image)
                            
         plt.show()
         
         return
-        
-        
+    
+    
+    def update_image(self):
+        self.im.set_data( (self.log_image * self.mask.mask2d).T )
+        return
 
     
-
     def on_click(self, event):
          
         if not event.inaxes: return
@@ -682,7 +641,7 @@ class MaskGUI(object):
                 self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 1
             
             # draw and reset
-            self.im.set_data( (self.log_image * self.mask.mask2d).T )
+            self.update_image()
 
             self._reset()
             self.im.autoscale()
@@ -693,7 +652,7 @@ class MaskGUI(object):
             
             self.mask._masks['manual'] = self.mask._blank_mask()
             
-            self.im.set_data( (self.log_image * self.mask.mask2d).T )
+            self.update_image()
             
             self._reset()
             self.im.autoscale()
