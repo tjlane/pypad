@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 from pypad import utils
 from pypad import export
-from pypad.autogeom import default
+from pypad import default
 
 
 # the expected size of each parameter array

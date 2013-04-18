@@ -590,7 +590,14 @@ class MaskGUI(object):
         
         ax4 = plt.axes([0.04, 0.4, 0.12, 0.08])                       
         b4 = ToggleButton(ax4, 'threshold', color=axcolor, hovercolor='0.975')
-        b4.on_turned_on(self.mask.mask_threshold)
+        
+        # interactive
+        def mt():
+            print " --- Enter threshold values --- "
+            upper = raw_input('')
+            return self.mask.mask_threshold, (upper, lower)
+        
+        b4.on_turned_on(mt)
         b4.on_turned_off(self.mask.remove_mask, 'threshold')
         b4.on_turned_on(self.update_image)
         b4.on_turned_off(self.update_image)
