@@ -11,10 +11,10 @@ from pypad import cspad
 
 parser = argparse.ArgumentParser(description='''Convert either a set of psana 
 parameters or a metrology (txt) file to Cheetah's geometry specification (h5 
-files with x/y/z coordinate positions).''')
+file with x/y/z coordinate positions).''')
                                  
-parser.add_argument('geometry', help='Metrology file or CSPad alignment parameter dir')
-parser.add_argument('--filename', help='output cheetah filename (default: pixelmap-cheetah-raw.h5)', default='pixelmap-cheetah-raw.h5', required=False)
+parser.add_argument('geometry', help='Metrology file or CSPAD alignment parameter directory')
+parser.add_argument('--filename', help='Output cheetah filename (default: pixelmap-cheetah-raw.h5)', default='pixelmap-cheetah-raw.h5', required=False)
 args = parser.parse_args()
 
 

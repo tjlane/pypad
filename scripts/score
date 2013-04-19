@@ -23,16 +23,16 @@ from pypad.autogeom import score
 parser = argparse.ArgumentParser(description='''Score an optimized geometry by
                                            testing it on a reference sample.''')
 
-parser.add_argument('image', help='The (raw) image file of the calibration sample.')
-parser.add_argument('--energy', help='The energy of the beam (in eV).', type=float, required=True)
+parser.add_argument('image_file', help='The (raw) image file of the calibration sample')
+parser.add_argument('--energy', help='The photon energy of the x-ray beam [eV]', type=float, required=True)
 parser.add_argument('--path-len', required=True, type=float,
-                    help='The distance from the sample to the detector (in mm).')
+                    help='The distance from the sample to the detector [mm]')
 parser.add_argument('--cal-type', default='unknown', type=str, 
                     choices=['AgBe', 'Ag', 'Au', 'unknown'],
                     help='The kind of sample, can be one of {AgBe, Ag, Au, unknown}')
 parser.add_argument('--param-dir', default=None, required=True,
-                    help='''The cspad alignment parameters to use as a starting point, should be
-                            a directory.''')
+                    help='''The optimized CSPAD parameters to use for the scoring, should be
+                            a directory (default: pyana default geometry)''')
 
 args = parser.parse_args()
 
@@ -46,7 +46,7 @@ print "              lines are theoretical peak predictions."
 print ""
 
 # assemble the image
-raw_image = utils.load_raw_image(args.image)
+raw_image = utils.load_raw_image(args.image_file)
 cs1 = cspad.CSPad.from_dir(args.param_dir)
 asm_image = cs1(raw_image)
 

@@ -14,16 +14,16 @@ from pypad import utils
 import matplotlib.pyplot as plt
 from pypad.plot import InteractiveImshow
 
-parser = argparse.ArgumentParser(description='''Use a CSPad geometry to assemble a raw image.''')
+parser = argparse.ArgumentParser(description='''Use a CSPAD geometry to assemble a raw image.''')
                                  
-parser.add_argument('image', help='The (raw) image file.')
+parser.add_argument('image_file', help='The (raw) image file.')
 parser.add_argument('--param-dir', default=None, 
-                    help='''The cspad alignment parameters to use as a starting point, should be
-                            a directory. Default: use the pyana default geometry.''')
+                    help='''The CSPAD alignment parameters to use for the assembly, should be
+                            a directory (default: pyana default metrology)''')
                             
 args = parser.parse_args()
 
-raw_image = utils.load_raw_image(args.image)
+raw_image = utils.load_raw_image(args.image_file)
 
 if args.param_dir:
     cs1 = cspad.CSPad.from_dir(args.param_dir)
