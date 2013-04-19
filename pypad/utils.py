@@ -304,8 +304,6 @@ def enforce_raw_img_shape(raw_image):
                 y_stop  = 185 * (twoXone + 1)
                 
                 new_image[q,twoXone,:,:] = raw_image[y_start:y_stop,x_start:x_stop]
-                
-        new_image[0,0,:,:] = 0
     
     else:
         raise ValueError("Cannot understand `raw_image`: does not have any"

@@ -76,7 +76,7 @@ axL = plt.subplot(121)
 axR = plt.subplot(122)
 
 # plot left panel, the assemled image with ring predictions overlaid
-axL.imshow(asm_image.T, vmin=0, vmax=100)
+utils.imshow_cspad(asm_image, vmin=0, ax=axL)
 
 real_expt = sref.real_space(sref.expt) / 0.10992 # conv to pixel units
 

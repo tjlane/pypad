@@ -90,7 +90,6 @@ class InteractiveFilter(object):
     def __init__(self, raw_unfiltered_image):
         
         self.raw_unfiltered_image = raw_unfiltered_image
-        print raw_unfiltered_image.shape
 
         # initialize the plot
         self.fig = plt.figure( figsize=(12,6))
