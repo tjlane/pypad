@@ -25,7 +25,10 @@ args = parser.parse_args()
 
 raw_image = utils.load_raw_image(args.image)
 
-cs1 = cspad.CSPad.from_dir(args.param_dir)
+if args.param_dir:
+    cs1 = cspad.CSPad.from_dir(args.param_dir)
+else:
+    cs1 = cspad.CSPad.default()
 
 plt.figure()
 plt.imshow( cs1(raw_image).T, origin='lower', vmin=0, vmax=50, interpolation='nearest' )

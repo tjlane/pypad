@@ -188,7 +188,7 @@ class InteractiveFilter(object):
         filtered_image = find_rings(self.raw_unfiltered_image, 
                                     threshold=thd, 
                                     sigma=sig, minf_size=mnf, 
-                                    rank_size=rnk, sobel=False)
+                                    rank_size=rnk)
         
         self.axL.imshow(filtered_image.T, origin='lower')
         

@@ -13,8 +13,8 @@ class Optimizer(object):
     Modify CSPad geometry parameters to optimize the geometry by some criterion.
     """
     
-    def __init__(self, geometry=None, params_to_optimize=['offset_corr_xy'],
-                 **kwargs):
+    def __init__(self, geometry=None, initial_cspad=None,
+                 params_to_optimize=['offset_corr_xy'], **kwargs):
         """
         Initialize an optimizer class.
         
@@ -402,7 +402,7 @@ class Optimizer(object):
 
         # run minimization
         opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
-                                          args=(image,), xtol=1e-2, ftol=1e-3)
+                                          args=(image,), xtol=1e-1, ftol=1e-3)
                                    
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()

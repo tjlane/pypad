@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 
 def find_rings(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
-               rank_size=1, sobel=False):
+               rank_size=1, sobel=True):
     """
     Applies an edge filter followed by a noise reduction filter. Very good
     at locating powder rings and filtering everything else out.
@@ -56,9 +56,6 @@ def find_rings(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
     image = filters.rank_filter(image, -1, size=rank_size)
     image = filters.gaussian_filter(image, sigma=sigma)
     
-    if sobel:
-        image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
-    
     # do a "common-mode"-esque normalization (seems to help)
     if image.shape == (32, 185, 388):
         for i in range(32):
@@ -83,6 +80,9 @@ def find_rings(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
         image = enforce_raw_img_shape( image.astype(np.bool) )
     else:
         image = image.astype(np.bool)
+        
+    if sobel:
+        image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
     
     return image
     
@@ -292,11 +292,11 @@ def enforce_raw_img_shape(raw_image):
         new_image = np.zeros((4, 8, 185, 388), dtype=raw_image.dtype)
         for i in range(8):
             for j in range(4):
-                x_start = 185 * i
-                x_stop  = 185 * (i+1)
+                x_start = 185 * (8-i-1)    # read out bottom to top
+                x_stop  = 185 * (8-i)
                 y_start = 388 * j
                 y_stop  = 388 * (j+1)
-                ps_quad = (j + 2) % 4
+                ps_quad = j
                 new_image[ps_quad,i,:,:] = raw_image[x_start:x_stop,y_start:y_stop]
     
     else:

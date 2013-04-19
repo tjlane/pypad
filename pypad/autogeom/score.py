@@ -252,7 +252,7 @@ class PowderReference(object):
         """
         
         self.energy = energy
-        self.k = self.k = ( 2.0 * np.pi / (h * c) ) * energy
+        self.k = ( 2.0 * np.pi / (h * c) ) * energy
         self._compute_reciprocal_peaks()
         
         total_score = self.score(verbose=False)
