@@ -201,7 +201,7 @@ class PadMask(object):
         
         m = self._blank_mask()
         ind = (image > upper) + (image < lower)
-        m[ind] = np.bool(False)
+        m[ind] = 0
         
         self._inject_mask('threshold', m)
         
@@ -227,15 +227,14 @@ class PadMask(object):
             for j in range(8):
                 for p in range(0, 185, 10):
                     
-                    if nearest_neighbours:                      
-                        xl = max(0, p-1)
-                        xh = min(184, p+1)
-                        yl = max(0, p-1)
-                        yh = min(387, p+1)
-                        m[xl:xh,yl:yh] = 0
-                        
-                    else:
-                        m[p,p] = 0
+                    m[i,j,p,p] = 0
+                    if nearest_neighbours:
+                        if p == 0:
+                            m[i,j,p+1,p] = 0
+                            m[i,j,p,p+1] = 0
+                        else:
+                            m[i,j,p-1:p+2,p] = 0
+                            m[i,j,p,p-1:p+2] = 0
                     
         self._inject_mask('nonbonded', m)
         
@@ -493,6 +492,28 @@ class ToggleButton(Button):
 class MaskGUI(object):
 
     def __init__(self, raw_image, mask=None, filename='my_mask', fmt='pypad'):
+        """
+        Instantiate an interactive masking session.
+        
+        Parameters
+        ----------
+        raw_image : np.ndarray
+            A shape (4, 8, 185, 388) array containing a reference image that
+            the user will use to guide their masking.
+            
+        mask : padmask.PadMask
+            A PadMask object to modify. If `None` (default), generate a new 
+            mask.
+            
+        filename : str
+            The name of the file to generate at the end of the session.
+            
+        fmt : str
+            The file format of `filename` to write.
+        """
+        
+        
+        self.print_gui_help()
         
         if not raw_image.shape == (4, 8, 185, 388):
             raise ValueError("`raw_image` must have shape: (4, 8, 185, 388)")
@@ -531,8 +552,8 @@ class MaskGUI(object):
         self.points = np.vstack((mg[0].flatten(), mg[1].flatten())).T
         
         
-        palette = plt.cm.jet
-        palette.set_bad('w',1.0)
+        palette = plt.cm.hot
+        palette.set_bad('w', 1.0)
                 
                 
         # draw the main GUI, which is an image that can be interactively masked
@@ -542,8 +563,6 @@ class MaskGUI(object):
         self.im = plt.imshow( (self.log_image * self.mask.mask2d).T, cmap=palette,
                               origin='lower', interpolation='nearest', vmin=0, 
                               extent=[0, self.log_image.shape[0], 0, self.log_image.shape[1]] )
-
-        plt.title('Press m : mask || u : unmask || r : reset || k : save & exit || q : exit w/o saving')
 
         self.lc, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
         self.lm, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
@@ -633,15 +652,16 @@ class MaskGUI(object):
     
     def on_click(self, event):
          
-        if not event.inaxes: return
+        if event.inaxes and (event.button is not 1):
         
-        if self.xy != None:
-            self.xy = np.vstack(( self.xy, np.array([int(event.xdata), int(event.ydata)]) ))
-        else:
-            self.xy = np.array([int(event.xdata), int(event.ydata)])
+            if self.xy != None:
+                self.xy = np.vstack(( self.xy, np.array([int(event.xdata), 
+                                                         int(event.ydata)]) ))
+            else:
+                self.xy = np.array([int(event.xdata), int(event.ydata)])
             
-        self.lc.set_data(self.xy.T) # draws lines
-        self.line_corner = (int(event.xdata), int(event.ydata))
+            self.lc.set_data(self.xy.T) # draws lines
+            self.line_corner = (int(event.xdata), int(event.ydata))
         
         return
 
@@ -754,3 +774,44 @@ class MaskGUI(object):
         return inds_4d
         
         
+    def print_gui_help(self):
+        
+        print
+        print
+        print "    --- WELCOME TO PYPAD's INTERACTIVE MASKING ENVIRONMENT --- "
+        print
+        print " Keystrokes"
+        print " ----------"
+        print " m : mask              u : unmask            r : reset "
+        print " x : enter 2x1 mode    k : save & exit       q : exit w/o saving"
+        print
+        print " Mouse"
+        print " -----"
+        print " Right click on three or more points to draw a polygon around a"
+        print " set of pixels. Then press `m` or `u` to mask or unmask that area."
+        print
+        print " Toggle Buttons (left)"
+        print " ---------------------"
+        print " nonbonded : Mask nonbonded pixels, and their nearest neighbours."
+        print "             These pixels aren't even connected to the detector."
+        print 
+        print " row 13    : In some old experiments, row 13 on one ASIC was "
+        print "             busted -- mask that (will be clear if this is needed)"
+        print 
+        print " threshold : You will be prompted for an upper and lower limit --"
+        print "             pixels outside that range are masked. Units are ADUs"
+        print "             and you can set only a lower/upper limit by passing"
+        print "             'None' for one option."
+        print 
+        print " borders   : Mask the borders of each ASIC. These often give"
+        print "             anomoulous responses. Recommended to mask one pixel"
+        print "             borders at least."
+        print ""
+        print "                        ----- // -----"
+        
+        
+        
+        
+        
+        
+
