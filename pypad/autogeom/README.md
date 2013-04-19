@@ -64,7 +64,7 @@ It may vary slightly depending on the parameters you used.
 
 (5) Export the parameters to your front-end of choice:
 
-'geom2cheetah my_cspad_params'
+`geom2cheetah my_cspad_params`
 
 this should generate a Cheetah pixel map called `pixelmap-cheetah-raw.h5`, containing your new parameters. It is now ready to use as input geometry for the Cheetah.
 
