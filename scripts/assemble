@@ -31,5 +31,5 @@ else:
     cs1 = cspad.CSPad.default()
 
 plt.figure()
-plt.imshow( cs1(raw_image).T, origin='lower', vmin=0, vmax=50, interpolation='nearest' )
+utils.imshow_cspad( cs1(raw_image) )
 plt.show()

@@ -11,7 +11,7 @@ import yaml
 from pprint import pprint
 
 from pypad import cspad
-from pypad.utils import find_rings, load_raw_image
+from pypad.utils import find_rings, load_raw_image, imshow_cspad
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -102,7 +102,7 @@ class InteractiveFilter(object):
         self.beam_loc = (900.0, 870.0)
         self.regions = []
         
-        self.im = self.axL.imshow(raw_unfiltered_image.T, origin='lower', vmin=0)
+        self.im = imshow_cspad(raw_unfiltered_image, ax=self.axL)
         self.draw_projection(raw_unfiltered_image)
 
         # display the image with sliders for each parameter

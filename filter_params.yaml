@@ -1,7 +1,6 @@
-beam_location: [882.0230933596321, 883.2386587771203]
-sobel: True
+beam_location: [900.0, 870.0]
 minf_size: 3
-radius_range: [424.35897435897505, 697.9487179487187]
+radius_range: None
 rank_size: 8
 sigma: 1.0
-threshold: 0.15802214357508707
+threshold: 0.17012542798525856

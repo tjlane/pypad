@@ -288,16 +288,24 @@ def enforce_raw_img_shape(raw_image):
                 new_image[j,i,:,:] = raw_image[psind,:,:]
         
     # Cheetah format
+    # raw data format: 1480 rows x 1552 cols,
+    # origin is lower left corner in doc/cspad_arrangement.pdf
     elif raw_image.shape == (1480, 1552):
+        
         new_image = np.zeros((4, 8, 185, 388), dtype=raw_image.dtype)
-        for i in range(8):
-            for j in range(4):
-                x_start = 185 * (8-i-1)    # read out bottom to top
-                x_stop  = 185 * (8-i)
-                y_start = 388 * j
-                y_stop  = 388 * (j+1)
-                ps_quad = j
-                new_image[ps_quad,i,:,:] = raw_image[x_start:x_stop,y_start:y_stop]
+        
+        for q in range(4):
+            for twoXone in range(8):
+                
+                x_start = 388 * q
+                x_stop  = 388 * (q+1)
+                
+                y_start = 185 * twoXone
+                y_stop  = 185 * (twoXone + 1)
+                
+                new_image[q,twoXone,:,:] = raw_image[y_start:y_stop,x_start:x_stop]
+                
+        new_image[0,0,:,:] = 0
     
     else:
         raise ValueError("Cannot understand `raw_image`: does not have any"
@@ -377,4 +385,32 @@ def sketch_2x1s(pixel_positions, mpl_axes=None):
         return ax
     else:
         plt.show()
+
+
+def imshow_cspad(image, vmin=0, vmax=None, ax=None):
+    """
+    Show an assembled image (e.g. from CSPad(raw_image) ) as it would be seen
+    when viewed from upstream at CXI. CXI convention is that the plus-x direction
+    is towards the hutch door, plus-y is upwards, and plus-z is the direction
+    of the beam.
+    
+    Parameters
+    ----------
+    image : np.ndarray
+        A two-dimensional assembled image
+    
+    Returns
+    -------
+    ax : pyplot.axes
+    im : axes.imshow
+    """
+    
+    if ax == None:
+        ax = plt.subplot(111)
+
+    im = ax.imshow( image, origin='lower', vmin=vmin, vmax=vmax,
+                    interpolation='nearest' )
+    ax.invert_xaxis()
+    return im
+    
 

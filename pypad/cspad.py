@@ -398,24 +398,14 @@ class CSPad(object):
         # 
         #     Q3     Q2
         #
-        # but the geometry specification here outputs these quads rotated 90-deg
-        # counter-clockwise:
-        #
-        #     Q1     Q2
-        # 
-        #         x
-        # 
-        #     Q0     Q3
-        # 
-        # if you use range(4) to loop over the quads I am not 100% sure right 
-        # now why this is the case, but the modified loop appears to give the
-        # correct geometry. This should be triple-checked.
         # -- TJL 28.2.13
 
         bg = BasisGrid()
         
         # assemble each 2x1 on the quad
-        for quad_index in [1,2,3,0]:
+        for quad_index in range(4):
+        
+        
             for i in range(8):
                 
                 # in the below, the following convention is correct:
@@ -518,7 +508,6 @@ class CSPad(object):
 
                # all sections are originally 185 (rows) x 388 (columns)
                # Re-orient each section in the quad
-
                if i==0 or i==1:
                    pair = pair[:,::-1].T   # reverse columns, switch columns to rows.
                if i==4 or i==5:
@@ -535,11 +524,16 @@ class CSPad(object):
            for sec in range(8):
                nrows, ncols = pairs[sec].shape
 
+               # old XTCExplorer code -- NOT CXI convention (Mikhail convention)
                # colp,rowp are where the top-left corner of a section should be placed
-               rowp = 850 - self.sec_offset[0] - (self.section_centers[0][quad_index][sec] + nrows/2)
-               colp = 850 - self.sec_offset[1] - (self.section_centers[1][quad_index][sec] + ncols/2)
-
-               quadrant[rowp:rowp+nrows, colp:colp+ncols] = pairs[sec][0:nrows,0:ncols]
+               # rowp = 850 - self.sec_offset[0] - (self.section_centers[0][quad_index][sec] + nrows/2)
+               # colp = 850 - self.sec_offset[1] - (self.section_centers[1][quad_index][sec] + ncols/2)
+               # quadrant[rowp:rowp+nrows,colp:colp+ncols] = pairs[sec][0:nrows,0:ncols]
+               
+               # new code -- TJL and JAS : adopting CXI coordinate convention
+               rowp = int( self.sec_offset[0] + (self.section_centers[0][quad_index][sec] + nrows/2) )
+               colp = int( self.sec_offset[1] + (self.section_centers[1][quad_index][sec] + ncols/2) )
+               quadrant[rowp-nrows:rowp,colp-ncols:colp] = pairs[sec][::-1,::-1]
 
            return quadrant
            
@@ -578,6 +572,7 @@ class CSPad(object):
             # values describing the non-relative orientations of the quads
             # (and the value meanings are ambiguous) -- so here we subtract
             # those values and apply just the small correction
+            
             quad_rot_corr_defaults = [180.0, 90.0, 0.0, 270.0]
             quad_rot_corr = self.quad_rotation[quad_index] - quad_rot_corr_defaults[quad_index]
             quad_index_image = interp.rotate( quad_index_image, 
@@ -587,6 +582,11 @@ class CSPad(object):
 
             qoff_x = int( self.quad_offset[0,quad_index] )
             qoff_y = int( self.quad_offset[1,quad_index] )
+            
+            # TJL & JAS -- new CXI convention
+            qoff_x = bounds - qoff_x - 850
+            qoff_y = bounds - qoff_y - 850
+            # -------------------------------
             
             if (qoff_x < 0) or (qoff_x >= bounds):
                 raise ValueError('qoff_x: %d out of bounds [0,%d)' % (qoff_x, bounds))
