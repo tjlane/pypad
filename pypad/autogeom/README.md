@@ -46,9 +46,11 @@ Follow the instructions that get printed to screen. You'll want to change the th
 
 (3) Score your optimized geometry:
 
-`score examples/gold_image.h5 --energy 9603.224 --path-len 81.052 --cal-type Au --param-dir my_cspad_params`
+`score examples/gold_image.h5 --energy 9603.224 --path-len 91.054 --cal-type Au --param-dir my_cspad_params`
 
-This assembles your scattering pattern using the optimized CSPAD alignment parameters specified by `--param-dir` and scores it given the calibration sample, photon energy, and sample-to-detector distance are given as input parameters.
+This assembles your scattering pattern using the optimized CSPAD alignment parameters specified by `--param-dir` and scores it given the calibration sample, photon energy, and sample-to-detector distance are passed as input parameters. It should look something like this:
+
+![score output](https://raw.github.com/tjlane/pypad/master/doc/images/score-gold.png)
 
 
 (4) Take a look at the result:

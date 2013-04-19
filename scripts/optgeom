@@ -24,7 +24,7 @@ def parse():
     parser.add_argument('image_file', help='The (raw) image file of the calibration standard')
     parser.add_argument('filter_params', default='filter_params.yaml',
                         help='''The filter parameters to employ (default: filter_params.yaml),
-                                can be easily generated from the `calibrate-filter` script''')
+                                can be easily generated from the `genfilter` script''')
     parser.add_argument('--param-dir', default=None, 
                         help='''The CSPAD alignment parameters to use as a starting point, should be
                                 a directory (default: pyana default geometry)''')
