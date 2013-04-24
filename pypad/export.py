@@ -53,7 +53,7 @@ def to_cheetah(geometry, filename="pixelmap-cheetah-raw.h5"):
                 y_start = 388 * j
                 y_stop  = 388 * (j+1)
                 quad = (j + 2) % 4 # cheetah's quads are not quite the same...
-                cheetah_image[x_start:x_stop,y_start:y_stop] = pp[x,quad,i,:,:]
+                cheetah_image[x_start:x_stop,y_start:y_stop] = pp[x,quad,i,:,:]/1000 # jas: ensure cheetah geometry is in [m] and not [mm]
         
         f['/%s' % coordinates[x]] = cheetah_image
     

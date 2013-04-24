@@ -310,10 +310,11 @@ class Optimizer(object):
             blob_circ = plt_patches.Circle(self.beam_location, 15, fill=False, lw=2, 
                                            ec='orange')
             self._axL.add_patch(blob_circ)
+			self._axL.invert_xaxis()
             self._axR.set_xlabel('Radius')
             self._axR.set_ylabel('Intensity')
             plt.draw()
-                  
+            
         # --------- HERE IS THE OBJECTIVE FUNCTION -- MODIFY TO PLAY -----------
 
         # new objective function : overlap integral

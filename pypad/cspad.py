@@ -408,9 +408,9 @@ class CSPad(object):
         
             for i in range(8):
                 
-                # in the below, the following convention is correct:
-                # slow == row == x
-                # fast == col == y
+                # in the below, the following convention is correct (given the origin is in the lower left corner):
+                # slow == row == y
+                # fast == col == x
                 
                 shape = (185, 388) # slow, fast
 
@@ -468,18 +468,20 @@ class CSPad(object):
                 f = self._rotate_xy( f, 90*(4-quad_index) + quad_rot_corr)
                 p = self._rotate_xy( p, 90*(4-quad_index) + quad_rot_corr)
                 
-                # now translate so that the top-left corners of an 850 x 850 box
-                # overlap
+                # now translate so that the top-left corners of an 850 x 850 box overlap
+				# JAS & TJL 13-04-24: swapped the origin of the raw internal representation
+				# to be located (roughly) at the beam center, following the CXI convention
+				# with the first quadrant in the +X, +Y direction
                 if quad_index == 0:
-                    translation = np.array([0.0,     0.0, 0.0])
+                    translation = np.array([425.0, 425.0, 0.0])
                 elif quad_index == 1:
-                    translation = np.array([  0.0, 850.0, 0.0])
+                    translation = np.array([-425.0, 425.0, 0.0])
                 elif quad_index == 2:
-                    translation = np.array([850.0, 850.0, 0.0])    
+                    translation = np.array([-425.0, -425.0, 0.0])    
                 elif quad_index == 3:
-                    translation = np.array([850.0,   0.0, 0.0])    
+                    translation = np.array([425.0, -425.0, 0.0])    
                 
-                p += translation * 0.10992 # convert to microns
+                p += translation * 0.10992 # convert to mm
                 
                 # add the quad offset, which defines the relative spatial
                 # orientations of each quad
