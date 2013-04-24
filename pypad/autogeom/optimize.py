@@ -310,7 +310,6 @@ class Optimizer(object):
             blob_circ = plt_patches.Circle(self.beam_location, 15, fill=False, lw=2, 
                                            ec='orange')
             self._axL.add_patch(blob_circ)
-            self._axL.invert_xaxis()
             self._axR.set_xlabel('Radius')
             self._axR.set_ylabel('Intensity')
             plt.draw()
@@ -390,6 +389,8 @@ class Optimizer(object):
             plt.ion()
             self._fig = plt.figure(figsize=(12,6))
             self._axL = self._fig.add_subplot(121)
+            self._axL.invert_xaxis()
+            self._axL.set_aspect('equal')
             self._axR = self._fig.add_subplot(122)
 
         if self.use_edge_filter:

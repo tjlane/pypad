@@ -485,6 +485,7 @@ class CSPad(object):
                 
                 # add the quad offset, which defines the relative spatial
                 # orientations of each quad
+                print "qd offset:", self.quad_offset[:,quad_index]
                 p += self.quad_offset[:,quad_index] * 0.10992
                 
                 # finally, add these to our basis grid
