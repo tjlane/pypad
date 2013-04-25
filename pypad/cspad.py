@@ -382,7 +382,7 @@ class CSPad(object):
         qms = self._read_metrology(metrology_dir)
         for q in range(4):
             for two_by_one in range(8):
-                self.metrology_basis[q].append( self._twobyone_to_bg(qms[q], q, two_by_one) )
+                self.metrology_basis[q].append( self._twobyone_to_bg(qms[q], two_by_one) )
         
         return
     
@@ -419,7 +419,7 @@ class CSPad(object):
         return quad_metrologies
 
 
-    def _twobyone_to_bg(self, quad_metrology, quad_index, two_by_one_index):
+    def _twobyone_to_bg(self, quad_metrology, two_by_one_index):
         """
         Convert a 2x1 in the optical metrology into two basis grid elements.
 
@@ -440,8 +440,9 @@ class CSPad(object):
         if not quad_metrology.shape == (32,3):
             raise ValueError('Invalid quad_metrology, must be shape (32,3), got: %s' % str(quad_metrology.shape))
 
-        # below is the sequence in which each 2x1 is optically measured. TJL todo :
-        # this could be automagically found
+        # below is the sequence in which each 2x1 is optically measured, and
+        # thus this sequence is read out of the metrology
+        
         scan_sequence = np.array([1,0,3,2,4,5,7,6])
         shape = (185, 194) # always the same, for each ASIC
 
@@ -449,14 +450,38 @@ class CSPad(object):
         i = int(np.where( scan_sequence == two_by_one_index )[0]) * 4
         xyz_2x1 = quad_metrology[i:i+4,:] # the four corners of the 2x1
 
+        
+        # The metrology is for sensor points that are actually *outside* the
+        # physical ASIC chip. To account for this, we apply a `p_offset`,
+        # which effectively centers the ASIC between these measured points.
+        # Practically, we take the average center of each side of the rectangle
+        # measured in the metrology
+        
+        # 0.10992 mm : pixel size
+        # 0.27480 mm : gap between ASICS in a 2x1
+        
+        fl = 2* 194 * 0.10992 + 0.27480  # length of the long side of a 2x1
+        sl = 185 * 0.10992               # length of the short side of a 2x1
+        h  = np.sqrt( fl*fl + sl*sl )    # length of hypothenuse of an ASIC
 
-        # find p, s, f
+        # Next, we build a basis grid representation of each 2x1, which consists
+        # of two individual ASICS. Each ASIC has an "origin" which denotes the
+        # position of the first pixel in memory -- this is denoted p0 for the 
+        # first ASIC and p1 for the second. The values "s" and "f" define the
+        # grid of pixels along the slow and fast scan directions (here, short
+        # and long sizes) of the 2x1 respectively.
+        
+        # NOTE : later, we swap x to reach CXI convention
+        
         if two_by_one_index in [0,1]:
 
             s = 0.10992 * self._unit(xyz_2x1[0,:] - xyz_2x1[1,:])
             f = 0.10992 * self._unit(xyz_2x1[2,:] - xyz_2x1[1,:])
-
-            p0 = xyz_2x1[1,:] / 1000.
+            
+            diagonal = (xyz_2x1[3,:] - xyz_2x1[1,:]) / 1000.
+            offset = (np.linalg.norm(diagonal) - h) / 2.
+            
+            p0 = xyz_2x1[1,:] / 1000. + offset * self._unit(diagonal)
             p1 = p0 + shape[1] * f + 0.27480 * self._unit(f) # for 3px gap
 
 
@@ -465,7 +490,10 @@ class CSPad(object):
             s = 0.10992 * self._unit(xyz_2x1[1,:] - xyz_2x1[2,:])
             f = 0.10992 * self._unit(xyz_2x1[3,:] - xyz_2x1[2,:])
 
-            p0 = xyz_2x1[2,:] / 1000.
+            diagonal = (xyz_2x1[0,:] - xyz_2x1[2,:]) / 1000.
+            offset = (np.linalg.norm(diagonal) - h) / 2.
+
+            p0 = xyz_2x1[2,:] / 1000. +  offset * self._unit(diagonal)
             p1 = p0 + shape[1] * f + 0.27480 * self._unit(f) # for 3px gap
 
 
@@ -474,15 +502,19 @@ class CSPad(object):
             s = 0.10992 * self._unit(xyz_2x1[2,:] - xyz_2x1[3,:])
             f = 0.10992 * self._unit(xyz_2x1[0,:] - xyz_2x1[3,:])
 
-            p0 = xyz_2x1[3,:] / 1000.
+            diagonal = (xyz_2x1[1,:] - xyz_2x1[3,:]) / 1000.
+            offset = (np.linalg.norm(diagonal) - h) / 2.
+
+            p0 = xyz_2x1[3,:] / 1000. +  offset * self._unit(diagonal)
             p1 = p0 + shape[1] * f + 0.27480 * self._unit(f) # for 3px gap
 
 
         else:
             raise ValueError('two_by_one_index must be in 0...7')
-
-        bgs = ( (p0.copy(), s.copy(), f.copy(), shape), (p1.copy(), s.copy(), f.copy(), shape) )
-
+        
+        # return a tuple of basis grid objects
+        bgs = ( (p0.copy(), s.copy(), f.copy(), shape), 
+                (p1.copy(), s.copy(), f.copy(), shape) )
         return bgs
     
         
@@ -663,16 +695,23 @@ class CSPad(object):
                 
                     p, s, f, shape = self.metrology_basis[quad_index][i][j]
                     
-                    # rotate each quad by the appropriate amount ( n * 90-deg CW 
-                    # rotations for quads n = { 0, 1, 2, 3 } ), then translate
-                    # them so that the top-left corners of an 850 x 850 pixel box
-                    # overlap. This remains true to psana convention.
-                
-                    # perform the rotation
-                    qr = [90.0, 0.0, 270.0, 180.0]
+                    # in the metrology, each quad is not oriented wrt to one
+                    # another -- here we rotate each quad by the appropriate 
+                    # amount to get them into the correct relative orientation
+                    
+                    qr = [90.0, 0.0, 270.0, 180.0] # deg ccw from upstream
                     s = self._rotate_xy( s, qr[quad_index] + self.quad_rotation[quad_index])
                     f = self._rotate_xy( f, qr[quad_index] + self.quad_rotation[quad_index])
                     p = self._rotate_xy( p, qr[quad_index] + self.quad_rotation[quad_index])
+                    
+                    # we must mirror the x-coordinates of each vector to be consistent with
+                    # the CXI coordinate convention, where the x-axis is positive towards
+                    # the hutch door (right handed system)
+                    p[0] = -p[0]
+                    s[0] = -s[0]
+                    f[0] = -f[0]
+                    
+                    # TJL TO DO : add dilation 
                     
                     # add the quad offset, which defines the relative spatial
                     # orientations of each quad

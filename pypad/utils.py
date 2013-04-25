@@ -378,6 +378,10 @@ def sketch_2x1s(pixel_positions, mpl_axes=None):
 
             ax.plot(corners[:,0], corners[:,1], lw=2, color=quad_color[i])
             ax.scatter(x[0,0], y[0,0])
+            
+            
+    # mirror x axis for CXI convention
+    ax.invert_xaxis()
 
     if mpl_axes:
         return ax

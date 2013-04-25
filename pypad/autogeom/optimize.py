@@ -389,7 +389,6 @@ class Optimizer(object):
             plt.ion()
             self._fig = plt.figure(figsize=(12,6))
             self._axL = self._fig.add_subplot(121)
-            self._axL.invert_xaxis()
             self._axL.set_aspect('equal')
             self._axR = self._fig.add_subplot(122)
 
