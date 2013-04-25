@@ -361,7 +361,7 @@ class CSPad(object):
     """
     
     def __init__(self, metrology, quad_offset=np.zeros((4,2)), 
-                 quad_rotation=np.zeros(4), dilation=0.0):
+                 quad_rotation=np.zeros(4)):
         """
         Initialize an instance of CSPad, corresponding to a single CSPad
         geometry.             
@@ -379,7 +379,7 @@ class CSPad(object):
         # internalize params
         self.quad_offset   = quad_offset
         self.quad_rotation = quad_rotation
-        self.dilation      = float(dilation)
+        
         
         # read the optical metrology
         if type(metrology) == str:
@@ -742,6 +742,7 @@ class CSPad(object):
                     f = self._rotate_xy( f, self._base_quad_rotation[quad_index] + self.quad_rotation[quad_index])
                     p = self._rotate_xy( p, self._base_quad_rotation[quad_index] + self.quad_rotation[quad_index])
                     
+                    
                     # we must mirror the x-coordinates of each vector to be consistent with
                     # the CXI coordinate convention, where the x-axis is positive towards
                     # the hutch door (right handed system)
@@ -749,7 +750,6 @@ class CSPad(object):
                     s[0] = -s[0]
                     f[0] = -f[0]
                     
-                    # TJL TO DO : add dilation 
                     
                     # add the quad offset, which defines the relative spatial
                     # orientations of each quad
@@ -780,6 +780,8 @@ class CSPad(object):
             The rotation, in degrees.
         """
         
+        # TJL CHECK METHOD
+        
         # determine the rotation
         i = asic_index / 2
         j = asic_index % 2
@@ -787,6 +789,14 @@ class CSPad(object):
         theta = utils.arctan3(f[1], f[0]) * (360. / (np.pi * 2.0))
         
         # remove what the default is, after our manipulations
+        if i in [0,1]:
+            base = 0.0
+        elif i in [2,3,6,7]:
+            base = 270.0
+        elif i in [4,5]:
+            base = 180.0
+            
+        theta -= base
         
         return theta
     
@@ -835,7 +845,7 @@ class CSPad(object):
         assert quad_image.shape == (16,185,194)
 
         # make the array for this quadrant
-        quad_px_size = 850 # 850
+        quad_px_size = 850
         quadrant = np.zeros( (quad_px_size, quad_px_size), dtype=quad_image.dtype )
 
         for i in range(8):
@@ -844,7 +854,6 @@ class CSPad(object):
             gap = np.zeros( (185,3), dtype=quad_image.dtype )
             two_by_one = np.hstack( (quad_image[i*2,:,:], gap, 
                                     quad_image[i*2+1,:,:]) )
-                    
 
             # re-orient data
             if i in [0,1]:
@@ -854,11 +863,11 @@ class CSPad(object):
             elif i in [4,5]:
                 two_by_one = two_by_one[:,::-1]
 
-            #print quad_index, i, self._asic_rotation(quad_index, i)
+            print quad_index, i, self._asic_rotation(quad_index, i*2)
 
             # rotate the 2x1 to be in the correct orientation
-            # two_by_one = interp.rotate(two_by_one, self._asic_rotation(quad_index, i),
-            #                            output=two_by_one.dtype)
+            two_by_one = interp.rotate(two_by_one, -self._asic_rotation(quad_index, i),
+                                       output=two_by_one.dtype)
 
             # find the corner
             c = self._twobyone_location(quad_index, i)
@@ -908,8 +917,8 @@ class CSPad(object):
             # shift the quads into their respective places
             base_x = [850,   850,   0,   0]
             base_y = [  0,   850, 850,   0]
-            qoff_x = int( self.quad_offset[quad_index,0] ) + base_x[quad_index]
-            qoff_y = int( self.quad_offset[quad_index,1] ) + base_y[quad_index]
+            qoff_x = int( self.quad_offset[quad_index,0] / self.pixel_size) + base_x[quad_index]
+            qoff_y = int( self.quad_offset[quad_index,1] / self.pixel_size) + base_y[quad_index]
                         
             if (qoff_x < 0) or (qoff_x >= bounds):
                 raise ValueError('qoff_x: %d out of bounds [0,%d)' % (qoff_x, bounds))
