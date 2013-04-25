@@ -10,6 +10,80 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+def sketch_2x1s(pixel_positions, mpl_axes=None):
+    """
+    Draw a rough sketch of the layout of the CSPAD
+
+    Parameters
+    ----------
+    pixel_positions : np.ndarray
+        The x,y,z coordinates of the pixels on the CSPAD
+    """
+    
+    if pixel_positions.shape not in [(3,4,16,185,194), (2,4,16,185,194)]:
+        raise ValueError('`pixel_positions` has incorrect shape: '
+                         '%s' % str(pixel_positions.shape))
+    
+    quad_color = ['k', 'g', 'purple', 'b']
+
+    if not mpl_axes:
+        plt.figure()
+        ax = plt.subplot(111)
+    else:
+        ax = mpl_axes
+
+    for i in range(4):
+        for j in range(pixel_positions.shape[2]):
+            x = pixel_positions[0,i,j,:,:]
+            y = pixel_positions[1,i,j,:,:]
+            corners = np.zeros((5,2))
+
+            corners[0,:] = np.array([ x[0,0],   y[0,0] ])     # bottom left
+            corners[1,:] = np.array([ x[0,-1],  y[0,-1] ])    # bottom right
+            corners[3,:] = np.array([ x[-1,0],  y[-1,0] ])    # top left
+            corners[2,:] = np.array([ x[-1,-1], y[-1,-1] ])   # top right
+            corners[4,:] = np.array([ x[0,0],   y[0,0] ])     # make rectangle
+
+            ax.plot(corners[:,0], corners[:,1], lw=2, color=quad_color[i])
+            ax.scatter(x[0,0], y[0,0])
+            
+            
+    # mirror x axis for CXI convention
+    ax.invert_xaxis()
+
+    if mpl_axes:
+        return ax
+    else:
+        plt.show()
+
+
+def imshow_cspad(image, vmin=0, vmax=None, ax=None):
+    """
+    Show an assembled image (e.g. from CSPad(raw_image) ) as it would be seen
+    when viewed from upstream at CXI. CXI convention is that the plus-x direction
+    is towards the hutch door, plus-y is upwards, and plus-z is the direction
+    of the beam.
+    
+    Parameters
+    ----------
+    image : np.ndarray
+        A two-dimensional assembled image
+    
+    Returns
+    -------
+    ax : pyplot.axes
+    im : axes.imshow
+    """
+    
+    if ax == None:
+        ax = plt.subplot(111)
+
+    im = ax.imshow( image, origin='lower', vmin=vmin, vmax=vmax,
+                    interpolation='nearest' )
+    ax.invert_xaxis()
+    return im
+
                                                     
 class InteractiveImshow(object):
     """

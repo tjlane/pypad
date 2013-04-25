@@ -16,6 +16,7 @@ import scipy.ndimage.interpolation as interp
 import matplotlib.pyplot as plt
 
 from pypad import utils
+from pypad import read
 from pypad import export
 from pypad import default
 
@@ -359,7 +360,8 @@ class CSPad(object):
     This class is largely based on XtcExplorer's cspad.py
     """
     
-    def __init__(self, metrology_dir, quad_offset=np.zeros((4,2)), quad_rotation=np.zeros(4)):
+    def __init__(self, metrology, quad_offset=np.zeros((4,2)), 
+                 quad_rotation=np.zeros(4), dilation=0.0):
         """
         Initialize an instance of CSPad, corresponding to a single CSPad
         geometry.             
@@ -373,16 +375,33 @@ class CSPad(object):
         if not quad_rotation.shape == _array_sizes['quad_rotation']:
             raise ValueError('quad_rotation must have shape (4,), got: %s' % str(quad_rotation.shape))
         
+        
+        # internalize params
         self.quad_offset   = quad_offset
         self.quad_rotation = quad_rotation
+        self.dilation      = float(dilation)
         
         # read the optical metrology
-        self.metrology_basis = [[],[],[],[]]
+        if type(metrology) == str:
+            print "Loading metrology from: %s" % metrology
+            qms = self._read_metrology(metrology)
+
+                    
+        elif type(metrology) == np.ndarray:
+            if not metrology.shape == (4,32,3):
+                raise ValueError('`metrology` array is wrong shape. Must be (4,32,3),'
+                                 ' got %s' % str(metrology.shape))
+            qms = metrology
+                                 
+        else:
+            raise TypeError('`metrology` must be str or np.ndarray')
+
         
-        qms = self._read_metrology(metrology_dir)
+        self.metrology_basis = [[],[],[],[]]
         for q in range(4):
             for two_by_one in range(8):
                 self.metrology_basis[q].append( self._twobyone_to_bg(qms[q], two_by_one) )
+        
         
         return
     
@@ -397,6 +416,11 @@ class CSPad(object):
         assembled_image : ndarray, float
             The assembled image.
         """
+        if not raw_image.shape == (4,16,185,194):
+            raise ValueError('CSPad cannot assemble image: wrong shape. Raw '
+                             'image must be shape (4,16,185,194), which is '
+                             '(quads, ASICs, slow, fast). Got an image w/shape:'
+                             '%s' % str(raw_image.shape))
         return self._assemble_image(raw_image)
     
         
@@ -414,7 +438,10 @@ class CSPad(object):
         for i in range(4):
             print "loading " + metrology_dir + '/q%d.txt' % i
             qm = np.genfromtxt(metrology_dir+'/q%d.txt' % i)
-            quad_metrologies.append( qm.copy() )
+            quad_metrologies.append( qm )
+            
+        quad_metrologies = np.array(quad_metrologies)
+        assert quad_metrologies.shape == (4,32,3)
             
         return quad_metrologies
 
@@ -471,7 +498,8 @@ class CSPad(object):
         # grid of pixels along the slow and fast scan directions (here, short
         # and long sizes) of the 2x1 respectively.
         
-        # NOTE : later, we swap x to reach CXI convention
+        # NOTE : later, we swap x to reach CXI convention -- this is done after
+        #        we position the quads in _generate_basis()
         
         if two_by_one_index in [0,1]:
 
@@ -583,8 +611,14 @@ class CSPad(object):
                         pix_pos[k,i,j,:,:] = grid[:,:,k]
         
         return pix_pos
+        
+        
+    @property
+    def _base_quad_rotation(self):
+        # deg ccw from upstream
+        return [90.0, 0.0, 270.0, 180.0]
     
-    
+        
     def intensity_profile(self, raw_image, n_bins=None, quad='all', beta=10.0,
                           window_size=10):
         """
@@ -695,14 +729,18 @@ class CSPad(object):
                 
                     p, s, f, shape = self.metrology_basis[quad_index][i][j]
                     
+                    # replace references w/objects so we dont modify the metrology
+                    p = p.copy()
+                    s = s.copy()
+                    f = f.copy()
+                    
                     # in the metrology, each quad is not oriented wrt to one
                     # another -- here we rotate each quad by the appropriate 
                     # amount to get them into the correct relative orientation
                     
-                    qr = [90.0, 0.0, 270.0, 180.0] # deg ccw from upstream
-                    s = self._rotate_xy( s, qr[quad_index] + self.quad_rotation[quad_index])
-                    f = self._rotate_xy( f, qr[quad_index] + self.quad_rotation[quad_index])
-                    p = self._rotate_xy( p, qr[quad_index] + self.quad_rotation[quad_index])
+                    s = self._rotate_xy( s, self._base_quad_rotation[quad_index] + self.quad_rotation[quad_index])
+                    f = self._rotate_xy( f, self._base_quad_rotation[quad_index] + self.quad_rotation[quad_index])
+                    p = self._rotate_xy( p, self._base_quad_rotation[quad_index] + self.quad_rotation[quad_index])
                     
                     # we must mirror the x-coordinates of each vector to be consistent with
                     # the CXI coordinate convention, where the x-axis is positive towards
@@ -718,118 +756,178 @@ class CSPad(object):
                     p[:2] += self.quad_offset[quad_index]
                 
                     # finally, add these to our basis grid
-                    bg.add_grid(p.copy(), s.copy(), f.copy(), shape)
+                    bg.add_grid(p, s, f, shape)
                 
         return bg
     
         
-    def _assemble_quad(self, raw_image, quad_index):
-           """
-           assemble the geometry of an individual quad
-           """
-           
-           pairs = []
-           for i in range(8):
+    def _asic_rotation(self, quad_index, asic_index):
+        """
+        Return the xy-rotation of the asic *within the frame of the quad*. Does
+        this by comparing the fast-scan vector to [1,0].
+        
+        Parameters
+        ----------
+        quad_index : int
+            The quad index: 0,1,2,3
+            
+        asic_index : int
+            The index of the asic: 0,1,...,15
+            
+        Returns
+        -------
+        theta : float
+            The rotation, in degrees.
+        """
+        
+        # determine the rotation
+        i = asic_index / 2
+        j = asic_index % 2
+        p, s, f, shape = self.metrology_basis[quad_index][i][j]
+        theta = utils.arctan3(f[1], f[0]) * (360. / (np.pi * 2.0))
+        
+        # remove what the default is, after our manipulations
+        
+        return theta
+    
 
-               # 1) insert gap between asics in the 2x1
-               asics = np.hsplit( raw_image[i], 2)
-               gap = np.zeros( (185,3), dtype=raw_image.dtype )
-               
-               # gap should be 3 pixels wide
-               pair = np.hstack( (asics[0], gap, asics[1]) )
+    def _twobyone_location(self, quad_index, two_by_one_index):
+        """
+        Return the lower-left corner of the asic *within the frame of the quad*.
+        
+        Parameters
+        ----------
+        quad_index : int
+            The quad index: 0,1,2,3
+            
+        two_by_one_index : int
+            The index of the 2x1: 0,1,...,7
+            
+        Returns
+        -------
+        c : np.ndarray
+            A 3-vector indicating where the lower-left corner of the ASIC is.
+            Note that here ***x has not been mirrored*** since we are working
+            in the frame of the quad metrology.
+        """
+        
+        # always take the first ASIC
+        p, s, f, shape = self.metrology_basis[quad_index][two_by_one_index][0]
+        
+        # CXI is the wild west -- no rules, so roll it manually
+        if two_by_one_index in [0,1]:
+            c = p.copy() + 185 * s.copy()
+        elif two_by_one_index in [2,3,6,7]:
+            c = p.copy() + 185 * s.copy() + (194*2 + 3) * f.copy()
+        elif two_by_one_index in [4,5]:
+            c = p.copy() + (194*2 + 3) * f.copy()
+        else:
+            raise ValueError('`two_by_one_index` must be in [0,7]')
+        
+        return c
+    
+        
+    def _assemble_quad(self, quad_image, quad_index):
+        """
+        Assemble the geometry of an individual quad
+        """
 
-               # all sections are originally 185 (rows) x 388 (columns)
-               # Re-orient each section in the quad
-               if i==0 or i==1:
-                   pair = pair[:,::-1].T   # reverse columns, switch columns to rows.
-               if i==4 or i==5:
-                   pair = pair[::-1,:].T   # reverse rows, switch rows to columns
-               pairs.append( pair )
+        assert quad_image.shape == (16,185,194)
 
-               pair = interp.rotate(pair, self.quad_rotation[quad_index][i],
-                                    output=pair.dtype)
+        # make the array for this quadrant
+        quad_px_size = 850 # 850
+        quadrant = np.zeros( (quad_px_size, quad_px_size), dtype=quad_image.dtype )
 
-           # make the array for this quadrant
-           quadrant = np.zeros( (850, 850), dtype=raw_image.dtype )
+        for i in range(8):
 
-           # insert the 2x1 sections according to
-           for sec in range(8):
-               nrows, ncols = pairs[sec].shape
+            # assemble the 2x1 -- insert a 3 px gap
+            gap = np.zeros( (185,3), dtype=quad_image.dtype )
+            two_by_one = np.hstack( (quad_image[i*2,:,:], gap, 
+                                    quad_image[i*2+1,:,:]) )
+                    
 
-               # old XTCExplorer code -- NOT CXI convention (Mikhail convention)
-               # colp,rowp are where the top-left corner of a section should be placed
-               # rowp = 850 - self.sec_offset[0] - (self.section_centers[0][quad_index][sec] + nrows/2)
-               # colp = 850 - self.sec_offset[1] - (self.section_centers[1][quad_index][sec] + ncols/2)
-               # quadrant[rowp:rowp+nrows,colp:colp+ncols] = pairs[sec][0:nrows,0:ncols]
-               
-               # new code -- TJL and JAS : adopting CXI coordinate convention
-               rowp = int( self.sec_offset[0] + (self.section_centers[0][quad_index][sec] + nrows/2) )
-               colp = int( self.sec_offset[1] + (self.section_centers[1][quad_index][sec] + ncols/2) )
-               quadrant[rowp-nrows:rowp,colp-ncols:colp] = pairs[sec][::-1,::-1]
+            # re-orient data
+            if i in [0,1]:
+                two_by_one = two_by_one[::-1,:]
+            elif i in [2,3,6,7]:
+                two_by_one = two_by_one[::-1,::-1].T
+            elif i in [4,5]:
+                two_by_one = two_by_one[:,::-1]
 
-           return quadrant
+            #print quad_index, i, self._asic_rotation(quad_index, i)
+
+            # rotate the 2x1 to be in the correct orientation
+            # two_by_one = interp.rotate(two_by_one, self._asic_rotation(quad_index, i),
+            #                            output=two_by_one.dtype)
+
+            # find the corner
+            c = self._twobyone_location(quad_index, i)
+            cs = int( c[0] / self.pixel_size )
+            rs = int( c[1] / self.pixel_size )
+      
+            if (rs < 0) or (rs+two_by_one.shape[0] > quad_px_size):
+                raise ValueError('rs: out of bounds in rows')
+            if (cs < 0) or (cs+two_by_one.shape[1] > quad_px_size):
+                raise ValueError('cs: out of bounds in cols')
+
+            quadrant[rs:rs+two_by_one.shape[0],cs:cs+two_by_one.shape[1]] = two_by_one.copy()
+                  
+        # plt.figure()
+        # ax = plt.subplot(111)
+        # ax.imshow(quadrant, vmin=0.0, origin='lower')
+        # plt.show()
+       
+        return quadrant
            
            
     def _assemble_image(self, raw_image):
         """
         Build each of the four quads, and put them together.
         """
+    
+        assert raw_image.shape == (4,16,185,194)
         
-        # shift the quads so that the description of the detector begins at
-        # (0,0) in the coordinate system, and is not translated far from the
-        # origin
-        # TJL : could include beam_vector here too
-
-        for i in range(2): # TJL : could cover z as well, right now just x/y
-            min_offset = np.min(self.quad_offset[i,:])
-            self.quad_offset[i,:] -= min_offset
-            self.beam_location[i] -= min_offset
-            
-                
         # set up the raw image and the assembled template
-        raw_image = utils.enforce_raw_img_shape(raw_image)
+        raw_image = read.enforce_raw_img_shape(raw_image)
         bounds = 2*850+100
         assembled_image = np.zeros((bounds, bounds), dtype=raw_image.dtype)
-        
+
         # iterate over quads
         for quad_index in range(4):
 
             quad_index_image = self._assemble_quad( raw_image[quad_index], quad_index )
 
-            # reorient the quad_index_image as needed
-            #quad_index_image = np.rot90( quad_index_image, 4-quad_index )
-                
-            # we may want a small correction to the quad rotations. psana
-            # has a quad_rotation parameter, that is filled with silly
-            # values describing the non-relative orientations of the quads
-            # (and the value meanings are ambiguous) -- so here we subtract
-            # those values and apply just the small correction
-            
-            quad_rot_corr_defaults = [180.0, 90.0, 0.0, 270.0]
-            quad_rot_corr = self.quad_rotation[quad_index] - quad_rot_corr_defaults[quad_index]
+            qr = [90, 0 , 270, 180]
             quad_index_image = interp.rotate( quad_index_image, 
-                                              90.0*(4-quad_index) + quad_rot_corr,
+                                              -(qr[quad_index] + self.quad_rotation[quad_index]),
                                               reshape=False,
                                               output=quad_index_image.dtype )
-
-            qoff_x = int( self.quad_offset[0,quad_index] )
-            qoff_y = int( self.quad_offset[1,quad_index] )
+                                  
             
-            # TJL & JAS -- new CXI convention
-            qoff_x = bounds - qoff_x - 850
-            qoff_y = bounds - qoff_y - 850
-            # -------------------------------
-            
+            base_x = [850,   850,   0,   0]
+            base_y = [  0,   850, 850,   0]
+            qoff_x = int( self.quad_offset[quad_index,0] ) + base_x[quad_index]
+            qoff_y = int( self.quad_offset[quad_index,1] ) + base_y[quad_index]
+                        
             if (qoff_x < 0) or (qoff_x >= bounds):
                 raise ValueError('qoff_x: %d out of bounds [0,%d)' % (qoff_x, bounds))
             if (qoff_y < 0) or (qoff_y >= bounds):
                 raise ValueError('qoff_y: %d out of bounds [0,%d)' % (qoff_y, bounds))
             
-            assembled_image[qoff_x:qoff_x+850, qoff_y:qoff_y+850] = quad_index_image
+            assembled_image[qoff_x:qoff_x+850, qoff_y:qoff_y+850] = quad_index_image[:,:]
+        
+        # swap x-axis to conform to CXI convention
+        assembled_image = assembled_image[:,::-1]
 
         return assembled_image
-            
+        
+        
+    @classmethod
+    def default(cls):
+        metrology = np.array([default.q0, default.q1, default.q2, default.q3])
+        return cls(metrology)
     
+
     def to_cheetah(self, filename="pixelmap-cheetah-raw.h5"):
         export.to_cheetah(self, filename)
         return

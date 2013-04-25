@@ -5,13 +5,23 @@ utils.py
 Various utility functions. Filtering, image processing, etc.
 """
 
-import tables
-
 import numpy as np
 from scipy.ndimage import filters
 from scipy import interpolate
 
 import matplotlib.pyplot as plt
+
+
+def arctan3(y, x):
+    """
+    Compute the inverse tangent. Like arctan2, but returns a value in [0,2pi].
+    """
+    theta = np.arctan2(y,x)
+    if type(theta) == np.ndarray:
+        theta[theta < 0.0] += 2 * np.pi
+    else:
+        if theta < 0.0: theta += 2 * np.pi
+    return theta
 
 
 def find_rings(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
@@ -205,112 +215,6 @@ def flatten_2x1s(image):
     
     return flat_image
     
-    
-def load_raw_image(filename, image_in_file=0):
-    """
-    Attempts to be a general and forgiving file-loading platform for raw images.
-    
-    Currently supported formats:
-        -- psana hdf5
-        -- cheetah hdf5
-        -- npz : numpy-z compression
-        -- txt : flat text
-    
-    Parameters
-    ----------
-    filename : str
-        The file to load.
-        
-    image_in_file : int
-        The image contained in that file to load.
-        
-    Returns
-    -------
-    image : np.ndarray
-        A numpy array of the image.
-    """
-    
-    print "Loading: %s" % filename
-    
-    if filename.endswith('.h5'):
-        f = tables.File(filename)
-        try:
-            # psana format
-            raw_image = f.getNode('/data%d/raw' % image_in_file).read()
-        except:
-            # cheetah format
-            raw_image = f.root.data.data.read()
-        finally:
-            f.close()
-        
-    elif filename.endswith('.npz'):
-        raw_image = np.load(filename)['arr_%d' % image_in_file]
-        
-    elif filename.endswith('txt'):
-        raw_image = np.loadtxt(filename)
-        
-    else:
-        raise ValueError('Cannot understand format of file: %s' % fn)
-    
-    raw_image = enforce_raw_img_shape(raw_image)
-    
-    return raw_image
-
-    
-def enforce_raw_img_shape(raw_image):
-    """
-    Make sure that the `raw_image` has shape: (4,8,185,388).
-    
-    Which is (quad, 2x1, fast, slow). This function will attempt to get
-    the image into that form, and if it can't throw an error.
-    
-    Parameters
-    ----------
-    raw_image : np.ndarray
-        The raw image, in XtcExplorer, PyCSPad, or Cheetah format
-        
-    Returns
-    -------
-    raw_image : np.ndarray
-        The same image reshaped to be (4,8,185,388)
-    """
-    
-    # XtcExporter format
-    if raw_image.shape == (4,8,185,388):
-        new_image = raw_image # we're good
-        
-    # PyCSPad format
-    elif raw_image.shape == (32,185,388):
-        new_image = np.zeros((4, 8, 185, 388), dtype=raw_image.dtype)
-        for i in range(8):
-            for j in range(4):
-                psind = i + j * 8
-                new_image[j,i,:,:] = raw_image[psind,:,:]
-        
-    # Cheetah format
-    # raw data format: 1480 rows x 1552 cols,
-    # origin is lower left corner in doc/cspad_arrangement.pdf
-    elif raw_image.shape == (1480, 1552):
-        
-        new_image = np.zeros((4, 8, 185, 388), dtype=raw_image.dtype)
-        
-        for q in range(4):
-            for twoXone in range(8):
-                
-                x_start = 388 * q
-                x_stop  = 388 * (q+1)
-                
-                y_start = 185 * twoXone
-                y_stop  = 185 * (twoXone + 1)
-                
-                new_image[q,twoXone,:,:] = raw_image[y_start:y_stop,x_start:x_stop]
-    
-    else:
-        raise ValueError("Cannot understand `raw_image`: does not have any"
-                         " known dimension structure")
-    
-    return new_image
-
 
 def _assemble_implicit(xyz, raw_image, num_x=2000, num_y=2000):
     """
@@ -341,78 +245,5 @@ def _assemble_implicit(xyz, raw_image, num_x=2000, num_y=2000):
     
     return grid_z
 
-
-def sketch_2x1s(pixel_positions, mpl_axes=None):
-    """
-    Draw a rough sketch of the layout of the CSPAD
-
-    Parameters
-    ----------
-    pixel_positions : np.ndarray
-        The x,y,z coordinates of the pixels on the CSPAD
-    """
-    
-    # if pixel_positions.shape not in [(3,4,8,185,388), (2,4,8,185,388)]:
-    #     raise ValueError('`pixel_positions` has incorrect shape: '
-    #                      '%s' % str(pixel_positions.shape))
-    
-    quad_color = ['k', 'g', 'purple', 'b']
-
-    if not mpl_axes:
-        plt.figure()
-        ax = plt.subplot(111)
-    else:
-        ax = mpl_axes
-
-    for i in range(4):
-        for j in range(pixel_positions.shape[2]):
-            x = pixel_positions[0,i,j,:,:]
-            y = pixel_positions[1,i,j,:,:]
-            corners = np.zeros((5,2))
-
-            corners[0,:] = np.array([ x[0,0],   y[0,0] ])     # bottom left
-            corners[1,:] = np.array([ x[0,-1],  y[0,-1] ])    # bottom right
-            corners[3,:] = np.array([ x[-1,0],  y[-1,0] ])    # top left
-            corners[2,:] = np.array([ x[-1,-1], y[-1,-1] ])   # top right
-            corners[4,:] = np.array([ x[0,0],   y[0,0] ])     # make rectangle
-
-            ax.plot(corners[:,0], corners[:,1], lw=2, color=quad_color[i])
-            ax.scatter(x[0,0], y[0,0])
-            
-            
-    # mirror x axis for CXI convention
-    ax.invert_xaxis()
-
-    if mpl_axes:
-        return ax
-    else:
-        plt.show()
-
-
-def imshow_cspad(image, vmin=0, vmax=None, ax=None):
-    """
-    Show an assembled image (e.g. from CSPad(raw_image) ) as it would be seen
-    when viewed from upstream at CXI. CXI convention is that the plus-x direction
-    is towards the hutch door, plus-y is upwards, and plus-z is the direction
-    of the beam.
-    
-    Parameters
-    ----------
-    image : np.ndarray
-        A two-dimensional assembled image
-    
-    Returns
-    -------
-    ax : pyplot.axes
-    im : axes.imshow
-    """
-    
-    if ax == None:
-        ax = plt.subplot(111)
-
-    im = ax.imshow( image, origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='nearest' )
-    ax.invert_xaxis()
-    return im
     
 
