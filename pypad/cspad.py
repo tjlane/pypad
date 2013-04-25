@@ -780,8 +780,6 @@ class CSPad(object):
             The rotation, in degrees.
         """
         
-        # TJL CHECK METHOD
-        
         # determine the rotation
         i = asic_index / 2
         j = asic_index % 2
@@ -863,7 +861,6 @@ class CSPad(object):
             elif i in [4,5]:
                 two_by_one = two_by_one[:,::-1]
 
-            print quad_index, i, self._asic_rotation(quad_index, i*2)
 
             # rotate the 2x1 to be in the correct orientation
             two_by_one = interp.rotate(two_by_one, -self._asic_rotation(quad_index, i),
@@ -880,11 +877,6 @@ class CSPad(object):
                 raise ValueError('cs: out of bounds in cols')
 
             quadrant[rs:rs+two_by_one.shape[0],cs:cs+two_by_one.shape[1]] = two_by_one.copy()
-                  
-        # plt.figure()
-        # ax = plt.subplot(111)
-        # ax.imshow(quadrant, vmin=0.0, origin='lower')
-        # plt.show()
        
         return quadrant
            
