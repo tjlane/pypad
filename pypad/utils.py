@@ -352,9 +352,9 @@ def sketch_2x1s(pixel_positions, mpl_axes=None):
         The x,y,z coordinates of the pixels on the CSPAD
     """
     
-    if pixel_positions.shape not in [(3,4,8,185,388), (2,4,8,185,388)]:
-        raise ValueError('`pixel_positions` has incorrect shape: '
-                         '%s' % str(pixel_positions.shape))
+    # if pixel_positions.shape not in [(3,4,8,185,388), (2,4,8,185,388)]:
+    #     raise ValueError('`pixel_positions` has incorrect shape: '
+    #                      '%s' % str(pixel_positions.shape))
     
     quad_color = ['k', 'g', 'purple', 'b']
 
@@ -365,7 +365,7 @@ def sketch_2x1s(pixel_positions, mpl_axes=None):
         ax = mpl_axes
 
     for i in range(4):
-        for j in range(8):
+        for j in range(pixel_positions.shape[2]):
             x = pixel_positions[0,i,j,:,:]
             y = pixel_positions[1,i,j,:,:]
             corners = np.zeros((5,2))
