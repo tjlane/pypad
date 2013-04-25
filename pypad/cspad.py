@@ -898,12 +898,14 @@ class CSPad(object):
             quad_index_image = self._assemble_quad( raw_image[quad_index], quad_index )
 
             qr = [90, 0 , 270, 180]
+            
+            # this interp method goes CW, so we have to take the negative...
             quad_index_image = interp.rotate( quad_index_image, 
-                                              -(qr[quad_index] + self.quad_rotation[quad_index]),
+                                              -(self._base_quad_rotation[quad_index] + self.quad_rotation[quad_index]),
                                               reshape=False,
                                               output=quad_index_image.dtype )
                                   
-            
+            # shift the quads into their respective places
             base_x = [850,   850,   0,   0]
             base_y = [  0,   850, 850,   0]
             qoff_x = int( self.quad_offset[quad_index,0] ) + base_x[quad_index]
