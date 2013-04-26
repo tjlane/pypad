@@ -21,7 +21,6 @@ from pypad import export
 from pypad import default
 
 
-
 class BasisGrid(object):
     """
     A class representing a set of rectangular grids in space -- specifically,
@@ -424,6 +423,35 @@ class CSPad(object):
         return self._assemble_image(raw_image)
     
         
+    def dilate(self, dilation):
+        """
+        Apply an isotropic dilation to the CSPad, in the same way the motors
+        move to make the central beam pass bigger. Can also shrink the dilation
+        by passing a negative value for `dilation`.
+        
+        Parameters
+        ----------
+        dilation : float
+            The change in size of the beam pass (along one edge), in mm.
+        """
+        
+        if np.abs(dialtion) > 10.0:
+            print("Warning: the maximum possible dialtion at CXI as of Apr 2013"
+                  " was 10.0mm. You asked for a dilation of %f mm" % dilation)
+        
+        dilation_offset = np.zeros((4, 2))
+        step_size = dilation / 2.0 # this gets applied to both sizes
+        
+        # move each quad outward along a diagonal
+        dilation_offset[0,:] = np.array([ step_size, -step_size])
+        dilation_offset[1,:] = np.array([ step_size,  step_size])
+        dilation_offset[2,:] = np.array([-step_size,  step_size])
+        dilation_offset[3,:] = np.array([-step_size, -step_size])
+        
+        self.quad_offset[:,:2] += dilation_offset
+        return
+    
+    
     @staticmethod
     def _unit(v):
         return v / np.linalg.norm(v)
@@ -890,7 +918,7 @@ class CSPad(object):
         
         # set up the raw image and the assembled template
         raw_image = read.enforce_raw_img_shape(raw_image)
-        bounds = 2*850+100
+        bounds = 2*850+200
         assembled_image = np.zeros((bounds, bounds), dtype=raw_image.dtype)
 
         # iterate over quads
@@ -907,17 +935,19 @@ class CSPad(object):
                                               output=quad_index_image.dtype )
                                   
             # shift the quads into their respective places
-            base_x = [850,   850,   0,   0]
-            base_y = [  0,   850, 850,   0]
-            qoff_x = int( self.quad_offset[quad_index,0] / self.pixel_size) + base_x[quad_index]
-            qoff_y = int( self.quad_offset[quad_index,1] / self.pixel_size) + base_y[quad_index]
+            base_row = [850,   850,   0,   0]
+            base_col = [  0,   850, 850,   0]
+            qoff_row = int(  self.quad_offset[quad_index,1] / self.pixel_size) + \
+                             base_row[quad_index] + 50
+            qoff_col = int( -self.quad_offset[quad_index,0] / self.pixel_size) + \
+                             base_col[quad_index] + 50
                         
-            if (qoff_x < 0) or (qoff_x >= bounds):
-                raise ValueError('qoff_x: %d out of bounds [0,%d)' % (qoff_x, bounds))
-            if (qoff_y < 0) or (qoff_y >= bounds):
-                raise ValueError('qoff_y: %d out of bounds [0,%d)' % (qoff_y, bounds))
+            if (qoff_row < 0) or (qoff_row >= bounds):
+                raise ValueError('qoff_row: %d out of bounds [0,%d)' % (qoff_row, bounds))
+            if (qoff_col < 0) or (qoff_col >= bounds):
+                raise ValueError('qoff_col: %d out of bounds [0,%d)' % (qoff_col, bounds))
             
-            assembled_image[qoff_x:qoff_x+850, qoff_y:qoff_y+850] = quad_index_image[:,:]
+            assembled_image[qoff_row:qoff_row+850, qoff_col:qoff_col+850] = quad_index_image[:,:]
         
         # swap x-axis to conform to CXI convention
         assembled_image = assembled_image[:,::-1]
