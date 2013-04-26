@@ -25,26 +25,15 @@ def parse():
     parser.add_argument('filter_params', default='filter_params.yaml',
                         help='''The filter parameters to employ (default: filter_params.yaml),
                                 can be easily generated from the `genfilter` script''')
-    parser.add_argument('--param-dir', default=None, 
-                        help='''The CSPAD alignment parameters to use as a starting point, should be
-                                a directory (default: pyana default geometry)''')
     parser.add_argument('--metrology', default=None, 
-                        help='''Metrology file to use as a starting point instead of CSPAD alignment parameters''')
-    parser.add_argument('--run-range', default='0-end', 
-                        help="""What range of runs these parameters correspond 
-                        to. Should be a string of form X-Y, where X and Y are run 
-                        numbers (default: 0-end, which is all runs).""")
+                        help='''A CSPAD Metrology. Either a flat text file of an 
+                                optical metrology (see documentation) or a saved 
+                                pypad.CSPad object. If not passed uses a default
+                                metrology.''')
     parser.add_argument('--output', default='my_cspad_params', type=str,
                         help='The directory which to write the optimized CSPAD parameters to (default: my_cspad_params)')
                         
     args = parser.parse_args()
-    
-    # if not (args.param_dir or args.metrology):
-    #     parser.error('No CSPad geometry provided; pass --param_dir (alignment'
-    #                  ' parameters) or --metrology (optical metrology)')
-                     
-    if (args.param_dir and args.metrology):
-        parser.error('Cannot handle *both* metrology and param-dir, choose one!')
     
     return args
 
@@ -57,14 +46,6 @@ def main():
     
     args = parse()
     
-    # deal with run_range up front so we can throw an error if passed bad stuff
-    if args.run_range == '0-end':
-        run_range = None
-    else:
-        run_range = tuple([ int(x) for x in args.run_range.split('-') ])
-        if not len(run_range) == 2:
-            raise ValueError('`run-range` argument passed incorrectly -- check input.')
-    
     # load the calibration image
     cal_image = utils.load_raw_image(args.image_file)
     
@@ -75,25 +56,17 @@ def main():
     f.close()
     
     # load the initial CSPad object to start from
-    if args.param_dir:
-        geometry = cspad.CSPad.from_dir(args.param_dir)
-        print "Mode: CSPad/alignment parameter"
-        print "Initial condition: alignment parameter geometry in: %s\n" % args.param_dir
-    elif args.metrology:
-        geometry = cspad.Metrology(args.metrology)
-        print "Mode: optical metrology"
-        print "Initial condition: alignment parameter geometry in: %s\n" % args.param_dir
+    if args.metrology:
+        cs1 = cspad.CSPad(args.metrology)
     else:
-        print "Mode: CSPad/alignment parameter"
-        print "Initial condition: pyana/psana default geometry."
-        geometry = None # use the default
+        cs1 = cspad.CSPad.default()
     
     # generate the image optimizer and run it
-    optizor = opt.Optimizer(geometry, **optimization_params)
+    optizor = opt.Optimizer(cs1, **optimization_params)
     opt_cspad = optizor(cal_image)
     
     # save the final parameters to disk
-    opt_cspad.to_dir(args.output, run_range=run_range)
+    opt_cspad.save(args.output)
     
     return
 

@@ -8,6 +8,8 @@ of each pixel.
 
 import sys
 import os
+import cPickle
+import h5py
 from glob import glob
 from os.path import join as pjoin
 
@@ -981,5 +983,70 @@ class CSPad(object):
     def to_odin(self, filename):
         export.to_odin(self, filename)
         return
+        
+        
+    # Below: save/load methods. The saving here is quite lazy on my part, and
+    # will be totally incomprehensable to anyone who tries to read the file...
+        
+    def _to_serial(self):
+        """ serialize the object to an array """
+        s = np.array( cPickle.dumps(self) )
+        s.shape=(1,) # a bit nasty...
+        return s
     
+
+    @classmethod
+    def _from_serial(self, serialized):
+        """ recover a CSPad object from a serialized array """
+        if serialized.shape == (1,):
+            serialized = serialized[0]
+        return cPickle.loads( str(serialized) )
+    
+
+    def save(self, filename):
+        """
+        Writes the current CSPad to disk.
+
+        Parameters
+        ----------
+        filename : str
+            The path to the CSPad file to save.
+        """
+
+        if not filename.endswith('.cspad'):
+            filename += '.cspad'
+
+        hdf = h5py.File(filename, 'r')
+        hdf['/cspad'] = self._to_serial()
+        hdf.close()
+        
+        logger.info('Wrote %s to disk.' % filename)
+
+        return
+
+
+    @classmethod
+    def load(cls, filename):
+        """
+        Loads the a CSPad from disk.
+
+        Parameters
+        ----------
+        filename : str
+            The path to the shotset file.
+
+        Returns
+        -------
+        cspad : pypad.CSPad
+            A CSPad object
+        """
+
+        if not filename.endswith('.cspad'):
+            raise ValueError('Must load a cspad file (.cspad extension)')
+
+        hdf = h5py.File(filename, 'r')
+        c = cls._from_serial(hdf['/cspad'])
+        hdf.close()
+        
+        return c
 

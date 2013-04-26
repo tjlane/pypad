@@ -18,7 +18,11 @@ from pypad.plot import imshow_cspad
 parser = argparse.ArgumentParser(description='''Use a CSPAD geometry to assemble a raw image.''')
                                  
 parser.add_argument('image_file', help='The (raw) image file.')
-parser.add_argument('--metrology', default=None, help='''A CSPAD Metrology.''')
+parser.add_argument('--metrology', default=None, 
+                    help='''A CSPAD Metrology. Either a flat text file of an 
+                            optical metrology (see documentation) or a saved 
+                            pypad.CSPad object. If not passed uses a default
+                            metrology.''')
                             
 args = parser.parse_args()
 
