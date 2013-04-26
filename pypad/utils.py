@@ -11,6 +11,8 @@ from scipy import interpolate
 
 import matplotlib.pyplot as plt
 
+from pypad import read
+
 
 def arctan3(y, x):
     """
@@ -24,8 +26,8 @@ def arctan3(y, x):
     return theta
 
 
-def find_rings(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
-               rank_size=1, sobel=True):
+def preprocess_image(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
+                     rank_size=1, sobel=True):
     """
     Applies an edge filter followed by a noise reduction filter. Very good
     at locating powder rings and filtering everything else out.
@@ -43,7 +45,7 @@ def find_rings(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
     
     # flatten the image into a two-D array and later re-process it
     # convert to cheetah-like format
-    if raw_image.shape == (4, 8, 185, 388):
+    if raw_image.shape == (4,16,185,194):
         non_flat_img = True
         image = np.zeros((1480, 1552), dtype=np.float) # flat image
         for i in range(8):
@@ -52,14 +54,16 @@ def find_rings(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
                 x_stop  = 185 * (i+1)
                 y_start = 388 * j
                 y_stop  = 388 * (j+1)
-                image[x_start:x_stop,y_start:y_stop] = raw_image[j,i,:,:].astype(np.float)
+                
+                two_by_one = np.hstack(( raw_image[j,i*2,:,:], raw_image[j,i*2+1,:,:])).astype(np.float)
+                image[x_start:x_stop,y_start:y_stop] = two_by_one
                 
     elif len(raw_image.shape) == 2:
         non_flat_img = False
         image = raw_image.astype(np.float)
         
     else:
-        raise ValueError('`raw_image` should be 2d or shape-(4,8,185,388), got'
+        raise ValueError('`raw_image` should be 2d or shape-(4,16,185,194), got'
                          ': %s' % str(raw_image.shape))
     
     # apply rank filter & sobel filter
@@ -87,7 +91,7 @@ def find_rings(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
         image = filters.minimum_filter(image, size=minf_size)
     
     if non_flat_img:
-        image = enforce_raw_img_shape( image.astype(np.bool) )
+        image = read.enforce_raw_img_shape( image.astype(np.bool) )
     else:
         image = image.astype(np.bool)
         

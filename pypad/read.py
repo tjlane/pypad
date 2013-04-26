@@ -79,7 +79,7 @@ def enforce_raw_img_shape(raw_image):
         
     # PyCSPad format
     elif raw_image.shape == (32,185,388):
-        print "Converting psana img --> pypad image"
+        #print "Converting: psana image --> pypad image"
         new_image = np.zeros((4,16,185,194), dtype=raw_image.dtype)
         for i in range(8):
             for j in range(4):
@@ -93,7 +93,7 @@ def enforce_raw_img_shape(raw_image):
     # raw data format: 1480 rows x 1552 cols,
     # origin is lower left corner in doc/cspad_arrangement.pdf
     elif raw_image.shape == (1480, 1552):
-        print "Converting cheetah img --> pypad image"
+        #print "Converting: cheetah image --> pypad image"
         
         new_image = np.zeros((4,16,185,194), dtype=raw_image.dtype)
         

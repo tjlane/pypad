@@ -1,14 +1,13 @@
 
 To Do for autogeom
 ------------------
--- add intensity_profile, quad rotation correction to metrology
--- metrology/psana comparison
+-- fix instructions in genfilter
+
 -- energy/distance calibration
 -- cheetah writing ability
 -- odin writing ability
 
 -- write unit tests
--- condense code in Metrology into something comprehensible
 -- finish tutorial (images)
 -- write gospel
 -- GPL everything

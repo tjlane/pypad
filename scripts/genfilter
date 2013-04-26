@@ -11,7 +11,9 @@ import yaml
 from pprint import pprint
 
 from pypad import cspad
-from pypad.utils import find_rings, load_raw_image, imshow_cspad
+from pypad.utils import preprocess_image
+from pypad.plot import imshow_cspad, ToggleButton
+from pypad.read import load_raw_image
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -36,14 +38,13 @@ def parse_n_load():
     
     # if we got a parameter dir, assemble the image
     if args.param_dir:
-        print "ASSEMBLING IMAGE..."
         geom  = cspad.CSPad.from_dir(args.param_dir)
     else:
         geom = cspad.CSPad.default()
         
-    image = geom(raw_image)
+    #image = geom(raw_image)
         
-    return image, args.output
+    return raw_image, geom, args.output
     
     
 def print_instructions():
@@ -87,45 +88,73 @@ class InteractiveFilter(object):
     the geometry optimization.
     """
     
-    def __init__(self, raw_unfiltered_image):
+    def __init__(self, raw_unfiltered_image, cspad):
         
         self.raw_unfiltered_image = raw_unfiltered_image
+        self.cspad = cspad
+        self.assembled_unfiltered_image = self.cspad(self.raw_unfiltered_image)
 
         # initialize the plot
-        self.fig = plt.figure( figsize=(12,6))
+        self.fig = plt.figure( figsize=(12,7))
         self.axL = plt.subplot(121)
         self.axR = plt.subplot(122)
-        plt.subplots_adjust(left=0.25, bottom=0.35)
+        plt.subplots_adjust(left=0.25, bottom=0.45)
         
-        # initial guess for beam_loc
-        self.beam_loc = (900.0, 870.0)
-        self.regions = []
+        # initial values
+        self.sobel_filter = False
+        self.dilation     = 0.0
+        self.regions      = []
+        self.filter_on    = False
         
-        self.im = imshow_cspad(raw_unfiltered_image, ax=self.axL)
-        self.draw_projection(raw_unfiltered_image)
-
         # display the image with sliders for each parameter
         axcolor = 'lightgoldenrodyellow'
-        ax_thsd = plt.axes([0.25, 0.10, 0.65, 0.03], axisbg=axcolor)
-        ax_sigm = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)
-        ax_minf = plt.axes([0.25, 0.20, 0.65, 0.03], axisbg=axcolor)
-        ax_rank = plt.axes([0.25, 0.25, 0.65, 0.03], axisbg=axcolor)
+        ax_dilt = plt.axes([0.25, 0.10, 0.65, 0.03], axisbg=axcolor)
+        ax_thsd = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)
+        ax_sigm = plt.axes([0.25, 0.20, 0.65, 0.03], axisbg=axcolor)
+        ax_minf = plt.axes([0.25, 0.25, 0.65, 0.03], axisbg=axcolor)
+        ax_rank = plt.axes([0.25, 0.30, 0.65, 0.03], axisbg=axcolor)
 
+        self.dilation_slider  = Slider(ax_dilt, 'Dilate', 0.0, 10.0, valinit=5.0)
         self.threshold_slider = Slider(ax_thsd, 'Threshold', -5.0, 0.0, valinit=-2.0) # log10 scale
         self.sigma_slider     = Slider(ax_sigm, 'Gaussian Filter', 0.0, 5.0, valinit=1.0)
         self.minf_slider      = Slider(ax_minf, 'Minimum Filter', 1, 25, valinit=3)
         self.rank_slider      = Slider(ax_rank, 'Rank 1 Filter', 1, 25, valinit=8)
+        
 
-        ax_reset = plt.axes([0.8, 0.025, 0.1, 0.04])
-        self.button = Button(ax_reset, 'Reset', color=axcolor, hovercolor='0.975')
+        ax_reset = plt.axes([0.8, 0.02, 0.1, 0.04])
+        self.reset_button = Button(ax_reset, 'Reset', color=axcolor, hovercolor='0.975')
+
+        ax_sobel = plt.axes([0.69, 0.02, 0.1, 0.04])
+        self.filter_button = ToggleButton(ax_sobel, 'Show Filter', color=axcolor, hovercolor='0.975')
+        
+        ax_sobel = plt.axes([0.58, 0.02, 0.1, 0.04])
+        self.sobel_button = ToggleButton(ax_sobel, 'Sobel Filter', color=axcolor, hovercolor='0.975')
         
         # link mouse actions to functions
+        self.dilation_slider.on_changed(self.update_image)
+        
         self.threshold_slider.on_changed(self.update_image)
         self.sigma_slider.on_changed(self.update_image)
         self.minf_slider.on_changed(self.update_image)
         self.rank_slider.on_changed(self.update_image)
-        self.button.on_clicked(self.reset)
+        
+        self.reset_button.on_clicked(self.reset)
+        
+        self.filter_button.on_turned_on(self._filter_on)
+        self.filter_button.on_turned_off(self._filter_off)
+        
+        self.sobel_button.on_turned_on(self._sobel_on)
+        self.sobel_button.on_turned_on(self.update_image)
+        self.sobel_button.on_turned_off(self._sobel_off)
+        self.sobel_button.on_turned_off(self.update_image)
+        
+        # deals with clicking on the plot
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
+        
+        # actually show the image!
+        self.update_image()
+        
+        return
     
 
     def show(self):
@@ -138,18 +167,10 @@ class InteractiveFilter(object):
         """
         Draw a radial projection of the intensities, in the rightmost panel.
         """
-        # this is bad, but I just c/p'd code from optimize :( --TJL
-
-        # compute the radii
-        x = np.arange(image.shape[0])
-        y = np.arange(image.shape[1])
         
-        XX, YY = np.meshgrid(y, x)
+        # TJL to do : replace the below with fast radial calculator
 
-        dx = np.power( XX - self.beam_loc[0], 2 )
-        dy = np.power( YY - self.beam_loc[1], 2 )
-        r = np.sqrt( dx + dy )
-
+        r = self.cspad._xy_radii
         assert r.shape == image.shape
         
         # histogram the intensities
@@ -165,8 +186,9 @@ class InteractiveFilter(object):
         
         # draw the actual image
         self.axR.plot(bin_centers, bin_values, lw=2)
-        self.axR.set_xlabel('Radius')
+        self.axR.set_xlabel('Radius (mm)')
         self.axR.set_ylabel('Intensity')
+        self.axR.get_yaxis().set_ticks([])
         
         if len(self.regions) > 0:
             self.axR.vlines(self.regions, self.axR.get_ylim()[0], 
@@ -175,36 +197,36 @@ class InteractiveFilter(object):
         return
     
 
-    def update_image(self, val):
+    def update_image(self, val=None):
         """
         If a slider gets moved, update the panels
         """
-        thd = np.power( 10, self.threshold_slider.val )
-        sig = self.sigma_slider.val
-        mnf = int( self.minf_slider.val )
-        rnk = int( self.rank_slider.val )
-        filtered_image = find_rings(self.raw_unfiltered_image, 
-                                    threshold=thd, 
-                                    sigma=sig, minf_size=mnf, 
-                                    rank_size=rnk)
         
-        self.axL.imshow(filtered_image.T, origin='lower')
+        # apply our dilation
+        delta_dilation = self.dilation_slider.val - self.dilation
+        self.cspad.dilate(delta_dilation)
+        self.dilation  = self.dilation_slider.val
+        
+        # apply our filters
+        if not self.filter_on:
+            filtered_image = self.raw_unfiltered_image
+        else:        
+            thd = np.power( 10, self.threshold_slider.val )
+            sig = self.sigma_slider.val
+            mnf = int( self.minf_slider.val )
+            rnk = int( self.rank_slider.val )
+            filtered_image = preprocess_image(self.raw_unfiltered_image, 
+                                              threshold=thd, 
+                                              sigma=sig, minf_size=mnf, 
+                                              rank_size=rnk,
+                                              sobel=self.sobel_filter)
+        
+        imshow_cspad(self.cspad(filtered_image), ax=self.axL)
         
         self.axR.cla()
         self.draw_projection(filtered_image)
         plt.draw()
         
-        return
-    
-        
-    def draw_center(self):
-        """
-        Draw the current center on the image
-        """
-        blob_circ = plt_patches.Circle(self.beam_loc, 25, fill=False, lw=2, 
-                                       ec='orange')
-        self.axL.add_patch(blob_circ)
-        print "center set to: %s" % str(self.beam_loc)
         return
         
     
@@ -213,16 +235,8 @@ class InteractiveFilter(object):
         If the user clicks on the image, put the beam_loc there.
         """
         if event.inaxes and (event.button is not 1):
-            
-            if event.inaxes == self.axL:                  
-                if (event.xdata > 0) and (event.xdata < self.raw_unfiltered_image.shape[0]):
-                    if (event.ydata > 0) and (event.ydata < self.raw_unfiltered_image.shape[1]):
-                        self.beam_loc = event.xdata, event.ydata
-                        self.axL.cla()
-                        self.draw_center()
-                        self.update_image(event)
-                        
-            elif event.inaxes == self.axR:
+                                    
+            if event.inaxes == self.axR:
                 v_line = event.xdata
                 print "Set peak limit at: %f" % v_line
                 self.regions.append(v_line)
@@ -239,8 +253,34 @@ class InteractiveFilter(object):
         self.regions = []
         self.update_image(event)
         return
-    
         
+        
+    def _sobel_on(self):
+        print "Sobel filter: On"
+        self.sobel_filter = True
+        return
+        
+        
+    def _sobel_off(self):
+        print "Sobel filter: Off"
+        self.sobel_filter = False
+        return
+        
+        
+    def _filter_on(self):
+        print "Displaying filtered image"
+        self.filter_on = True
+        self.update_image()
+        return
+
+    
+    def _filter_off(self):
+        print "Displaying unfiltered image -- filter is there, just hidden"
+        self.filter_on = False
+        self.update_image()
+        return
+    
+
     def write_params(self, filename):
         """
         Write the parameters we have to disk.
@@ -258,11 +298,12 @@ class InteractiveFilter(object):
         
         
         param_dict = { 'threshold'     : float( np.power(10, self.threshold_slider.val) ),
+                       'sobel'         : self.sobel
                        'sigma'         : float(self.sigma_slider.val),
                        'minf_size'     : int(self.minf_slider.val),
                        'rank_size'     : int(self.rank_slider.val),
                        'radius_range'  : radius_range,
-                       'beam_location' : list(beam_loc) }
+                       'dilation'      : self.dilation }
         
         print "\nFinal Parameters:"
         pprint(param_dict)
@@ -279,9 +320,9 @@ class InteractiveFilter(object):
 def main():
     
     print_instructions()
-    image, output_fn = parse_n_load()
+    image, csp, output_fn = parse_n_load()
     
-    intflt = InteractiveFilter(image)
+    intflt = InteractiveFilter(image, csp)
     intflt.show()
     intflt.write_params(output_fn)
     

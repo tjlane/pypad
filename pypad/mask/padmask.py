@@ -10,6 +10,7 @@ from matplotlib.nxutils import points_inside_poly
 from matplotlib.widgets import Button
 
 from pypad import utils
+from pypad.plot import ToggleButton
 
 
 class PadMask(object):
@@ -380,113 +381,6 @@ class PadMask(object):
         f.close()
         
         return
-        
-        
-class ToggleButton(Button):
-    
-    def __init__(self, ax, label, default_state=False, **kwargs):
-        """
-        Create a matplotlib Button that can "toggle".
-        
-        When pressed, it flips state from either "on" to "off" of vice versa, 
-        calling `on_func` or `off_func` as appropriate.
-        
-        Parameters
-        ----------
-        ax : matplotlib.axes
-            The axes to draw the button on.
-            
-        label : str
-            The name that appears in the middle of the button.
-        
-        default_state : bool
-            Start off (False, default) or on (True).
-        """
-        
-        # call Button(ax, label)
-        super( ToggleButton, self ).__init__(ax, label, **kwargs)
-        
-        if not type(default_state) == bool:
-            raise TypeError('`default_state` must be type: bool')
-        self.on = default_state # keep track of state
-        
-        # we split observers into onstate/offstate_observers
-        del self.cnt
-        del self.observers
-        
-        self.cnt_on = 0
-        self.onstate_observers  = {}
-        
-        self.cnt_off = 0
-        self.offstate_observers = {}
-        
-        self.onstate_exargs  = {}
-        self.offstate_exargs = {}
-        
-        return
-    
-        
-    # override Button's release
-    def _release(self, event):
-        if self.ignore(event):
-            return
-        if event.canvas.mouse_grabber != self.ax:
-            return
-        event.canvas.release_mouse(self.ax)
-        if not self.eventson:
-            return
-        if event.inaxes != self.ax:
-            return
-            
-        # call either the on or off function
-        if not self.on:
-            for cid, func in self.onstate_observers.iteritems():
-                if len(self.onstate_exargs[cid]) > 0:
-                    func(*self.onstate_exargs[cid])
-                else:
-                    func()
-        else:
-            for cid, func in self.offstate_observers.iteritems():
-                if len(self.offstate_exargs[cid]) > 0:
-                    func(*self.offstate_exargs[cid])
-                else:
-                    func()
-                
-        # and toggle!
-        self.on = not(self.on)
-
-        
-    def disconnect(self, cid):
-        """remove the observer with connection id *cid*"""
-        try:
-            if cid in self.onstate_observers:
-                del self.onstate_observers[cid]
-            else:
-                del self.offstate_observers[cid]
-        except KeyError:
-            pass
-    
-        
-    def on_turned_on(self, func, *args):
-        """
-        Call function `func` in the on state.
-        """
-        cid = self.cnt_on
-        self.onstate_observers[cid] = func
-        self.onstate_exargs[cid] = args
-        self.cnt_on += 1
-        return cid
-    
-        
-    def on_turned_off(self, func, *args):
-        """
-        Call function `func` in the off state.
-        """
-        cid = self.cnt_off
-        self.offstate_observers[cid] = func
-        self.offstate_exargs[cid] = args
-        self.cnt_off += 1
-        return cid
     
     
 class MaskGUI(object):

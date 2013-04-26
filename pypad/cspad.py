@@ -435,7 +435,7 @@ class CSPad(object):
             The change in size of the beam pass (along one edge), in mm.
         """
         
-        if np.abs(dialtion) > 10.0:
+        if np.abs(dilation) > 10.0:
             print("Warning: the maximum possible dialtion at CXI as of Apr 2013"
                   " was 10.0mm. You asked for a dilation of %f mm" % dilation)
         
@@ -640,6 +640,18 @@ class CSPad(object):
         
         return pix_pos
         
+        
+    @property
+    def _xy_radii(self):
+        """
+        Return the radius of each pixel (center: 0,0) after projecting the
+        detector into the x,y plane.
+        """
+        pp = self.pixel_positions
+        r = np.sqrt( np.power(pp[0],2) + np.power(pp[1],2) )
+        assert r.shape == (4,16,185,194)
+        return r
+    
         
     @property
     def _base_quad_rotation(self):
