@@ -47,7 +47,8 @@ def sketch_2x1s(pixel_positions, mpl_axes=None):
             
             
     # mirror x axis for CXI convention
-    ax.invert_xaxis()
+    if not ax.xaxis_inverted():
+        ax.invert_xaxis()
 
     if mpl_axes:
         return ax

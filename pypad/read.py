@@ -48,7 +48,7 @@ def load_raw_image(filename, image_in_file=0):
         raw_image = np.loadtxt(filename)
         
     else:
-        raise ValueError('Cannot understand format of file: %s' % fn)
+        raise ValueError('Cannot understand format of file: %s' % filename)
     
     raw_image = enforce_raw_img_shape(raw_image)
     

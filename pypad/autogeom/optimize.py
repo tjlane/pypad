@@ -4,6 +4,7 @@ from scipy import optimize, interpolate
 
 from pypad import cspad
 from pypad import utils
+from pypad import plot
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as plt_patches
@@ -13,7 +14,7 @@ class Optimizer(object):
     Modify CSPad geometry parameters to optimize the geometry by some criterion.
     """
     
-    def __init__(self, **kwargs):
+    def __init__(self, cspad_instance, **kwargs):
         """
         Initialize an optimizer class.
         
@@ -24,6 +25,10 @@ class Optimizer(object):
         params_to_optimize : list of str
             
         """
+        
+        if not isinstance(cspad_instance, cspad.CSPad):
+            raise TypeError('`cspad_instance` must be a pypad.cspad.CSPad object')
+        self.cspad = cspad_instance
         
         # -------- optimization algorithm parameters -- default values ------- #
         # below are the defaults for each parameter used in the optimization   #
@@ -51,11 +56,11 @@ class Optimizer(object):
 
         # misc but important
         self.radius_range        = []
-        self.pixel_size          = 0.10992 # mm
         self.plot_each_iteration = True
+        self.dilation            = 5.0
         
         # probably deprecated
-        self.n_bins              = 2000
+        self.n_bins              = 200
         
         # -------------------------------------------------------------------- #
         
@@ -79,6 +84,9 @@ class Optimizer(object):
         else:
             self.radius_range = np.sort(np.array(self.radius_range, dtype=np.float))
         
+        # apply the dilation
+        self.cspad.dilate(self.dilation)
+        
         return
 
     
@@ -91,7 +99,7 @@ class Optimizer(object):
         
         if return_maxima_locations:
             if self.use_edge_filter:
-                raw_image = utils.find_rings(raw_image,
+                raw_image = utils.preprocess_image(raw_image,
                                              threshold=self.threshold,
                                              sigma=self.sigma,
                                              minf_size=self.minf_size,
@@ -111,6 +119,11 @@ class Optimizer(object):
         """
         slice out only the requested parts of the radial profile
         """
+
+        rmin = np.min( self.radius_range )
+        rmax = np.max( self.radius_range )
+        if (not np.any(bin_centers > rmax)) or (not np.any(bin_centers < rmin)):
+            raise ValueError('Invalid radius range -- out of bounds of measured radii.')
         
         if len(self.radius_range) > 0:
             include = np.zeros( len(bin_values), dtype=np.bool)
@@ -201,28 +214,16 @@ class Optimizer(object):
         param_dict = self._unravel_params(param_vals)
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
         
-        # the beam center will always be (0,0)
-        
-        pp = self.cspad.pixel_positions / self.pixel_size
-        bc, bv = self.cspad.intensity_profile(raw_image, n_bins=self.n_bins,
-                                   beta=self.beta, window_size=self.window_size)
-        bin_centers, bin_values = self._slice(bc / self.cspad.pixel_size, bv)
-                                                                  
-        max_inds = self._maxima_indices(bin_values)
-        
-        # only count big maxima for regularization purposes
-        n_maxima = 0
-        for ind in max_inds:
-            if bin_values[ind] > bin_values.mean() / 2.:
-                n_maxima += 1
+        # compute the radial profile
+        bc, bv = self.cspad.intensity_profile(raw_image, n_bins=self.n_bins)
+        bin_centers, bin_values = self._slice(bc, bv)
         
         # if plotting is requested, plot away!
         if self.plot_each_iteration:
             self._axL.cla()
             self._axR.cla()
-            utils.sketch_2x1s(pp, self._axL)
+            plot.sketch_2x1s(self.cspad.pixel_positions, self._axL)
             self._axR.plot(bin_centers, bin_values, lw=2, color='k')
-            self._axL.add_patch(blob_circ)
             self._axR.set_xlabel('Radius')
             self._axR.set_ylabel('Intensity')
             plt.draw()
@@ -232,28 +233,36 @@ class Optimizer(object):
         # new objective function : overlap integral
         if self.objective_type == 'overlap':
             
-            bins = bin_centers.copy() * self.cspad.pixel_size         
-            quad_profiles = np.zeros((4, len(bins)-2))
+            bins = bin_centers
+            quad_profiles = []
 
             for i in range(4):
                 bc, bv = self.cspad.intensity_profile(raw_image,
                                                       n_bins=bins,
-                                                      beta=self.beta, 
-                                                      window_size=self.window_size,
                                                       quad=i)
-                quad_profiles[i,:] = bv + 1e-100
+                quad_profiles.append(bv)
+                
+            m = np.min([ a.shape for a in quad_profiles ])
+            quad_profiles = np.array([ a[:m] for a in quad_profiles ])
             
             obj = - np.sum(np.product(quad_profiles, axis=0))
                                        
         # old objective function : peak height
         elif self.objective_type == 'peak_height':
             obj = - bin_values.max()
+            
+            # # only count big maxima for regularization purposes
+            # max_inds = self._maxima_indices(bin_values)
+            # n_maxima = 0
+            # for ind in max_inds:
+            #     if bin_values[ind] > bin_values.mean() / 2.:
+            #         n_maxima += 1
         
             if self.width_weight != 0.0:
                 obj += self.width_weight * self._simple_width(bin_values, bar=self.horizontal_cut)
             
             if self.peak_weight != 0.0:
-                obj += self.peak_weight * n_maxima
+                obj += self.peak_weight
         
         else:
             raise ValueError('No implemented objective_type: %s' % objective_type)
@@ -302,7 +311,7 @@ class Optimizer(object):
             self._axR = self._fig.add_subplot(122)
 
         if self.use_edge_filter:
-            image = utils.find_rings(raw_image, threshold=self.threshold,
+            image = utils.preprocess_image(raw_image, threshold=self.threshold,
                                      sigma=self.sigma,
                                      minf_size=self.minf_size,
                                      rank_size=self.rank_size,

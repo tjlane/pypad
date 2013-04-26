@@ -10,6 +10,7 @@ import argparse
 
 from pypad import cspad
 from pypad import utils
+from pypad import read
 from pypad.autogeom import score
 from pypad.autogeom import optimize as opt
 
@@ -30,8 +31,8 @@ def parse():
                                 optical metrology (see documentation) or a saved 
                                 pypad.CSPad object. If not passed uses a default
                                 metrology.''')
-    parser.add_argument('--output', default='my_cspad_params', type=str,
-                        help='The directory which to write the optimized CSPAD parameters to (default: my_cspad_params)')
+    parser.add_argument('--output', default='my_cspad.cspad', type=str,
+                        help='The file optimized CSPAD to (default: my_cspad.cspad)')
                         
     args = parser.parse_args()
     
@@ -47,7 +48,7 @@ def main():
     args = parse()
     
     # load the calibration image
-    cal_image = utils.load_raw_image(args.image_file)
+    cal_image = read.load_raw_image(args.image_file)
     
     # load the filter_params
     print "Loading: %s" % args.filter_params

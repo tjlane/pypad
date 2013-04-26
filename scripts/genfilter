@@ -170,21 +170,8 @@ class InteractiveFilter(object):
         Draw a radial projection of the intensities, in the rightmost panel.
         """
         
-        # TJL to do : replace the below with fast radial calculator
-
-        r = self.cspad._xy_radii
-        assert r.shape == image.shape
-        
         # histogram the intensities
-        n_bins = max(image.shape) / 2
-        
-        if image.dtype == np.bool:
-            bin_values, bin_edges = np.histogram( r * image, bins=n_bins )
-        else:
-            bin_values, bin_edges = np.histogram( r, weights=image, bins=n_bins )
-        
-        bin_values = bin_values[1:]
-        bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+        bin_centers, bin_values = self.cspad.intensity_profile(image, n_bins=200)
         
         # draw the actual image
         self.axR.plot(bin_centers, bin_values, lw=2)
@@ -297,12 +284,12 @@ class InteractiveFilter(object):
                 raise ValueError('Odd number of peak limits found on right panel!')
         
         param_dict = { 'threshold'     : float( np.power(10, self.threshold_slider.val) ),
-                       'sobel'         : self.sobel_filter,
+                       'sobel'         : bool(self.sobel_filter),
                        'sigma'         : float(self.sigma_slider.val),
                        'minf_size'     : int(self.minf_slider.val),
                        'rank_size'     : int(self.rank_slider.val),
                        'radius_range'  : radius_range,
-                       'dilation'      : self.dilation }
+                       'dilation'      : float(self.dilation) }
         
         print "\nFinal Parameters:"
         pprint(param_dict)

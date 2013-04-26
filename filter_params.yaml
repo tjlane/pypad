@@ -5,8 +5,9 @@ dilation: !!python/object/apply:numpy.core.multiarray.scalar
 - !!binary |
   iZ3YiZ1YIEA=
 minf_size: 3
-radius_range: [49.17948717948718, 75.83333333333337]
+radius_range: [50.17948717948718, 75.83333333333337]
 rank_size: 8
 sigma: 1.0
 sobel: false
 threshold: 0.10726269831828601
+objective_type: 'peak_height'

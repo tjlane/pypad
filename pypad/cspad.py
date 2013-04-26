@@ -608,7 +608,7 @@ class CSPad(object):
         if (type(param_names) == list) and (type(param_values) == list):
             if len(param_names) == len(param_values):
                 for i,pn in enumerate(param_names):
-                    self.set_param(pn, param_values[i], process=False)
+                    self.set_param(pn, param_values[i])
             else:
                 raise ValueError('`param_names` & `param_values` must be same len')
         else:
@@ -641,18 +641,6 @@ class CSPad(object):
                         pix_pos[k,i,j,:,:] = grid[:,:,k]
         
         return pix_pos
-        
-        
-    @property
-    def _xy_radii(self):
-        """
-        Return the radius of each pixel (center: 0,0) after projecting the
-        detector into the x,y plane.
-        """
-        pp = self.pixel_positions
-        r = np.sqrt( np.power(pp[0],2) + np.power(pp[1],2) )
-        assert r.shape == (4,16,185,194)
-        return r
     
         
     @property
@@ -661,8 +649,7 @@ class CSPad(object):
         return [90.0, 0.0, 270.0, 180.0]
     
         
-    def intensity_profile(self, raw_image, n_bins=None, quad='all', beta=10.0,
-                          window_size=10):
+    def intensity_profile(self, raw_image, n_bins=None, quad='all'):
         """
         Bin pixel intensities by their radius.
 
@@ -683,45 +670,45 @@ class CSPad(object):
         bin_values : ndarray, int
             The total intensity in the bin.
         """
-
-        pixel_pos = self.pixel_positions
-        center = self.beam_location * self.pixel_size
         
-        if not pixel_pos.shape[1:] == raw_image.shape:
-            raise ValueError('`pixel_pos` and `intensities` must have same'
-                             ' shape format. Current shapes: %s and %s respectively.' %\
-                              (str(pixel_pos.shape), str(intensities.shape)))
-
-        if not ((pixel_pos.shape[0] == 2) or (pixel_pos.shape[0] == 3)):
-            raise ValueError('`pixel_pos` must have first dimension be 2 or 3.'
-                             'Current shape: %s' % str(pixel_pos.shape))
-
-        # use only x,y for now
-        if (pixel_pos.shape[0] == 3):
-            pixel_pos = pixel_pos[:2]
-
         # compute radii
+        pp = self.pixel_positions
+        
         if quad == 'all':
-            radii = np.sqrt( np.power(pixel_pos[0]-center[0], 2) + \
-                             np.power(pixel_pos[1]-center[1], 2) )
+            radii = np.sqrt( np.power(pp[0],2) + np.power(pp[1],2) )
             intensities = raw_image
         elif type(quad) == int:
-            radii = np.sqrt( np.power(pixel_pos[0,quad]-center[0], 2) + \
-                             np.power(pixel_pos[1,quad]-center[1], 2) )
+            radii = np.sqrt( np.power(pp[0,quad], 2) + np.power(pp[1,quad], 2) )
             intensities = raw_image[quad,:,:,:]
         else:
             raise ValueError('`quad` must be {0,1,2,3} or "all", got %s' % str(quad))
 
-        bin_factor = 10.0
-        bin_assignments = np.floor( radii * bin_factor )
+        # histogram -- we have two methods : one for binary images
+        if intensities.dtype == np.bool:
+            
+            bin_factor = 10.0 # HARDCODED -- seems to work well
+            bin_assignments = np.floor( radii * bin_factor ).astype(np.int32)
         
-        bin_centers = np.arange(bin_assignments.max()+1)
-        bin_values  = np.zeros_like(bin_centers)
-        
-        for i in bin_centers:
-            x = (bin_assignments == i)
-            bin_values[i] = x * intensities / np.sum(x)
-        
+            assert bin_assignments.shape == radii.shape
+            assert intensities.shape     == radii.shape
+            
+            bin_values  = np.bincount( bin_assignments[intensities].flatten() ).astype(np.float32)
+            bin_values /= (np.bincount( bin_assignments.flatten() ) + 1e-100).astype(np.float)[:bin_values.shape[0]]
+            bin_centers = np.arange(bin_values.shape[0]) / bin_factor
+            
+        else:
+            n_bins = max(raw_image.shape) / 2
+            
+            # if raw_image.dtype == np.bool:
+            #     bin_values, bin_edges = np.histogram( radii * raw_image, bins=n_bins )
+            # else:
+            
+            bin_values, bin_edges = np.histogram( radii, weights=raw_image, bins=n_bins )
+            
+            bin_values = bin_values[1:]
+            bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+            
+        assert bin_centers.shape == bin_values.shape
         return bin_centers, bin_values
     
     
@@ -820,7 +807,8 @@ class CSPad(object):
         p, s, f, shape = self.metrology_basis[quad_index][i][j]
         theta = utils.arctan3(f[1], f[0]) * (360. / (np.pi * 2.0))
         
-        # remove what the default is, after our manipulations
+        # remove what the default is, due to the CSPad geometry,
+        # after our manipulations
         if i in [0,1]:
             base = 0.0
         elif i in [2,3,6,7]:
@@ -1008,11 +996,11 @@ class CSPad(object):
         if not filename.endswith('.cspad'):
             filename += '.cspad'
 
-        hdf = h5py.File(filename, 'r')
+        hdf = h5py.File(filename, 'w')
         hdf['/cspad'] = self._to_serial()
         hdf.close()
         
-        logger.info('Wrote %s to disk.' % filename)
+        print 'Wrote %s to disk.' % filename
 
         return
 
