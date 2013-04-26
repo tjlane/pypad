@@ -1,6 +1,12 @@
-beam_location: [0.0, 0.0]
+dilation: !!python/object/apply:numpy.core.multiarray.scalar
+- !!python/object/apply:numpy.dtype
+  args: [f8, 0, 1]
+  state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+- !!binary |
+  iZ3YiZ1YIEA=
 minf_size: 3
-radius_range: None
+radius_range: [49.17948717948718, 75.83333333333337]
 rank_size: 8
 sigma: 1.0
-threshold: 0.01
+sobel: false
+threshold: 0.10726269831828601

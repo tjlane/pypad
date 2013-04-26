@@ -712,23 +712,15 @@ class CSPad(object):
         else:
             raise ValueError('`quad` must be {0,1,2,3} or "all", got %s' % str(quad))
 
-
-        # generate the histogram
-        if n_bins == None:
-            n_bins = np.sqrt( np.product(intensities.shape) ) / 2.
-
-        assert radii.shape == intensities.shape
-
-        if intensities.dtype == np.bool:
-            bin_values, bin_edges = np.histogram( radii * intensities, bins=n_bins )
-        else:
-            bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
-
-        bin_values = bin_values[1:]
-        bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
-
-        bin_values = utils.smooth(bin_values, beta=beta, 
-                                  window_size=window_size)
+        bin_factor = 10.0
+        bin_assignments = np.floor( radii * bin_factor )
+        
+        bin_centers = np.arange(bin_assignments.max()+1)
+        bin_values  = np.zeros_like(bin_centers)
+        
+        for i in bin_centers:
+            x = (bin_assignments == i)
+            bin_values[i] = x * intensities / np.sum(x)
         
         return bin_centers, bin_values
     
