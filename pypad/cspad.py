@@ -686,7 +686,7 @@ class CSPad(object):
         # histogram -- we have two methods : one for binary images
         if intensities.dtype == np.bool:
             
-            bin_factor = 10.0 # HARDCODED -- seems to work well
+            bin_factor = 100.0 # HARDCODED -- seems to work well
             bin_assignments = np.floor( radii * bin_factor ).astype(np.int32)
         
             assert bin_assignments.shape == radii.shape

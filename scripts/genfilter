@@ -42,7 +42,12 @@ def parse_n_load():
     
     # if we got a parameter dir, assemble the image
     if args.metrology:
-        cs1 = cspad.CSPad(args.metrology)
+        if args.metrology.endswith('.txt'):
+            cs1 = cspad.CSPad(args.metrology)
+        elif args.metrology.endswith('.cspad'):
+            cs1 = cspad.CSPad.load(args.metrology)
+        else:
+            raise ValueError('Could not understand format of file: %s' % args.metrology)
     else:
         cs1 = cspad.CSPad.default()
         

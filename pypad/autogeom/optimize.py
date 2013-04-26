@@ -38,6 +38,8 @@ class Optimizer(object):
         # optimization / objective function
         self.objective_type      = 'overlap'
         self.params_to_optimize  = ['quad_offset','quad_rotation']
+        
+        # for objective_type : peak_height
         self.peak_weight         = 0.0
         self.width_weight        = 10.0
         
@@ -302,7 +304,8 @@ class Optimizer(object):
         initial_guesses = np.concatenate([ self.cspad.get_param(p).flatten() \
                                            for p in self.params_to_optimize ])
 
-        # turn on interactive plotting -- this is the only way I've gotten it to work
+        # turn on interactive plotting -- this is the only way I've gotten it 
+        # to work
         if self.plot_each_iteration:            
             plt.ion()
             self._fig = plt.figure(figsize=(12,6))
@@ -312,17 +315,17 @@ class Optimizer(object):
 
         if self.use_edge_filter:
             image = utils.preprocess_image(raw_image, threshold=self.threshold,
-                                     sigma=self.sigma,
-                                     minf_size=self.minf_size,
-                                     rank_size=self.rank_size,
-                                     sobel=self.sobel)
+                                           sigma=self.sigma,
+                                           minf_size=self.minf_size,
+                                           rank_size=self.rank_size,
+                                           sobel=self.sobel)
         else:
             image = raw_image
 
-        # run minimization
-        opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
-                                          args=(image,), xtol=1e-1, ftol=1e-3)
-                                   
+        # run minimization -- downhill simplex
+        opt_params = optimize.fmin(self._objective, initial_guesses, 
+                                   args=(image,), xtol=1e-3, ftol=1e-3)
+                                          
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()
                                    

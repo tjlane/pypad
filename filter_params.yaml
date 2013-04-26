@@ -10,4 +10,3 @@ rank_size: 8
 sigma: 1.0
 sobel: false
 threshold: 0.10726269831828601
-objective_type: 'peak_height'
