@@ -4,8 +4,17 @@ This file contains methods to score a geometry optimization method against
 known standards: AgBe, Ag.
 """
 
+import yaml
+
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as plt_patches
 from scipy import optimize
+
+from pypad import cspad
+from pypad import read
+from pypad import utils
+from pypad import plot
 
 
 #  -- FUNDAMENTAL CONSTANTS --
@@ -14,14 +23,19 @@ c = 299792458 * 1.0e10         # speed of light  | Ang / s
 # ----------------------------
 
 
+#  # inverse angstroms
+
+
+
 class PowderReference(object):
     """
     A class that provides for scoring a detector geometry based on a known
     powder reference sample.
     """
     
-    def __init__(self, lattice_spacing, real_peak_locations, energy, path_length,
-                 millers_included=False):
+    def __init__(self, lattice_spacing, millers, calibration_samples, geometry,
+                 energy_guess=9600.0, distance_offset_guess=0.0, 
+                 opt_energy=False):
         """
         Generate a powder reference for assessing an x-ray scattering detector
         geometry.
@@ -31,105 +45,175 @@ class PowderReference(object):
         lattice_spacing : float
             The latice spacing of the material, in Angstroms
             
-        real_peak_locations : ndarray, float
-            The locations of peak maxima in real space.
+        millers : list of 3-tuples
+            A list of (a,b,c) Miller indices to include in the fit.
             
-        energy : float
-            Beam energy in eV
-        
-        path_length : float
-            The distance from the sample to the detector.
+        calibration_samples : list of dicts
+            A list of dictionaries of the form
             
-        millers_included : list of 3-tuples
-            A list of (a,b,c) Miller indices to include in the fit. If not
-            included, the algorithm will automagically try and match 
+                { filename : x,
+                  distance : y }
+                  
+            which specify the calibration samples to score. The energy these
+            data were taking at will be determined automatically.
+            
+        geometry : cspad.CSPad
+            The geometry to score.
         """
         
         self.lattice_spacing = lattice_spacing
-        self.real_peak_locations = real_peak_locations
-        self.path_length = path_length
-        self.energy = energy
-        self.k = ( 2.0 * np.pi / (h * c) ) * energy # inverse angstroms
-        self._compute_reciprocal_peaks()
+        self.millers = millers
         
-        if millers_included == False:
-            self.millers_included = self._determine_miller_indicies_to_use()
-        else:
-            self.millers_included = millers_included
+        self.energy          = energy_guess
+        self.distance_offset = distance_offset_guess
+        self.opt_energy      = opt_energy
+        
+        if not isinstance(geometry, cspad.CSPad):
+            raise TypeError('`geometry` must be an instance of cspad.CSPad')
+        self.cspad = geometry
+        
+        
+        self.sample_peak_locs    = [] # real space
+        self.sample_peak_heights = [] # arb units
+        self.sample_distances    = [] # relative dist
+        
+        
+        # the following populates the lists above
+        self.calibration_samples = calibration_samples
+        for sample in self.calibration_samples:
+            self._load_calibration_sample(sample['filename'], sample['distance'])
+        assert len(self.sample_peak_locs) == len(self.sample_distances)
+        
         
         return
         
         
+    def _load_calibration_sample(self, filename, distance):
+        """
+        Loads a calibration file, measures the peak positions of rings in that
+        file, and stores that data in the internal structure self.samples
+        """
+        
+        img = read.load_raw_image(filename)
+        bin_centers, a = self.cspad.intensity_profile(img, n_bins=800)
+        
+        sa = a
+        #sa = utils.smooth(a, beta=10.0, window_size=20)
+        max_inds = np.where(np.r_[True, sa[1:] > sa[:-1]] & np.r_[sa[:-1] > sa[1:], True] == True)[0]
+        real_peak_locations = bin_centers[max_inds]
+        
+        self.sample_peak_locs.append( np.array(real_peak_locations) )
+        self.sample_peak_heights.append( a[max_inds] )
+        self.sample_distances.append(float(distance))
+        
+        print "    found: %d peaks" % len(real_peak_locations)
+        
+        return 
+    
+        
     @classmethod
-    def agbe(cls, real_peak_locations, energy, path_length):
+    def load(cls, filename):
         """
-        Factory method that sets the lattice spacing to that for SilverBehenate.
-        """
+        Load a score_params yaml file from disk and create a PowderReference
+        instance.
         
-        real_peak_locations = np.sort(real_peak_locations)
-        lattice_spacing = 58.3803 # ang
+        Parameters
+        ----------
+        filename : str
+            The name of the score yaml file to load.
         
-        n_peaks = len(real_peak_locations)
-        millers_included = [ (0,0,x) for x in range(1, n_peaks+1) ]
-        
-        return cls(lattice_spacing, real_peak_locations, energy, path_length,
-                   millers_included=millers_included)
-                   
-
-    @classmethod               
-    def silver(cls, real_peak_locations, energy, path_length):
-        """
-        Factory method that sets the lattice spacing to that for silver.
+        Returns
+        -------
+        cls : score.PowderReference
+            An instance containing the data referenced in the input file. See
+            the documentation for more information.
         """
         
-        real_peak_locations = np.sort(real_peak_locations)
-        lattice_spacing = 4.09 # ang
+        f = open(filename, 'r')
+        params = yaml.load(f)
+        f.close()
         
-        n_peaks = len(real_peak_locations)
-        millers_included = [(1,1,1), (2,0,0), (2,2,0), (3,1,1)]
+        print "Loaded: %s" % filename
         
-        return cls(lattice_spacing, real_peak_locations, energy, path_length,
-                   millers_included=millers_included)
+        geom = cspad.CSPad.load( params['geometry'] )
+        
+        for x in ['lattice', 'millers', 'samples']:
+            if not x in params.keys():
+                raise IOError('Could not find required input field: '
+                              '`%s` in %s' % (x, filename))
+  
+        kwargs = {}
+        if 'energy' in params.keys():
+            kwargs['energy_guess'] = float(params['energy'])
+        if 'opt_energy' in params.keys():
+            kwargs['opt_energy'] = bool(params['opt_energy'])
+        
+        return cls(params['lattice'], params['millers'], params['samples'], 
+                   geom, **kwargs)
     
-                   
-    @classmethod               
-    def gold(cls, real_peak_locations, energy, path_length):
-        """
-        Factory method that sets the lattice spacing to that for gold.
-        """
-
-        real_peak_locations = np.sort(real_peak_locations)
-        lattice_spacing = 4.076
-
-        n_peaks = len(real_peak_locations)
-        millers_included = [(1,1,1), (2,0,0), (2,2,0), (3,1,1)]
-
-        return cls(lattice_spacing, real_peak_locations, energy, path_length,
-                   millers_included=millers_included)
+        
+    @property
+    def k(self):
+        return ( 2.0 * np.pi / (h * c) ) * self.energy
+        
+        
+    @property
+    def num_samples(self):
+        assert len(self.sample_peak_locs) == len(self.sample_distances)
+        return len(self.sample_distances)
+        
+        
+    @property
+    def num_millers(self):
+        return len(self.millers)
     
-
-    def _compute_reciprocal_peaks(self):
+        
+    @property
+    def obsd(self):
+        """
+        The observed peak locations, trimmed to match those close to expected
+        peak locations (self.expt). Reciprocal space (inv. Ang.).
+        
+        Returns
+        --------
+        obsd : np.ndarray
+            A two-d array, with the first dimension the sample number, the 
+            second dimension the peak position in q-space, such that it lines
+            up w/self.expt.
+        """
+        
+        obsd = np.zeros(( self.num_samples, self.num_millers ))
+        expt = self.expt
+        
+        for i in range(self.num_samples):
+            obsd[i] = self._match_peaks(i)
+                
+        return obsd
+                 
+                 
+    @property
+    def expt(self):
+        """
+        The expected peak locations. Reciprocal space (inv. Ang.).
+        """
+        return self._compute_expected_ring_locations()
+    
+        
+    def reciprocal(self, real_space, path_length):
         """
         Convert the real-space peaks into reciprocal space.
         """
-        self.reciprocal_peak_locations = self.reciprocal(self.real_peak_locations)
-    
-        
-    def reciprocal(self, real_space):
-        """
-        Convert the real-space peaks into reciprocal space.
-        """
-        two_thetas = np.arctan(real_space / self.path_length)
+        two_thetas = np.arctan(real_space / (path_length + self.distance_offset))
         reciprocal_space = 2.0 * self.k * np.sin( 0.5 * two_thetas )
         return reciprocal_space
         
         
-    def real_space(self, reciprocal_space):
+    def real_space(self, reciprocal_space, path_length):
         """
         Convert from momentum to real-space
         """
         q = reciprocal_space
-        real = self.path_length * np.tan(2.0 * np.arcsin( q / (2.0*self.k) ))
+        real = (path_length + self.distance_offset) * np.tan(2.0 * np.arcsin( q / (2.0*self.k) ))
         return real
     
         
@@ -139,151 +223,176 @@ class PowderReference(object):
         corresponding to the Miller indicies asked for.
         """
         
-        expected = np.zeros(len(self.millers_included))
+        expected = np.zeros(len(self.millers))
         
-        for i,miller_index in enumerate(self.millers_included):
-            zf = np.sqrt( np.sum( np.power( miller_index, 2 ) ) )
+        for i,miller_index in enumerate(self.millers):
+            zf = np.sqrt( np.sum( np.power( np.array(miller_index), 2 ) ) )
             expected[i] = (2.0 * np.pi * zf) / self.lattice_spacing
         
         return expected
     
         
-    def _match_peaks(self, obsd, expt):
+    def _match_peaks(self, sample_index):
         """
         Automatically match observed powder rings to miller indices. Currently
         will match observed peaks to the closest expected peak.
         """
         
-        m_obsd = obsd.copy()
-        m_expt = np.zeros_like(m_obsd)
-        m_millers = []
+        # (1) match observed peaks to their closest expt peak
+        # (2) for expt peaks with more than one match, keep only the tallest
+        #     peak
         
-        assert len(expt) == len(self.millers_included)
+        obsd = self.reciprocal(self.sample_peak_locs[sample_index], \
+                               self.sample_distances[sample_index])
+        expt = self.expt
+                               
+        obsd_matches = np.zeros( len(obsd), dtype=np.int32 )
+        m_obsd = np.zeros_like(expt)
         
+        # match each obsd value with its closest expt value
         for i in range(len(obsd)):
-            match_index  = np.argmin( np.abs(expt - obsd[i]) )
-            m_expt[i]    = expt[match_index]
-            m_millers.append( self.millers_included[match_index] )
-        
-        return m_obsd, m_expt, m_millers
-    
-        
-    def score(self, verbose=True):
-        """
-        Compute a score based on the differences between the observed and
-        expected locations of the powder rings. A lower score is better,
-        with zero being perfect.
-        
-        Returns
-        -------
-        total_score : float
-            The final total score.
-        """
-        
-        total_score = 0.0
-                
-        self.obsd = self.reciprocal_peak_locations
-        self.expt = self._compute_expected_ring_locations()
-        m_obsd, m_expt, m_millers = self._match_peaks(self.obsd, self.expt)
-        
-        total_score = np.sqrt( np.sum( np.power(m_obsd - m_expt, 2) ) ) / float(len(m_obsd))
-        
-        if verbose:
-                        
-            print ""
-            print "\t\t\tREFERENCE SAMPLE SCORING"
-            print "\t\t\t========================"
-            print ""
-            print "Peak\t  Miller \tObsd (1/A)\tExpd (1/A)\t  Diff.  "
-            print "----\t---------\t----------\t----------\t---------"
+            match_index     = np.argmin( np.abs(expt - obsd[i]) )
+            obsd_matches[i] = match_index
             
-            for i,miller_index in enumerate(m_millers):
-                diff = m_obsd[i] - m_expt[i]
-                print "   %d\t%s\t%.4e\t%.4e\t%.2e" % (i, str(miller_index),
-                                                     m_obsd[i], m_expt[i], diff)
-            print ""
-            print "FINAL SCORE:\t%.4e" % total_score
-            print ""
+        # for each expt value, if has multi matches, choose best
+        for i in range(self.num_millers):
+            w = (obsd_matches == i)
+            if np.sum(w) > 1:
+                m_obsd[i] = obsd[ np.argmax( self.sample_peak_heights[sample_index][w] ) ]
         
-        return total_score
-    
-    
-    def _update_pl_and_score(self, path_length):
-        """
-        Helper function for `determine distance`
-        """
-        
-        self.path_length = path_length
-        self._compute_reciprocal_peaks()
-        
-        total_score = self.score(verbose=False)
-        
-        return total_score
-        
-    
-    def determine_distance(self, verbose=True):
-        """
-        Given the geometry provided, guess as to the detector distance. 
-        
-        Does this by minimizing the `score` (squared residuals between the 
-        predicted and observed peak positions) as a function of distance.
-        """
-        
-        if verbose:
-            print "\t\t\tOPTIMIZING PATH LENGTH"
-            print "\t\t\t======================"
-        
-        p0 = self.path_length
-        opt_path_length = optimize.fmin(self._update_pl_and_score, p0)
-        
-        if verbose:
-            print "\nOptimal path length:   %f" % opt_path_length
-            print   "Original path length:  %f" % p0
-            print "Correction: %f" % (p0 - opt_path_length)
-            print ""
-            self.score()
-        
-        return opt_path_length
-    
-    
-    def _update_energy_and_score(self, energy):
-        """
-        Helper function for `determine distance`
-        """
-        
-        self.energy = energy
-        self.k = ( 2.0 * np.pi / (h * c) ) * energy
-        self._compute_reciprocal_peaks()
-        
-        total_score = self.score(verbose=False)
-        
-        return total_score
+        return m_obsd
     
         
-    def determine_energy(self, verbose=True):
+    def evaluate(self):
         """
-        Given the geometry provided, guess as to the beam energy.
-        
-        Does this by minimizing the `score` (squared residuals between the 
-        predicted and observed peak positions) as a function of distance.
+        The central function -- evaluates the geometry by fitting the energy,
+        sample-to-detector distance by optimizing the expected and observed
+        positions of powder rings on the detector.
         """
         
-        if verbose:
-            print "\t\t\tOPTIMIZING BEAM ENERGY"
-            print "\t\t\t======================"
+        # TJL note to self : we probably want to *also* evaluate each quad
+        # separately and look to see if one is not-so-good.
         
-        e0 = self.energy
-        opt_energy = optimize.fmin(self._update_energy_and_score, e0)
+        def objective(args):
+            """
+            The objective function -- the difference between the measured/
+            expected peak locations.
+            """
+            # if self.opt_energy:
+            #     self.distance_offset = args[0]
+            #     self.energy          = args[1]
+            # else:
+            #     self.distance_offset = args[0]
+            obj = np.abs(self.obsd - self.expt)
+            return obj.flatten()
         
-        if verbose:
-            print "\nOptimal energy (eV):   %f" % opt_energy
-            print   "Original energy (eV):  %f" % e0
-            print "Correction: %f" % (e0 - opt_energy)
-            print ""
-            self.score()
         
-        return opt_energy
+        x0 = (self.distance_offset, self.energy)
+        opt = optimize.leastsq(objective, x0, full_output=1)
+        
+        print
+        print " --- Optimized Energy & Detector Distance --- "
+        print " Detector offest: %.2f mm " % opt[0][0]
+        print " Energy:          %.3f keV" % (opt[0][1] / 1000.0,)
+        print
+        print " Total Residuals: %f inv. Angstroms" % float( np.sum(opt[2]['fvec']) )
+        print " Residuals for each peak:"
+        print opt[2]['fvec']
+        print 
+        
+        return
+        
+        
+    def display(self):
+        """
+        Show an image of the current fit.
+        """
+        
+        # make a plot!
+        self._fig = plt.figure(figsize=(12,6))
+        self._axL = plt.subplot(121)
+        self._axR = plt.subplot(122)
+        
+        # provide functionality so that the user can cycle through images by
+        # pressing n/l
+        
+        self._current_image = 0
+        connection = plt.connect('key_press_event', self._on_keypress)
+        self._plot_cal_sample(self._current_image)
+        
+        return
+    
+        
+    def _plot_cal_sample(self, index):
+        """
+        Plots a single calibration sample.
+        """
+        
+        self._axL.cla()
+        self._axR.cla()
+        
+        if (index < 0) or (index > self.num_samples):
+            print "Cannot access sample: %d" % index
+            print "Total %d samples available" %  self.num_samples
+            return
+        
+        print
+        print "Plotting calibration sample: %d..." % index
+        print "  (may take a moment)"
+        
+        # load up the calibration sample requested
+        fn = self.calibration_samples[index]['filename']
+        d  = self.calibration_samples[index]['distance'] + self.distance_offset
+        
+        # print "Plotting sample: %s" % fn
+        print "  distance: %.2f mm" % d
+        
+        # -- plot left panel, the assemled image with ring predictions overlaid
+        img = read.load_raw_image(fn)
+        plot.imshow_cspad( self.cspad(img), vmin=0, ax=self._axL)
+        
+        # plot circles on the image, over where the powder rings should be
+        # note that (1000,900) is where the center is in pixel units
+        # for our fxn imshow_cspads
+        
+        real_expt = self.real_space(self.expt, d) / 0.10992
+        for r in real_expt:
+            blob_circ = plt_patches.Circle((1000,900), r, fill=False, lw=1, ec='white')
+            self._axL.add_patch(blob_circ)
+        
+        
+        # --- plot the right image
+        n_bins = 800
+        
+        for i in range(4):
+            bin_centers, a = self.cspad.intensity_profile(img, n_bins=n_bins, quad=i)
+            a /= a.max()
+            a += 0.7 * i
+            q_bin_centers = self.reciprocal(bin_centers, d)
+            self._axR.plot(q_bin_centers, a, color=plot.quad_colors[i], lw=2)
 
+        self._axR.vlines(self.expt, 0, a.max(), color='k', linestyles='dashed')
+        self._axR.vlines(self.obsd[index,:], 0, a.max(), color='r', linestyles='dashed')
+
+        self._axR.set_xlabel(r'q ($\AA^{-1}$)')
+        self._axR.set_ylabel('Intensity')
+        
+        plt.show()
+        print
+        
+        return
+        
+    
+    def _on_keypress(self, event):
+        if event.key == 'l':
+            self._current_image -= 1
+            self._plot_cal_sample(self._current_image)
+        elif event.key == 'n':
+            self._current_image += 1
+            self._plot_cal_sample(self._current_image)
+        else:
+            return
+    
 
 def test_agbe_score():
 

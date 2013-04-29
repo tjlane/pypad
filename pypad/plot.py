@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 
+quad_colors = ['k', 'g', 'purple', 'b']
 
 def sketch_2x1s(pixel_positions, mpl_axes=None):
     """
@@ -21,8 +22,6 @@ def sketch_2x1s(pixel_positions, mpl_axes=None):
     if pixel_positions.shape not in [(3,4,16,185,194), (2,4,16,185,194)]:
         raise ValueError('`pixel_positions` has incorrect shape: '
                          '%s' % str(pixel_positions.shape))
-    
-    quad_color = ['k', 'g', 'purple', 'b']
 
     if not mpl_axes:
         plt.figure()
@@ -42,7 +41,7 @@ def sketch_2x1s(pixel_positions, mpl_axes=None):
             corners[2,:] = np.array([ x[-1,-1], y[-1,-1] ])   # top right
             corners[4,:] = np.array([ x[0,0],   y[0,0] ])     # make rectangle
 
-            ax.plot(corners[:,0], corners[:,1], lw=2, color=quad_color[i])
+            ax.plot(corners[:,0], corners[:,1], lw=2, color=quad_colors[i])
             ax.scatter(x[0,0], y[0,0])
             
             

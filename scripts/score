@@ -16,6 +16,7 @@ import matplotlib.patches as plt_patches
 
 from pypad import cspad
 from pypad import utils
+from pypad import read
 from pypad.autogeom import score
 
 
@@ -23,16 +24,14 @@ from pypad.autogeom import score
 parser = argparse.ArgumentParser(description='''Score an optimized geometry by
                                            testing it on a reference sample.''')
 
-parser.add_argument('image_file', help='The (raw) image file of the calibration sample')
-parser.add_argument('--energy', help='The photon energy of the x-ray beam [eV]', type=float, required=True)
-parser.add_argument('--path-len', required=True, type=float,
-                    help='The distance from the sample to the detector [mm]')
-parser.add_argument('--cal-type', default='unknown', type=str, 
-                    choices=['AgBe', 'Ag', 'Au', 'unknown'],
-                    help='The kind of sample, can be one of {AgBe, Ag, Au, unknown}')
-parser.add_argument('--param-dir', default=None, required=True,
-                    help='''The optimized CSPAD parameters to use for the scoring, should be
-                            a directory (default: pyana default geometry)''')
+parser.add_argument('params', help='A score_params yaml file.')
+# parser.add_argument('--energy', type=float, default=9600,
+#                     help='A guess for photon energy of the x-ray beam [eV]. '
+#                           'Default: 9600 eV.')
+# parser.add_argument('--offset', type=float, default=0.0,
+#                     help='A guess for distance offest from the sample to the '
+#                          'detector [mm]. Default: 0.0 mm.u')
+
 
 args = parser.parse_args()
 
@@ -43,72 +42,18 @@ print " Left Panel:  The assembled image, superimposed with white circles where"
 print "              theoretically there should be powder rings."
 print " Right Panel: The radial projection for each individual quad, dotted"
 print "              lines are theoretical peak predictions."
-print ""
+print
+print "To plot additional samples"
+print "   Press: l for previous sample"
+print "   Press: n for next sample"
+print
+print
 
-# assemble the image
-raw_image = utils.load_raw_image(args.image_file)
-cs1 = cspad.CSPad.from_dir(args.param_dir)
-asm_image = cs1(raw_image)
-
-# now bin for combined quads to figure out where peaks are
-bin_centers, a = cs1.intensity_profile(raw_image)
-a = utils.smooth(a, beta=10.0, window_size=20)
-max_inds = np.where(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True] == True)[0]
-real_peak_locations = bin_centers[max_inds]
-
-# score the sample
-if args.cal_type == "AgBe":
-    sref = score.PowderReference.agbe(real_peak_locations, args.energy, args.path_len)
-elif args.cal_type == "Ag":
-    sref = score.PowderReference.silver(real_peak_locations, args.energy, args.path_len)
-elif args.cal_type == "Au":
-    sref = score.PowderReference.gold(real_peak_locations, args.energy, args.path_len)
-elif args.cal_type == "unknown":
-    raise NotImplementedError('Unknown sample...!')
-else:
-    raise ValueError('No registered sample type: %s' % args.cal_type)
-
-sref.score()
-
-# make a plot!
-fig = plt.figure(figsize=(12,6))
-axL = plt.subplot(121)
-axR = plt.subplot(122)
-
-# plot left panel, the assemled image with ring predictions overlaid
-utils.imshow_cspad(asm_image, vmin=0, ax=axL)
-
-real_expt = sref.real_space(sref.expt) / 0.10992 # conv to pixel units
-
-for i in range(len(real_expt)):
-    blob_circ = plt_patches.Circle(cs1.beam_location, real_expt[i], fill=False, lw=2.0, 
-                                   ec='white')
-    # axL.text(real_expt[i] + cs1.beam_loc[0],
-    #          real_expt[i] + cs1.beam_loc[1],
-    #          str(sref.millers_included[i]), color='white')
-    axL.add_patch(blob_circ)
+sref = score.PowderReference.load( args.params )
+sref.evaluate()
+sref.display()
 
 
-# compute the radial profile for each 
-n_bins = 800
-quad_color = ['k', 'g', 'purple', 'b']
-
-for i in range(4):
-    bin_centers, a = cs1.intensity_profile(raw_image, n_bins=n_bins, quad=i)
-    a /= a.max()
-    a += 0.7 * i
-    q_bin_centers = sref.reciprocal(bin_centers)
-    axR.plot(q_bin_centers, a, color=quad_color[i], lw=2)
-    
-axR.vlines(sref.expt, 0, a.max(), color='k', linestyles='dashed')
-
-# for i in range(len(sref.expt)):
-#     axR.text(sref.expt[i]-0.25, a.max() + 350, str(sref.millers_included[i]))
-
-axR.set_xlabel(r'q ($\AA^{-1}$)')
-axR.set_ylabel('Intensity')
-
-plt.show()
 
 
 

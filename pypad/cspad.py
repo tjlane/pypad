@@ -697,13 +697,8 @@ class CSPad(object):
             bin_centers = np.arange(bin_values.shape[0]) / bin_factor
             
         else:
-            n_bins = max(raw_image.shape) / 2
-            
-            # if raw_image.dtype == np.bool:
-            #     bin_values, bin_edges = np.histogram( radii * raw_image, bins=n_bins )
-            # else:
-            
-            bin_values, bin_edges = np.histogram( radii, weights=raw_image, bins=n_bins )
+            if not n_bins : n_bins = max(raw_image.shape) / 2            
+            bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
             
             bin_values = bin_values[1:]
             bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
