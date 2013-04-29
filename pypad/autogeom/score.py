@@ -254,7 +254,8 @@ class PowderReference(object):
         for i in range(self.num_millers):
             w = (obsd_matches == i)
             if np.sum(w) > 1:
-                m_obsd[i] = obsd[ np.argmax( self.sample_peak_heights[sample_index][w] ) ]
+                mx = np.argmax( self.sample_peak_heights[sample_index][w] )
+                m_obsd[i] = obsd[ np.where(obsd_matches == i)[0][mx] ]
         
         return m_obsd
     
@@ -274,11 +275,11 @@ class PowderReference(object):
             The objective function -- the difference between the measured/
             expected peak locations.
             """
-            # if self.opt_energy:
-            #     self.distance_offset = args[0]
-            #     self.energy          = args[1]
-            # else:
-            #     self.distance_offset = args[0]
+            if self.opt_energy:
+                self.distance_offset = args[0]
+                self.energy          = args[1]
+            else:
+                self.distance_offset = args[0]
             obj = np.abs(self.obsd - self.expt)
             return obj.flatten()
         
@@ -367,8 +368,8 @@ class PowderReference(object):
             q_bin_centers = self.reciprocal(bin_centers, d)
             self._axR.plot(q_bin_centers, a, color=plot.quad_colors[i], lw=2)
 
-        self._axR.vlines(self.expt, 0, a.max(), color='k', linestyles='dashed')
-        self._axR.vlines(self.obsd[index,:], 0, a.max(), color='r', linestyles='dashed')
+        self._axR.vlines(self.expt, 0, a.max()*1.2, color='k', linestyles='dashed')
+        # self._axR.vlines(self.obsd[index,:], 0, a.max(), color='r', linestyles='dashed')
 
         self._axR.set_xlabel(r'q ($\AA^{-1}$)')
         self._axR.set_ylabel('Intensity')
