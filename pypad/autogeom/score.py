@@ -23,10 +23,6 @@ c = 299792458 * 1.0e10         # speed of light  | Ang / s
 # ----------------------------
 
 
-#  # inverse angstroms
-
-
-
 class PowderReference(object):
     """
     A class that provides for scoring a detector geometry based on a known
@@ -97,8 +93,8 @@ class PowderReference(object):
         img = read.load_raw_image(filename)
         bin_centers, a = self.cspad.intensity_profile(img, n_bins=800)
         
-        sa = a
-        #sa = utils.smooth(a, beta=10.0, window_size=20)
+        #sa = a
+        sa = utils.smooth(a, beta=10.0, window_size=20)
         max_inds = np.where(np.r_[True, sa[1:] > sa[:-1]] & np.r_[sa[:-1] > sa[1:], True] == True)[0]
         real_peak_locations = bin_centers[max_inds]
         
