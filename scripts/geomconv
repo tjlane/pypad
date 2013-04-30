@@ -1,0 +1,33 @@
+#!/usr/bin/env python
+
+"""
+Convert either a CSPad object to another file format: Odin, Cheetah, psana, etc.
+"""
+
+import os
+import argparse
+
+from pypad import cspad
+
+parser = argparse.ArgumentParser(description='''Convert a CSPad object (.cspad 
+file) to another file format.''')
+                                 
+parser.add_argument('geometry', default=None, 
+                    help='''A CSPAD Metrology, in .cspad format.''')
+parser.add_argument('--output', required=True,
+                    help='''The name of the file to write, containing the final mask.''')
+parser.add_argument('--format', required=True, choices=['odin', 'cheetah'],
+                    help='''The file format to write.''')
+args = parser.parse_args()
+
+
+geom = cspad.load(args.geometry)
+
+if args.format == 'odin':
+    geom.to_odin(filename=arsg.output)
+elif args.format == 'cheetah':
+    geom.to_cheetah(filename=arsg.output)
+else:
+    raise IOError('Cannot understand format: %s' % args.format)
+
+

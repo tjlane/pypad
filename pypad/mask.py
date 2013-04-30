@@ -326,7 +326,7 @@ class PadMask(object):
             The name of the file to write. This function will append an 
             appropriate suffix if none is provided.
             
-        fmt : str, {'pypad', 'twod'}
+        fmt : str, {'pypad', 'cheetah', 'odin'}
             The format to save in. See above for documentation.
         """
         
@@ -339,14 +339,18 @@ class PadMask(object):
                 f['/' + k] = self._masks[k]
             f.close()
             
+        
+        elif fmt == 'odin':
+            raise NotImplementedError()
             
-        elif fmt == 'twod':
+            
+        elif fmt in ['cheetah', 'twod']:
             if not filename.endswith('.h5'):
                 filename += '.h5'
                 
                 # need jonas to dbl check this is right for Cheetah
                 f = h5py.File(filename, 'w')
-                f['/data'] = self.mask
+                f['/data/data'] = self.mask
                 f.close()
             
             
@@ -407,6 +411,9 @@ class MaskGUI(object):
         
         
         self.print_gui_help()
+        
+        self.filename = filename
+        self.file_fmt = fmt
         
         if not raw_image.shape == (4, 16, 185, 194):
             raise ValueError("`raw_image` must have shape: (4, 16, 185, 194)")

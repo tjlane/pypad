@@ -2,10 +2,6 @@
 
 """
 Score an optimized geometry by testing it on a reference sample.
-
-ToDo
-----
-Extract energy/path length from psana directly...
 """
 
 import argparse
@@ -25,13 +21,6 @@ parser = argparse.ArgumentParser(description='''Score an optimized geometry by
                                            testing it on a reference sample.''')
 
 parser.add_argument('params', help='A score_params yaml file.')
-# parser.add_argument('--energy', type=float, default=9600,
-#                     help='A guess for photon energy of the x-ray beam [eV]. '
-#                           'Default: 9600 eV.')
-# parser.add_argument('--offset', type=float, default=0.0,
-#                     help='A guess for distance offest from the sample to the '
-#                          'detector [mm]. Default: 0.0 mm.u')
-
 
 args = parser.parse_args()
 
