@@ -1,23 +1,24 @@
 
 # the geometry you want to score
 geometry:   my_cspad.cspad
-energy:     9600   # keV, optional
-opt_energy: False   # optional
+energy:     9603.2      # keV, optional
+opt_energy: False       # optional
+initial_offset: 590.0   # mm, optional
 
 # define which Bragg reflections to monitor
 # this is an example for Au NP
 millers:
 - [1,1,1]
 - [2,0,0]
-- [2,2,0]
+#- [2,2,0]
 lattice: 4.076 # Angstroms
 
 # include a list of files at various dist
 samples:
-- filename: examples/gold_image.h5
-  distance: 91.0
-- filename: examples/gold_image.h5
-  distance: 90.0
+- filename: examples/gold-135-minus490mm.h5
+  distance: -490.0 # mm
+- filename: examples/gold-136-minus470mm.h5
+  distance: -470.0 # mm
 
 
 

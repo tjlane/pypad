@@ -143,6 +143,8 @@ class PowderReference(object):
             kwargs['energy_guess'] = float(params['energy'])
         if 'opt_energy' in params.keys():
             kwargs['opt_energy'] = bool(params['opt_energy'])
+        if 'initial_offset' in params.keys():
+            kwargs['distance_offset_guess'] = float(params['initial_offset'])
         
         return cls(params['lattice'], params['millers'], params['samples'], 
                    geom, **kwargs)
@@ -199,7 +201,7 @@ class PowderReference(object):
         """
         Convert the real-space peaks into reciprocal space.
         """
-        two_thetas = np.arctan(real_space / (path_length + self.distance_offset))
+        two_thetas = np.arctan(real_space / (path_length))
         reciprocal_space = 2.0 * self.k * np.sin( 0.5 * two_thetas )
         return reciprocal_space
         
@@ -209,7 +211,7 @@ class PowderReference(object):
         Convert from momentum to real-space
         """
         q = reciprocal_space
-        real = (path_length + self.distance_offset) * np.tan(2.0 * np.arcsin( q / (2.0*self.k) ))
+        real = (path_length) * np.tan(2.0 * np.arcsin( q / (2.0*self.k) ))
         return real
     
         
@@ -239,7 +241,8 @@ class PowderReference(object):
         #     peak
         
         obsd = self.reciprocal(self.sample_peak_locs[sample_index], \
-                               self.sample_distances[sample_index])
+                               self.sample_distances[sample_index] + \
+                                   self.distance_offset )
         expt = self.expt
                                
         obsd_matches = np.zeros( len(obsd), dtype=np.int32 )
@@ -334,19 +337,17 @@ class PowderReference(object):
             return
         
         print
-        print "Plotting calibration sample: %d..." % index
+        print "Plotting calibration sample: %d" % index
         print "  (may take a moment)"
         
         # load up the calibration sample requested
         fn = self.calibration_samples[index]['filename']
         d  = self.calibration_samples[index]['distance'] + self.distance_offset
-        
-        # print "Plotting sample: %s" % fn
         print "  distance: %.2f mm" % d
         
         # -- plot left panel, the assemled image with ring predictions overlaid
         img = read.load_raw_image(fn)
-        plot.imshow_cspad( self.cspad(img), vmin=0, ax=self._axL)
+        plot.imshow_cspad( self.cspad(img), vmin=0, ax=self._axL )
         
         # plot circles on the image, over where the powder rings should be
         # note that (1000,900) is where the center is in pixel units
