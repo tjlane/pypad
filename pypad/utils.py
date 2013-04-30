@@ -190,8 +190,8 @@ def radial_profile(image, center):
 
 def flatten_2x1s(image):
     """
-    Takes a non-2D image : either (32, 185, 388) or (4, 8, 185, 388) and returns
-    a 2d version of that image (for visualization).
+    Takes a non-2D image : (32, 185, 388), (4, 8, 185, 388), (4, 16, 185, 194) 
+    and returns a 2d version of that image (for visualization).
     """
     
     flat_image = np.zeros((185*8, 388*4))
@@ -213,6 +213,16 @@ def flatten_2x1s(image):
                 ys = 388 * i
                 ye = 388 * (i + 1)
                 flat_image[xs:xe,ys:ye] = image[i,j,:,:] 
+                
+                
+    elif image.shape == (4, 16, 185, 194):
+        for i in range(4):
+            for j in range(8):
+                xs = 185 * j
+                xe = 185 * (j + 1)
+                ys = 388 * i
+                ye = 388 * (i + 1)
+                flat_image[xs:xe,ys:ye] = np.hstack((image[i,j*2,:,:], image[i,j*2+1,:,:]))
         
     else:
         raise ValueError('Invalid shape for arg `image`')

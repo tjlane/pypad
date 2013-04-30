@@ -18,7 +18,6 @@ class PadMask(object):
     An mask for a CSPad object.
     """
     
-    
     def __init__(self):
         """
         Initialize a CSPad mask object.
@@ -31,7 +30,7 @@ class PadMask(object):
     @property
     def mask(self):
         m = np.product( np.array(self._masks.values()), axis=0 )
-        assert m.shape == (4,8,185,388)
+        assert m.shape == (4,16,185,194)
         return m
         
         
@@ -92,7 +91,7 @@ class PadMask(object):
         """
         
         assert type(mask_name) == str
-        assert mask.shape == (4, 8, 185, 388)
+        assert mask.shape == (4, 16, 185, 194)
         
         if not mask.dtype == np.bool:
             mask = mask.astype(np.bool)
@@ -106,8 +105,8 @@ class PadMask(object):
         """
         Sanity check on `image`.
         """
-        if not image.shape == (4, 8, 185, 388):
-            raise ValueError('`image` must be shape (4, 8, 185, 388), got '
+        if not image.shape == (4, 16, 185, 194):
+            raise ValueError('`image` must be shape (4, 16, 185, 194), got '
                              '%s' % str(image.shape))
         return
         
@@ -116,7 +115,7 @@ class PadMask(object):
         """
         Utility function that just returns a blank mask.
         """
-        return np.ones((4, 8, 185, 388), dtype=np.int32)
+        return np.ones((4, 16, 185, 194), dtype=np.int32)
     
         
     # ----------
@@ -126,7 +125,7 @@ class PadMask(object):
     # to add a new kind of mask, make a new method here. Follow mask_threshold
     # as a template
     
-    def mask_pixel(self, quad, two_by_one, x, y):
+    def mask_pixel(self, quad, asic, x, y):
         """
         Mask a single pixel, or series of pixels. To do the latter, pass arrays
         as the arguments (even though the below says int).
@@ -136,20 +135,20 @@ class PadMask(object):
         quad : int
             [0,1,2,3], denoting the quad.
             
-        two_by_one : int
-            Int in [0,7], denoting 2x1.
+        asic : int
+            Int in [0,7], denoting asic.
             
         x : int
             Int in [0,184], denoting x position.
         
         y : int
-            Int in [0,388], denoting x position.
+            Int in [0,194], denoting x position.
         """
-        self._masks['base'][quad, two_by_one, x, y] = 0
+        self._masks['base'][quad, asic, x, y] = 0
         return
     
         
-    def unmask_pixel(self, quad, two_by_one, x, y):
+    def unmask_pixel(self, quad, asic, x, y):
         """
         Mask a single pixel, or series of pixels. To do the latter, pass arrays
         as the arguments (even though the below says int).
@@ -159,16 +158,16 @@ class PadMask(object):
         quad : int
             [0,1,2,3], denoting the quad.
             
-        two_by_one : int
-            Int in [0,7], denoting 2x1.
+        asic : int
+            Int in [0,7], denoting asic.
             
         x : int
             Int in [0,184], denoting x position.
         
         y : int
-            Int in [0,388], denoting x position.
+            Int in [0,194], denoting x position.
         """
-        self._masks['base'][quad, two_by_one, x, y] = 1
+        self._masks['base'][quad, asic, x, y] = 1
         return
     
         
@@ -225,7 +224,7 @@ class PadMask(object):
         m = self._blank_mask()
         
         for i in range(4):
-            for j in range(8):
+            for j in range(16):
                 for p in range(0, 185, 10):
                     
                     m[i,j,p,p] = 0
@@ -261,18 +260,18 @@ class PadMask(object):
             raise ValueError('`num_pixels` must be >0, <194')
         
         for i in range(4):
-            for j in range(8):
+            for j in range(16):
                 
                 # mask along the y-dim
                 m[i,j,:,0:n] = np.bool(False)
-                m[i,j,:,388-n:388] = np.bool(False)
+                m[i,j,:,194-n:194] = np.bool(False)
                 
                 # mask along the x-dim
                 m[i,j,0:n,:] = np.bool(False)
                 m[i,j,185-n:185,:] = np.bool(False)
                 
-                # mask a bar along y in the middle of the 2x1
-                m[i,j,:,194-n:194+n] = np.bool(False)
+                # # mask a bar along y in the middle of the 2x1
+                # m[i,j,:,194-n:194+n] = np.bool(False)
         
         self._inject_mask('border', m)
         
@@ -409,8 +408,8 @@ class MaskGUI(object):
         
         self.print_gui_help()
         
-        if not raw_image.shape == (4, 8, 185, 388):
-            raise ValueError("`raw_image` must have shape: (4, 8, 185, 388)")
+        if not raw_image.shape == (4, 16, 185, 194):
+            raise ValueError("`raw_image` must have shape: (4, 16, 185, 194)")
             
         if mask == None:
             self.mask = PadMask()
@@ -563,6 +562,12 @@ class MaskGUI(object):
     def on_keypress(self, event):
 
         if event.key in ['m', 'u']:
+            
+            if self.xy == None:
+                print "No area selected, mask not changed."
+            
+            # print "Masking region inside:"
+            # print self.xy
            
             # wrap around to close polygon
             self.xy = np.vstack(( self.xy, self.xy[0,:] ))
@@ -637,7 +642,7 @@ class MaskGUI(object):
         
     def _conv_2dinds_to_4d(self, inds):
         """
-        Convert indices in a Cheetah array to (4,8,185,388).
+        Convert indices in a 2d Cheetah array to (4,16,185,194).
         
         Parameters
         ----------
@@ -648,22 +653,23 @@ class MaskGUI(object):
         Returns
         -------
         inds_4d : np.ndarray, int
-            An N x 4 array, with each column indexing quads/2x1/x/y,
+            An N x 4 array, with each column indexing quads/asics/y/x,
         """
         
         inds_4d = np.zeros((inds.shape[0], 4), dtype=np.int32)
         
-        # abs 2x1 index = x / num_x + y / num_y * 2x1s-in-x
-        of32 = (inds[:,0] / 185) + (inds[:,1] / 388) * 8
-        assert np.all(of32 < 32)
+        # index each asic, in the correct order
+        # abs asic_index = x / num_x + y / num_y * asics-in-x
+        of64 = (inds[:,0] / 185) * 2 + (inds[:,1] / 388) * 16 + (inds[:,1] / 194) % 2
+        assert np.all(of64 < 64)
         
-        # quads / 2x1s
-        inds_4d[:,0] = of32 % 4
-        inds_4d[:,1] = of32 / 4
+        # quads / asics
+        inds_4d[:,0] = of64 / 16
+        inds_4d[:,1] = of64 % 16
         
         # x / y
         inds_4d[:,2] = inds[:,0] % 185
-        inds_4d[:,3] = inds[:,1] % 388
+        inds_4d[:,3] = inds[:,1] % 194
         
         return inds_4d
         
@@ -702,7 +708,7 @@ class MaskGUI(object):
         print "             borders at least."
         print ""
         print "                        ----- // -----"
-        
+        print
         
         
         

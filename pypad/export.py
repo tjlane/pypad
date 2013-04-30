@@ -9,17 +9,12 @@ Library for exporting autogeom geometries to other software packages.
 import numpy as np
 import h5py
 
-def _check_geometry(geometry):
-    # if not (isinstance(geometry, CSPad) or isinstance(geometry, Metrology)):
-    #     raise TypeError('`geometry` must be either a CSPad or Metrology object')
-    return
-
     
 def to_cheetah(geometry, filename="pixelmap-cheetah-raw.h5"):
     """
     Convert a CSPad or Metrology object to a Cheetah h5 pixel map.
     
-    88Writes: 'pixelmap-cheetah-raw.h5'
+    Writes: 'pixelmap-cheetah-raw.h5'
     
     Parameters
     ----------
@@ -29,13 +24,12 @@ def to_cheetah(geometry, filename="pixelmap-cheetah-raw.h5"):
 		The file name for the output pixel map
     """
     
-    _check_geometry(geometry)
-    
     print "Exporting to Cheetah format..."
+    
     coordinates = ['x', 'y', 'z']
     
     pp = geometry.pixel_positions
-    assert pp.shape == (3, 4, 8, 185, 388)
+    assert pp.shape == (3, 4, 16, 185, 194)
     
     # write an h5
     f = h5py.File(filename, 'w')
@@ -53,7 +47,9 @@ def to_cheetah(geometry, filename="pixelmap-cheetah-raw.h5"):
                 y_start = 388 * j
                 y_stop  = 388 * (j+1)
                 quad = (j + 2) % 4 # cheetah's quads are not quite the same...
-                cheetah_image[x_start:x_stop,y_start:y_stop] = pp[x,quad,i,:,:]/1000 # jas: ensure cheetah geometry is in [m] and not [mm]
+                # jas: ensure cheetah geometry is in [m] and not [mm]
+                two_by_one = np.hstack(( pp[x,quad,i,:,:], pp[x,quad,i*2+1,:,:] )) / 1000.0
+                cheetah_image[x_start:x_stop,y_start:y_stop] = two_by_one
         
         f['/%s' % coordinates[x]] = cheetah_image
     
