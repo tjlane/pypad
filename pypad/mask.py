@@ -469,6 +469,7 @@ class MaskGUI(object):
         
         self.line_corner = (0,0)
         self.xy = None
+        self.single_px = None # for masking single pixels
 
         self.colorbar = plt.colorbar(self.im, pad=0.01)
         self.colorbar.set_label(r'$\log_{10}$ Intensity')
@@ -552,6 +553,7 @@ class MaskGUI(object):
     
     def on_click(self, event):
          
+        # if a button that is *not* the left click is pressed
         if event.inaxes and (event.button is not 1):
         
             if self.xy != None:
@@ -562,12 +564,17 @@ class MaskGUI(object):
             
             self.lc.set_data(self.xy.T) # draws lines
             self.line_corner = (int(event.xdata), int(event.ydata))
+            
+        # if the left button is pressed
+        elif event.inaxes and (event.button is 1):
+            self.single_px = (int(event.xdata), int(event.ydata))            
         
         return
 
 
     def on_keypress(self, event):
 
+        # mask or unmask
         if event.key in ['m', 'u']:
             
             if self.xy == None:
@@ -599,6 +606,7 @@ class MaskGUI(object):
             self.im.autoscale()
             plt.draw()
 
+        # reset all masks
         elif event.key == 'r':
             print 'Unmasking all'
             
@@ -609,12 +617,41 @@ class MaskGUI(object):
             self._reset()
             self.im.autoscale()
             plt.draw()
+        
+        # toggle selection    
+        elif event.key == 't':
+            
+            if self.single_px != None:            
+                x = self._conv_2dinds_to_4d( np.array(self.single_px)[None,:] )
+                x = x.flatten()
+                if self.mask.mask[x[0],x[1],x[2],x[3]] == 0:
+                    print "Unmasking single pixel:", self.single_px
+                    self.mask._masks['manual'][x[0],x[1],x[2],x[3]] = 1
+                else:
+                    print "Masking single pixel:", self.single_px
+                    self.mask._masks['manual'][x[0],x[1],x[2],x[3]] = 0
+                    
+            else:
+                print "No single pixel selected to toggle. Click a pixel and"
+                print "    press `t` to toggle the mask on that pixel."
+            
+            self.update_image()
+            self._reset()
+            self.im.autoscale()
+            plt.draw()
+            
+        # clear mouse selection
+        elif event.key == 'x':
+            self._reset()
+            
            
+        # save and exit
         elif event.key == 'k':
             self.mask.save(self.filename, fmt=self.file_fmt)
             plt.close()
             return
           
+        # exit w/o saving
         elif event.key == 'q':
             print 'Exiting without saving...'
             plt.close()
@@ -640,6 +677,7 @@ class MaskGUI(object):
     
         
     def _reset(self):
+        self.single_pixel = None
         self.xy = None
         self.lc.set_data([], [])
         self.lm.set_data([], [])
@@ -685,17 +723,21 @@ class MaskGUI(object):
         
         print
         print
-        print "    --- WELCOME TO PYPAD's INTERACTIVE MASKING ENVIRONMENT --- "
+        print "   --- WELCOME TO PYPAD's INTERACTIVE MASKING ENVIRONMENT --- "
         print
         print " Keystrokes"
         print " ----------"
-        print " m : mask              u : unmask            r : reset "
-        print " x : enter 2x1 mode    k : save & exit       q : exit w/o saving"
+        print " m : mask               u : unmask            r : reset "
+        print " x : clear selection    k : save & exit       t : toggle pixel"
+        print " q : exit w/o saving"
         print
         print " Mouse"
         print " -----"
         print " Right click on three or more points to draw a polygon around a"
         print " set of pixels. Then press `m` or `u` to mask or unmask that area."
+        print
+        print " You can also mask/unmask single pixels by clicking on them with"
+        print " the mouse and pressing `t` to toggle the mask state."
         print
         print " Toggle Buttons (left)"
         print " ---------------------"
@@ -714,7 +756,7 @@ class MaskGUI(object):
         print "             anomoulous responses. Recommended to mask one pixel"
         print "             borders at least."
         print ""
-        print "                        ----- // -----"
+        print "                          ----- // -----"
         print
         
         
