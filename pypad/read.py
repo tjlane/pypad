@@ -1,5 +1,22 @@
 
 
+# THIS FILE IS PART OF PyPad, AND IS GOVERENED BY A PERMISSIBILITY LICENSE 
+# GOVERNING ITS USE AND DISTRIBUTION. YOU SHOULD HAVE RECIEVED A COPY OF THIS
+# LICENSE WITH THE SOFTWARE; IF NOT PROVIDED, WRITE TO <tjlane@stanford.edu>.
+#
+# AUTHORS:
+# TJ Lane <tjlane@stanford.edu>
+# Jonas Sellberg <jonas.a.sellberg@stanford.edu>
+#
+# Apr 30, 2013
+
+"""
+read.py
+
+Functions for reading image files from disk, from a variety of formats.
+"""
+
+import os
 import h5py
 import numpy as np
 
@@ -27,6 +44,9 @@ def load_raw_image(filename, image_in_file=0):
     image : np.ndarray
         A numpy array of the image.
     """
+    
+    if not os.path.exists(filename):
+        raise IOError('File: %s does not exist' % filename)
     
     print "Loading: %s" % filename
     

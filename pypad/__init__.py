@@ -1,2 +1,2 @@
 # pypad package init
-__all__ = ["autogeom", "mask", "analytics"]
+__all__ = ["autogeom"]

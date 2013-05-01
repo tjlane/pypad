@@ -1,6 +1,6 @@
 
 # the geometry you want to score
-geometry:   my_cspad.cspad
+geometry:   examples/my_cspad.cspad
 energy:     9603.2      # keV, optional
 opt_energy: False       # optional
 initial_offset: 590.0   # mm, optional
@@ -15,9 +15,9 @@ lattice: 4.076 # Angstroms
 
 # include a list of files at various dist
 samples:
-- filename: examples/gold-135-minus490mm.h5
+- filename: examples/gold-minus490mm.h5
   distance: -490.0 # mm
-- filename: examples/gold-136-minus470mm.h5
+- filename: examples/gold-minus470mm.h5
   distance: -470.0 # mm
 
 

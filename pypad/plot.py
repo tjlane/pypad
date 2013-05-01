@@ -1,4 +1,15 @@
 
+
+# THIS FILE IS PART OF PyPad, AND IS GOVERENED BY A PERMISSIBILITY LICENSE 
+# GOVERNING ITS USE AND DISTRIBUTION. YOU SHOULD HAVE RECIEVED A COPY OF THIS
+# LICENSE WITH THE SOFTWARE; IF NOT PROVIDED, WRITE TO <tjlane@stanford.edu>.
+#
+# AUTHORS:
+# TJ Lane <tjlane@stanford.edu>
+# Jonas Sellberg <jonas.a.sellberg@stanford.edu>
+#
+# Apr 30, 2013
+
 """
 A library for plotting pretty images of all kinds.
 """
