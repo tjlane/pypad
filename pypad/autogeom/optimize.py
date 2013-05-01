@@ -79,7 +79,9 @@ class Optimizer(object):
         #     that got passed are ok
                 
         # check radius_range is sane
-        if not len(self.radius_range) % 2 == 0:
+        if self.radius_range in [None, 'None', False]:
+            self.radius_range = None
+        elif not len(self.radius_range) % 2 == 0:
             raise ValueError('`radius_range`, which defines which regions of the'
                              ' radial projection to optimize, must contain an '
                              'even number of entries.')
@@ -218,7 +220,10 @@ class Optimizer(object):
         
         # compute the radial profile
         bc, bv = self.cspad.intensity_profile(raw_image, n_bins=self.n_bins)
-        bin_centers, bin_values = self._slice(bc, bv)
+        if self.radius_range == None:
+            bin_centers, bin_values = bc, bv
+        else:
+            bin_centers, bin_values = self._slice(bc, bv)
         
         # if plotting is requested, plot away!
         if self.plot_each_iteration:
