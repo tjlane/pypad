@@ -6,6 +6,7 @@ Provides a "mask" object for CSPads
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+import matplotlib.colors as col
 from matplotlib.nxutils import points_inside_poly
 from matplotlib.widgets import Button
 
@@ -317,8 +318,8 @@ class PadMask(object):
         -- pypad : An hdf5 format that includes all metadata associated with the
                    mask. Not read by other software (suffix: .mask).
                    
-        -- twod  : Stores the mask as a two-dimensional array in an HDF5 format.
-                   Easily read into Cheetah and Odin (suffix: .h5).
+        -- cheetah : Stores the mask as a two-dimensional array in an HDF5 format.
+                     Easily read into Cheetah and Odin (suffix: .h5).
         
         Parameters
         ----------
@@ -452,8 +453,9 @@ class MaskGUI(object):
         self.points = np.vstack((mg[0].flatten(), mg[1].flatten())).T
         
         
-        palette = plt.cm.hot
-        palette.set_bad('w', 1.0)
+        # create a colormap with masked pixels clearly highlighted
+        palette = plt.cm.PuOr_r # reversed purple-orange -- base cm
+        palette.set_under(color='green')
                 
                 
         # draw the main GUI, which is an image that can be interactively masked
@@ -461,9 +463,9 @@ class MaskGUI(object):
         
         self.ax = plt.subplot(111)
         self.im = plt.imshow( (self.log_image * self.mask.mask2d).T, cmap=palette,
-                              origin='lower', interpolation='nearest', vmin=0, 
+                              origin='lower', interpolation='nearest', vmin=1e-10, 
                               extent=[0, self.log_image.shape[0], 0, self.log_image.shape[1]] )
-
+        
         self.lc, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
         self.lm, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
         
@@ -489,6 +491,7 @@ class MaskGUI(object):
         # I used to have this in its own nice function, but MPL didn't like 
         # that for some reason... there is probably a better way, I just dont
         # know the innerds of MPL enough --TJL
+        
         
         axcolor = 'lightgoldenrodyellow'
 
@@ -724,6 +727,8 @@ class MaskGUI(object):
         print
         print
         print "   --- WELCOME TO PYPAD's INTERACTIVE MASKING ENVIRONMENT --- "
+        print
+        print " Green pixels are masked."
         print
         print " Keystrokes"
         print " ----------"
