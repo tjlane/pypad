@@ -106,7 +106,13 @@ Check out the `geomconv` script, which is pretty self-explanatory. Contact us if
 Tutorial: Mask Generation
 -------------------------
 
-Coming soon! In the mean time, the `genmask` script is pretty easy to use...
+PyPad also provides an interactive masking environment, which you can easily use to create pixel masks. Often, certain pixels on the CSPAD give anomalous responses or are completely fried, and you don't want to include those in your data analysis.
+
+To generate a mask, use the `genmask` script and follow the instructions printed to your terminal. You'll get a pop up window that looks something like this:
+
+![mask](https://raw.github.com/tjlane/pypad/master/doc/images/masking.png)
+
+which you can click on to create you mask.
 
 
 Contribute
