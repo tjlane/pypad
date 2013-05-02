@@ -6,7 +6,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@stanford.edu>
+# Jonas Sellberg <jonas.a.sellberg@gmail.com>
 #
 # Apr 30, 2013
 

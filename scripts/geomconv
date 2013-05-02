@@ -6,7 +6,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@stanford.edu>
+# Jonas Sellberg <jonas.a.sellberg@gmail.com>
 #
 # Apr 30, 2013
 
@@ -26,17 +26,20 @@ parser.add_argument('geometry', default=None,
                     help='''A CSPAD Metrology, in .cspad format.''')
 parser.add_argument('--output', required=True,
                     help='''The name of the file to write, containing the final mask.''')
-parser.add_argument('--format', required=True, choices=['odin', 'cheetah'],
+parser.add_argument('--format', required=True, choices=['odin', 'cheetah', 'text'],
                     help='''The file format to write.''')
 args = parser.parse_args()
 
 
-geom = cspad.load(args.geometry)
+geom = cspad.CSPad.load(args.geometry)
 
 if args.format == 'odin':
-    geom.to_odin(filename=arsg.output)
+    energy = float( raw_input('Energy to set the Odin detector to [eV]: ') )
+    geom.to_odin(args.output, energy)
 elif args.format == 'cheetah':
-    geom.to_cheetah(filename=arsg.output)
+    geom.to_cheetah(args.output)
+elif args.format == 'text':
+    geom.to_text(args.output)
 else:
     raise IOError('Cannot understand format: %s' % args.format)
 

@@ -5,7 +5,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@stanford.edu>
+# Jonas Sellberg <jonas.a.sellberg@gmail.com>
 #
 # Apr 30, 2013
 
@@ -378,6 +378,8 @@ class CSPad(object):
         Initialize an instance of CSPad, corresponding to a single CSPad
         geometry.             
         """
+        
+        self.metrology = metrology
         
         self._param_list = _array_sizes.keys()
         self.pixel_size  = 0.10992
@@ -961,13 +963,18 @@ class CSPad(object):
         return cls(metrology)
     
 
-    def to_cheetah(self, filename="pixelmap-cheetah-raw.h5"):
+    def to_cheetah(self, filename):
         export.to_cheetah(self, filename)
         return
         
         
-    def to_odin(self, filename):
-        export.to_odin(self, filename)
+    def to_odin(self, filename, energy):
+        export.to_odin(self, energy, filename)
+        return
+        
+        
+    def to_text(self, filename):
+        export.to_text(self, filename)
         return
         
         
