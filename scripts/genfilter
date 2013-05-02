@@ -142,7 +142,7 @@ class InteractiveFilter(object):
         self.reset_button = Button(ax_reset, 'Reset', color=axcolor, hovercolor='0.975')
 
         ax_sobel = plt.axes([0.69, 0.02, 0.1, 0.04])
-        self.filter_button = ToggleButton(ax_sobel, 'Show Filter', color=axcolor, hovercolor='0.975')
+        self.filter_button = ToggleButton(ax_sobel, 'Apply Filter', color=axcolor, hovercolor='0.975')
         
         ax_sobel = plt.axes([0.58, 0.02, 0.1, 0.04])
         self.sobel_button = ToggleButton(ax_sobel, 'Sobel Filter', color=axcolor, hovercolor='0.975')
@@ -272,14 +272,14 @@ class InteractiveFilter(object):
         
         
     def _filter_on(self):
-        print "Displaying filtered image"
+        print "Applying filters..."
         self.filter_on = True
         self.update_image()
         return
 
     
     def _filter_off(self):
-        print "Displaying unfiltered image -- filter is there, just hidden"
+        print "Removing filters... (if saved like this there will be no filter)"
         self.filter_on = False
         self.update_image()
         return
@@ -298,13 +298,14 @@ class InteractiveFilter(object):
             if len(radius_range) % 2 != 0:
                 raise ValueError('Odd number of peak limits found on right panel!')
         
-        param_dict = { 'threshold'     : float( np.power(10, self.threshold_slider.val) ),
-                       'sobel'         : bool(self.sobel_filter),
-                       'sigma'         : float(self.sigma_slider.val),
-                       'minf_size'     : int(self.minf_slider.val),
-                       'rank_size'     : int(self.rank_slider.val),
-                       'radius_range'  : radius_range,
-                       'dilation'      : float(self.dilation) }
+        param_dict = { 'threshold'       : float( np.power(10, self.threshold_slider.val) ),
+                       'sobel'           : bool(self.sobel_filter),
+                       'sigma'           : float(self.sigma_slider.val),
+                       'minf_size'       : int(self.minf_slider.val),
+                       'rank_size'       : int(self.rank_slider.val),
+                       'radius_range'    : radius_range,
+                       'dilation'        : float(self.dilation),
+                       'use_edge_filter' : bool(self.filter_on) }
         
         print "\nFinal Parameters:"
         pprint(param_dict)

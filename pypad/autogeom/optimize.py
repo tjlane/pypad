@@ -78,7 +78,7 @@ class Optimizer(object):
         self.dilation            = 5.0
         
         # probably deprecated
-        self.n_bins              = 200
+        # self.n_bins              = 200
         
         # -------------------------------------------------------------------- #
         
@@ -235,7 +235,7 @@ class Optimizer(object):
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
         
         # compute the radial profile
-        bc, bv = self.cspad.intensity_profile(raw_image, n_bins=self.n_bins)
+        bc, bv = self.cspad.intensity_profile(raw_image, n_bins=None)
         if self.radius_range == None:
             bin_centers, bin_values = bc, bv
         else:

@@ -76,38 +76,29 @@ def preprocess_image(raw_image, threshold=0.0025, sigma=1.0, minf_size=1,
         raise ValueError('`raw_image` should be 2d or shape-(4,16,185,194), got'
                          ': %s' % str(raw_image.shape))
     
-    # apply rank filter & sobel filter
-    image = filters.rank_filter(image, -1, size=rank_size)
-    image = filters.gaussian_filter(image, sigma=sigma)
+    # apply rank filter & gaussian filter
+    if rank_size > 2:
+        image = filters.rank_filter(image, -1, size=rank_size)
+    if sigma > 0.1:
+        image = filters.gaussian_filter(image, sigma=sigma)
     
-    # do a "common-mode"-esque normalization (seems to help)
-    if image.shape == (32, 185, 388):
-        for i in range(32):
-            image[i,:,:] -= np.min(image[i,:,:])
-    elif image.shape == (4, 8, 185, 388):
-        for i in range(4):
-            for j in range(8):
-                image[i,j,:,:] -= np.min(image[i,j,:,:])
-    else:
-        image -= image.min()
-    
+    image -= image.min()
     assert image.min() == 0
     assert image.max() > 0
     
     # threshold
     image = (image > (image.max() * threshold))
     
-    if minf_size > 1:
+    if minf_size > 2:
         image = filters.minimum_filter(image, size=minf_size)
+    if sobel:
+        image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))    
     
     if non_flat_img:
         image = read.enforce_raw_img_shape( image.astype(np.bool) )
     else:
         image = image.astype(np.bool)
         
-    if sobel:
-        image = np.abs(filters.sobel(image, 0)) + np.abs(filters.sobel(image, 1))
-    
     return image
     
     

@@ -472,20 +472,33 @@ class CSPad(object):
         return v / np.linalg.norm(v)
         
         
-    def _read_metrology(self, metrology_dir):
+    def _read_metrology(self, metrology_file):
         """
-        Tmp file parser.
+        Parse a flat text file containing a metrology. We assume the metrology
+        is of the form:
+        
+        # quad 0
+        1 x1 y1 z1
+        2 x2 y2 z2
+        3 ...
+        
+        # quad 1
+        1 x1 y1 z1
+        2 x2 y2 z2
+        3 ...
+        
+        ...
+        
         """
         
-        quad_metrologies = []
-        for i in range(4):
-            print "loading " + metrology_dir + '/q%d.txt' % i
-            qm = np.genfromtxt(metrology_dir+'/q%d.txt' % i)
-            quad_metrologies.append( qm )
-            
-        quad_metrologies = np.array(quad_metrologies)
-        assert quad_metrologies.shape == (4,32,3)
-            
+        # read the metrology and discard the first col
+        met = np.genfromtxt(metrology_file)[:,1:]
+        
+        if not met.shape == (32*4, 3):
+            raise IOError('metrology file appears to be in the wrong format... '
+                          'could not understand file format of: %s' % metrology_file)
+        
+        quad_metrologies = np.array( np.vsplit(met, 4) )
         return quad_metrologies
 
 
@@ -710,7 +723,7 @@ class CSPad(object):
             bin_centers = np.arange(bin_values.shape[0]) / bin_factor
             
         else:
-            if not n_bins : n_bins = max(raw_image.shape) / 2            
+            if n_bins == None : n_bins = int( np.sqrt(np.product(raw_image.shape)) )
             bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
             
             bin_values = bin_values[1:]
