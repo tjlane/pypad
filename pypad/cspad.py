@@ -981,8 +981,8 @@ class CSPad(object):
         return
         
         
-    def to_odin(self, filename, energy):
-        export.to_odin(self, energy, filename)
+    def to_odin(self, energy, distance_offset, filename):
+        export.to_odin(self, energy, distance_offset, filename)
         return
         
         

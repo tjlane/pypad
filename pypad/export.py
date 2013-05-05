@@ -68,7 +68,7 @@ def to_cheetah(geometry, filename="pixelmap-cheetah-raw.h5"):
     return
 
     
-def to_odin(geometry, energy, filename):
+def to_odin(geometry, energy, distance_offset, filename):
     """
     Generate an ODIN detector object and write it to disk.
     
@@ -79,6 +79,10 @@ def to_odin(geometry, energy, filename):
         
     energy : float
         The energy of the beam, in eV.
+        
+    distance_offset : float
+        A distance offset (along the z-direction), in mm. This can be measured
+        directly using a pypad.autogeom.score.PowderReference instance.
         
     filname : str
         The name of file to write. Will end in '.dtc'
@@ -95,7 +99,9 @@ def to_odin(geometry, energy, filename):
     pypad_bg = geometry.basis_repr
     odin_bg  = xray.BasisGrid()
     for i in range(pypad_bg.num_grids):
-        odin_bg.add_grid( *pypad_bg.get_grid(i) )
+        p, s, f, shp = pypad_bg.get_grid(i)
+        p[2] += distance_offset # translate to make the origin the interaction site
+        odin_bg.add_grid(p, s, f, shp)
     
         
     # recall that pypad assumes the beam is along the z-direction (CXI conven.)

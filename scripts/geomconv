@@ -35,7 +35,8 @@ geom = cspad.CSPad.load(args.geometry)
 
 if args.format == 'odin':
     energy = float( raw_input('Energy to set the Odin detector to [eV]: ') )
-    geom.to_odin(args.output, energy)
+    dist   = float( raw_input('Distance offset (along the z-direction) [mm]: '))
+    geom.to_odin(energy, dist, args.output)
 elif args.format == 'cheetah':
     geom.to_cheetah(args.output)
 elif args.format == 'text':
