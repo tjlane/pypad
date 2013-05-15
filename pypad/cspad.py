@@ -654,11 +654,13 @@ class CSPad(object):
         
         # rotate each vector -- below `rot` is deg ccw wrt x-axis in the ref
         # frame of '+axis'
-        Rs = utils.ER_rotation_matrix(-axis,  rot)
-        Rf = utils.ER_rotation_matrix(-axis, -rot)
+        Rs = utils.ER_rotation_matrix(axis,  rot)
+        Rf = utils.ER_rotation_matrix(axis, -rot)
         
         s = np.dot(Rs, s)
-        f = np.dot(Rs, f)
+        f = np.dot(Rf, f)
+        
+        assert np.abs( np.dot(s, f) ) < 1e-10
         
         # return a tuple of basis grid objects
         bgs = ( (p0.copy(), s.copy(), f.copy(), shape), 
