@@ -466,15 +466,15 @@ class MaskGUI(object):
         
         
         # create a colormap with masked pixels clearly highlighted
-        palette = plt.cm.PuOr_r # reversed purple-orange -- base cm
-        palette.set_under(color='green')
-                
+        self.palette = plt.cm.PuOr_r # reversed purple-orange -- base cm
+        self.palette.set_under(color='green')
+        
                 
         # draw the main GUI, which is an image that can be interactively masked
         plt.figure()
         
         self.ax = plt.subplot(111)
-        self.im = plt.imshow( (self.log_image * self.mask.mask2d).T, cmap=palette,
+        self.im = plt.imshow( (self.log_image * self.mask.mask2d).T - 1e-10, cmap=self.palette,
                               origin='lower', interpolation='nearest', vmin=1e-10, 
                               extent=[0, self.log_image.shape[0], 0, self.log_image.shape[1]] )
         
@@ -484,7 +484,7 @@ class MaskGUI(object):
         self.line_corner = (0,0)
         self.xy = None
         self.single_px = None # for masking single pixels
-
+        
         self.colorbar = plt.colorbar(self.im, pad=0.01)
         self.colorbar.set_label(r'$\log_{10}$ Intensity')
 
@@ -562,7 +562,7 @@ class MaskGUI(object):
     
     
     def update_image(self):
-        self.im.set_data( (self.log_image * self.mask.mask2d).T )
+        self.im.set_data( (self.log_image * self.mask.mask2d).T - 1e-10 )
         return
 
     
@@ -618,7 +618,7 @@ class MaskGUI(object):
             self.update_image()
 
             self._reset()
-            self.im.autoscale()
+            #self.im.autoscale()
             plt.draw()
 
         # reset all masks
@@ -630,7 +630,7 @@ class MaskGUI(object):
             self.update_image()
             
             self._reset()
-            self.im.autoscale()
+            #self.im.autoscale()
             plt.draw()
         
         # toggle selection    
@@ -652,7 +652,7 @@ class MaskGUI(object):
             
             self.update_image()
             self._reset()
-            self.im.autoscale()
+            #self.im.autoscale()
             plt.draw()
             
         # clear mouse selection
