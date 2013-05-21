@@ -677,7 +677,7 @@ class MaskGUI(object):
             
            
         # save and exit
-        elif event.key == 'k':
+        elif event.key == 'w':
             self.mask.save(self.filename, fmt=self.file_fmt)
             plt.close()
             return
@@ -761,7 +761,7 @@ class MaskGUI(object):
         print " Keystrokes"
         print " ----------"
         print " m : mask               u : unmask            r : reset "
-        print " x : clear selection    k : save & exit       t : toggle pixel"
+        print " x : clear selection    w : save & exit       t : toggle pixel"
         print " q : exit w/o saving"
         print
         print " Mouse"
