@@ -354,17 +354,30 @@ class PadMask(object):
             
         
         elif fmt == 'odin':
-            raise NotImplementedError()
+            if not filename.endswith('.h5'):
+                filename += '.h5'
             
+            try:
+                from odin import parse
+            except ImportError:
+                raise ImportError('Cannot find Odin. You must have Odin installed to '
+                                  'export to Odin. Download and install Odin from '
+                                  'https://github.com/tjlane/odin')
+            
+            m_array = parse.cheetah_intensities_to_odin( self.mask2d )
+            f = h5py.File(filename, 'w')
+            f['/mask'] = m_array
+            f.close()
+
             
         elif fmt in ['cheetah', 'twod']:
             if not filename.endswith('.h5'):
                 filename += '.h5'
                 
-                # need jonas to dbl check this is right for Cheetah
-                f = h5py.File(filename, 'w')
-                f['/data/data'] = self.mask
-                f.close()
+             # need jonas to dbl check this is right for Cheetah
+             f = h5py.File(filename, 'w')
+             f['/data/data'] = self.mask2d
+             f.close()
             
             
         else:
