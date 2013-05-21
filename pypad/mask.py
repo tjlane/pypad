@@ -600,7 +600,10 @@ class MaskGUI(object):
            
             # wrap around to close polygon
             self.xy = np.vstack(( self.xy, self.xy[0,:] ))
-            inds = self.points[points_inside_poly(self.points, self.xy)]
+            inds = self.points[points_inside_poly(self.points+0.5, self.xy)]
+            
+            print self.xy
+            print inds
 
             # if we're going to mask, mask
             if event.key == 'm':
