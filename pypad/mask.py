@@ -374,10 +374,10 @@ class PadMask(object):
             if not filename.endswith('.h5'):
                 filename += '.h5'
                 
-             # need jonas to dbl check this is right for Cheetah
-             f = h5py.File(filename, 'w')
-             f['/data/data'] = self.mask2d
-             f.close()
+            # need jonas to dbl check this is right for Cheetah
+            f = h5py.File(filename, 'w')
+            f['/data/data'] = self.mask2d
+            f.close()
             
             
         else:
