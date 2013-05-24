@@ -5,7 +5,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+# Jonas Sellberg <sellberg@slac.stanford.edu>
 #
 # Apr 30, 2013
 
@@ -792,11 +792,24 @@ class CSPad(object):
             
         else:
             if n_bins == None : n_bins = int( np.sqrt(np.product(raw_image.shape)) )
+            
+            # Old algorithm to calculate angular sum
+            
             bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
             
             bin_values = bin_values[1:]
             bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
             
+            # New algorithm to calculate angular average instead of angular sum
+            # This change yields the right values in bin_values, but for some
+            # reason changes the Q-scale in score, so it is currently marked out
+            
+            #bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
+            #bin_normalizations = np.histogram( radii, bins=n_bins )
+            
+            #bin_values = bin_values[1:]/bin_normalizations[0][1:]
+            #bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+        
         assert bin_centers.shape == bin_values.shape
         return bin_centers, bin_values
     

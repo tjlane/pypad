@@ -5,7 +5,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+# Jonas Sellberg <sellberg@slac.stanford.edu>
 #
 # Apr 30, 2013
 
@@ -229,7 +229,7 @@ class PowderReference(object):
     def _compute_expected_ring_locations(self):
         """
         Returns the q-space location (in inv. Angstoms) of each ring
-        corresponding to the Miller indicies asked for.
+        corresponding to the Miller indices asked for.
         """
         
         expected = np.zeros(len(self.millers))
@@ -361,12 +361,12 @@ class PowderReference(object):
         plot.imshow_cspad( self.cspad(img), vmin=0, ax=self._axL )
         
         # plot circles on the image, over where the powder rings should be
-        # note that (1000,900) is where the center is in pixel units
+        # note that (1000,1000) is where the center is in pixel units
         # for our fxn imshow_cspads
         
         real_expt = self.real_space(self.expt, d) / 0.10992
         for r in real_expt:
-            blob_circ = plt_patches.Circle((1000,900), r, fill=False, lw=1, ec='white')
+            blob_circ = plt_patches.Circle((1000,1000), r, fill=False, lw=1, ec='white')
             self._axL.add_patch(blob_circ)
         
         
@@ -376,7 +376,7 @@ class PowderReference(object):
         for i in range(4):
             bin_centers, a = self.cspad.intensity_profile(img, n_bins=n_bins, quad=i)
             a /= a.max()
-            a += 0.7 * i
+            a += 1.0 * i
             q_bin_centers = self.reciprocal(bin_centers, d)
             self._axR.plot(q_bin_centers, a, color=plot.quad_colors[i], lw=2)
 
