@@ -1001,7 +1001,7 @@ class CSPad(object):
         
         # set up the raw image and the assembled template
         raw_image = read.enforce_raw_img_shape(raw_image)
-        bounds = 2*850+200
+        bounds = 2*850 + 300 # JAS: total image range is 2000, ensures beam center is at (1000,1000)
         assembled_image = np.zeros((bounds, bounds), dtype=raw_image.dtype)
 
         # iterate over quads
@@ -1021,9 +1021,9 @@ class CSPad(object):
             base_row = [850,   850,   0,   0]
             base_col = [  0,   850, 850,   0]
             qoff_row = int(  self.quad_offset[quad_index,1] / self.pixel_size) + \
-                             base_row[quad_index] + 50
+                             base_row[quad_index] + 150
             qoff_col = int( -self.quad_offset[quad_index,0] / self.pixel_size) + \
-                             base_col[quad_index] + 50
+                             base_col[quad_index] + 150
                         
             if (qoff_row < 0) or (qoff_row >= bounds):
                 raise ValueError('qoff_row: %d out of bounds [0,%d)' % (qoff_row, bounds))
