@@ -640,7 +640,7 @@ class CSPad(object):
         # --- perform some quality control checks ---
         
         # (1) ensure s/f orthogonal
-        qc_check(np.dot(s, f), err_msg='s/f vectors are not orthogonal')
+        qc_check(np.dot(s, f), err_msg='s/f vectors are not orthogonal :: enforcing orthogonality, but betware!')
         
         # --- end QC ---------------------------------
         
