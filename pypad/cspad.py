@@ -798,7 +798,7 @@ class CSPad(object):
             bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
             
             bin_values = bin_values[1:]
-            bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+            bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])/2.0
             
             # New algorithm to calculate angular average instead of angular sum
             # This change yields the right values in bin_values, but for some

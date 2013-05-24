@@ -98,7 +98,7 @@ def imshow_cspad(image, vmin=0, vmax=None, ax=None):
     return im
     
     
-class ToggleButton(Button):
+class ToggleButton(Button, object):
     """
     A quick subclass of MPL's button that has a state, such that it can toggle.
     """
