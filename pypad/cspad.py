@@ -5,7 +5,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+# Jonas Sellberg <sellberg@slac.stanford.edu>
 #
 # Apr 30, 2013
 
@@ -792,11 +792,24 @@ class CSPad(object):
             
         else:
             if n_bins == None : n_bins = int( np.sqrt(np.product(raw_image.shape)) )
+            
+            # Old algorithm to calculate angular sum
+            
             bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
             
             bin_values = bin_values[1:]
             bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
             
+            # New algorithm to calculate angular average instead of angular sum
+            # This change yields the right values in bin_values, but for some
+            # reason changes the Q-scale in score, so it is currently marked out
+            
+            #bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
+            #bin_normalizations = np.histogram( radii, bins=n_bins )
+            
+            #bin_values = bin_values[1:]/bin_normalizations[0][1:]
+            #bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+        
         assert bin_centers.shape == bin_values.shape
         return bin_centers, bin_values
     
@@ -1001,7 +1014,7 @@ class CSPad(object):
         
         # set up the raw image and the assembled template
         raw_image = read.enforce_raw_img_shape(raw_image)
-        bounds = 2*850+200
+        bounds = 2*850 + 300 # JAS: total image range is 2000, ensures beam center is at (1000,1000)
         assembled_image = np.zeros((bounds, bounds), dtype=raw_image.dtype)
 
         # iterate over quads
@@ -1021,9 +1034,9 @@ class CSPad(object):
             base_row = [850,   850,   0,   0]
             base_col = [  0,   850, 850,   0]
             qoff_row = int(  self.quad_offset[quad_index,1] / self.pixel_size) + \
-                             base_row[quad_index] + 50
+                             base_row[quad_index] + 150
             qoff_col = int( -self.quad_offset[quad_index,0] / self.pixel_size) + \
-                             base_col[quad_index] + 50
+                             base_col[quad_index] + 150
                         
             if (qoff_row < 0) or (qoff_row >= bounds):
                 raise ValueError('qoff_row: %d out of bounds [0,%d)' % (qoff_row, bounds))
