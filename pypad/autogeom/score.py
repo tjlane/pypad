@@ -106,6 +106,7 @@ class PowderReference(object):
         
         #sa = a
         sa = utils.smooth(a, beta=10.0, window_size=20)
+        # finds all local maxima, i.e. all points that has both adjacent points with lower values after smoothing
         max_inds = np.where(np.r_[True, sa[1:] > sa[:-1]] & np.r_[sa[:-1] > sa[1:], True] == True)[0]
         real_peak_locations = bin_centers[max_inds]
         
