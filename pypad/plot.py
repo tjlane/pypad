@@ -207,7 +207,18 @@ class ToggleButton(Button, object):
         self.cnt_off += 1
         return cid
 
-                                                    
+
+    def ignore(self, *args):
+        """
+        This function is necessary to ensure matplotlib compatability
+        for versions less than 1.2 (tested for 1.0.0 and 1.1.1).
+        """
+        if hasattr( super( ToggleButton, self), 'ignore' ):
+            return super( ToggleButton, self ).ignore(*args)
+        else:
+            return False
+
+
 class InteractiveImshow(object):
     """
     A brief extension to matplotlib's imshow that puts a colorbar next to 
