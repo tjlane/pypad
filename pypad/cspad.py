@@ -27,6 +27,7 @@ from os.path import join as pjoin
 import numpy as np
 import scipy.ndimage.interpolation as interp
 import matplotlib.pyplot as plt
+from matplotlib.nxutils import points_inside_poly
 
 from pypad import utils
 from pypad import read
@@ -640,7 +641,7 @@ class CSPad(object):
         # --- perform some quality control checks ---
         
         # (1) ensure s/f orthogonal
-        qc_check(np.dot(s, f), err_msg='s/f vectors are not orthogonal :: enforcing orthogonality, but betware!')
+        qc_check(np.dot(s, f), err_msg='s/f vectors are not orthogonal :: enforcing orthogonality, but beware!')
         
         # --- end QC ---------------------------------
         
@@ -741,6 +742,36 @@ class CSPad(object):
     def _base_quad_rotation(self):
         # deg ccw from upstream
         return [90.0, 0.0, 270.0, 180.0]
+        
+        
+    @property
+    def do_asics_overlap(self):
+        """
+        Returns `True` if the CSPAD has two+ asics that overlap when projected
+        into the x-y plane. Else returns `False`.
+        """
+        
+        bg = self._generate_basis()
+        
+        # compute an array of the corners of each ASIC
+        corners = np.zeros(( 64, 4, 2 ))
+        
+        for i in range(64):
+            corners[i,:,:] = bg.get_grid_corners(i)[:,:2]
+        
+        # loop over each ASIC and make sure that the corners of the others
+        # are not inside the area it takes up in the xy plane
+        
+        asics_overlap = False
+        
+        for i in range(64):
+            asic   = corners[i,:,:]
+            others = np.concatenate((corners[:i], corners[i+1:])).reshape(63*4, 2)
+            any_inside = np.sum( points_inside_poly(others, asic) ).astype(np.bool)
+            if any_inside:
+                asics_overlap = True                
+        
+        return asics_overlap
     
         
     def intensity_profile(self, raw_image, n_bins=None, quad='all'):
