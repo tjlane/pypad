@@ -116,7 +116,7 @@ class PowderReference(object):
         
         print "    found: %d peaks" % len(real_peak_locations)
         
-        return 
+        return
     
         
     @classmethod
@@ -179,30 +179,30 @@ class PowderReference(object):
     
         
     @property
-    def obsd(self):
+    def observed(self):
         """
         The observed peak locations, trimmed to match those close to expected
-        peak locations (self.expt). Reciprocal space (inv. Ang.).
+        peak locations (self.expected). Reciprocal space (inv. Ang.).
         
         Returns
         --------
-        obsd : np.ndarray
+        observed : np.ndarray
             A two-d array, with the first dimension the sample number, the 
             second dimension the peak position in q-space, such that it lines
-            up w/self.expt.
+            up w/self.expected.
         """
         
-        obsd = np.zeros(( self.num_samples, self.num_millers ))
-        expt = self.expt
+        observed = np.zeros(( self.num_samples, self.num_millers ))
+        expected = self.expected
         
         for i in range(self.num_samples):
-            obsd[i] = self._match_peaks(i)
+            observed[i] = self._match_peaks(i)
                 
-        return obsd
+        return observed
                  
                  
     @property
-    def expt(self):
+    def expected(self):
         """
         The expected peak locations. Reciprocal space (inv. Ang.).
         """
@@ -248,31 +248,31 @@ class PowderReference(object):
         will match observed peaks to the closest expected peak.
         """
         
-        # (1) match observed peaks to their closest expt peak
-        # (2) for expt peaks with more than one match, keep only the tallest
+        # (1) match observed peaks to their closest expected peak
+        # (2) for expected peaks with more than one match, keep only the tallest
         #     peak
         
-        obsd = self.reciprocal(self.sample_peak_locs[sample_index], \
+        observed = self.reciprocal(self.sample_peak_locs[sample_index], \
                                self.sample_distances[sample_index] + \
                                    self.distance_offset )
-        expt = self.expt
-                               
-        obsd_matches = np.zeros( len(obsd), dtype=np.int32 )
-        m_obsd = np.zeros_like(expt)
+        expected = self.expected
         
-        # match each obsd value with its closest expt value
-        for i in range(len(obsd)):
-            match_index     = np.argmin( np.abs(expt - obsd[i]) )
-            obsd_matches[i] = match_index
+        observed_matches = np.zeros( len(observed), dtype=np.int32 )
+        m_observed = np.zeros_like(expected)
+        
+        # match each observed value with its closest expected value
+        for i in range(len(observed)):
+            match_index     = np.argmin( np.abs(expected - observed[i]) )
+            observed_matches[i] = match_index
             
-        # for each expt value, if has multi matches, choose best
+        # for each expected value, if has multi matches, choose best
         for i in range(self.num_millers):
-            w = (obsd_matches == i)
+            w = (observed_matches == i)
             if np.sum(w) > 1:
                 mx = np.argmax( self.sample_peak_heights[sample_index][w] )
-                m_obsd[i] = obsd[ np.where(obsd_matches == i)[0][mx] ]
+                m_observed[i] = observed[ np.where(observed_matches == i)[0][mx] ]
         
-        return m_obsd
+        return m_observed
     
         
     def evaluate(self):
@@ -295,7 +295,7 @@ class PowderReference(object):
                 self.energy          = args[1]
             else:
                 self.distance_offset = args[0]
-            obj = np.abs(self.obsd - self.expt)
+            obj = np.abs(self.observed - self.expected)
             return obj.flatten()
         
         
@@ -365,8 +365,8 @@ class PowderReference(object):
         # note that (1000,1000) is where the center is in pixel units
         # for our fxn imshow_cspads
         
-        real_expt = self.real_space(self.expt, d) / 0.10992
-        for r in real_expt:
+        real_expected = self.real_space(self.expected, d) / 0.10992
+        for r in real_expected:
             blob_circ = plt_patches.Circle((1000,1000), r, fill=False, lw=1, ec='white')
             self._axL.add_patch(blob_circ)
         
@@ -381,8 +381,8 @@ class PowderReference(object):
             q_bin_centers = self.reciprocal(bin_centers, d)
             self._axR.plot(q_bin_centers, a, color=plot.quad_colors[i], lw=2)
 
-        self._axR.vlines(self.expt, 0, a.max()*1.2, color='k', linestyles='dashed')
-        # self._axR.vlines(self.obsd[index,:], 0, a.max(), color='r', linestyles='dashed')
+        self._axR.vlines(self.expected, 0, a.max()*1.2, color='k', linestyles='dashed')
+        # self._axR.vlines(self.observed[index,:], 0, a.max(), color='r', linestyles='dashed')
 
         self._axR.set_xlabel(r'q ($\AA^{-1}$)')
         self._axR.set_ylabel('Intensity')
