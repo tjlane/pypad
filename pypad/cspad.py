@@ -793,7 +793,7 @@ class CSPad(object):
             The radial center of each bin.
 
         bin_values : ndarray, int
-            The total intensity in the bin.
+            The average intensity in the bin.
         """
         
         # compute radii
@@ -824,22 +824,22 @@ class CSPad(object):
         else:
             if n_bins == None : n_bins = int( np.sqrt(np.product(raw_image.shape)) )
             
-            # Old algorithm to calculate angular sum
-            
-            bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
-            
-            bin_values = bin_values[1:]
-            bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])/2.0
-            
-            # New algorithm to calculate angular average instead of angular sum
-            # This change yields the right values in bin_values, but for some
-            # reason changes the Q-scale in score, so it is currently marked out
+            # Old algorithm by TJ to calculate angular sum
             
             #bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
-            #bin_normalizations = np.histogram( radii, bins=n_bins )
             
-            #bin_values = bin_values[1:]/bin_normalizations[0][1:]
-            #bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+            #bin_values = bin_values[1:]
+            #bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])/2.0
+            
+            # New algorithm by Jonas to calculate angular average instead of angular sum
+            # This change currently yields poor peak-finding in score, which makes the
+            # Q-scale in score to be off
+            
+            bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
+            bin_normalizations = np.histogram( radii, bins=n_bins )
+            
+            bin_values = bin_values[1:]/bin_normalizations[0][1:]
+            bin_centers = np.array([(bin_edges[i] + bin_edges[i+1])/2 for i in range(len(bin_values))])
         
         assert bin_centers.shape == bin_values.shape
         return bin_centers, bin_values
