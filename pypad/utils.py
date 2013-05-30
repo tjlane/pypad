@@ -142,6 +142,28 @@ def smooth(x, beta=10.0, window_size=11):
     return smoothed
 
 
+def multi_for(iterables):
+    """
+    Some python magic for multi-dimensional for loop
+    
+    Parameters
+    ----------
+    iterables: a list of iterables
+        e.g. [xrange(2), xrange(2), xrange(1), xrange(2)]
+    
+    Returns
+    -------
+    The multi-dimensional iterable
+        e.g. (0, 0, 0, 0) ... (1, 1, 0, 1)
+    """
+    if not iterables:
+        yield ()
+    else:
+        for item in iterables[0]:
+            for rest_tuple in multi_for(iterables[1:]):
+                yield (item,) + rest_tuple
+
+
 def radial_profile(image, center):
     """
     Compute the radial intensity profile of `image`.
