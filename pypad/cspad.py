@@ -641,7 +641,7 @@ class CSPad(object):
         # --- perform some quality control checks ---
         
         # (1) ensure s/f orthogonal
-        qc_check(np.dot(s, f), err_msg='s/f vectors are not orthogonal :: enforcing orthogonality, but beware!')
+        qc_check(np.dot(s, f), err_msg='s/f vectors are not orthogonal :: enforcing orthogonality!')
         
         # --- end QC ---------------------------------
         
@@ -832,8 +832,6 @@ class CSPad(object):
             #bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])/2.0
             
             # New algorithm by Jonas to calculate angular average instead of angular sum
-            # This change currently yields poor peak-finding in score, which makes the
-            # Q-scale in score to be off
             
             bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
             bin_normalizations = np.histogram( radii, bins=n_bins )

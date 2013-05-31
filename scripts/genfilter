@@ -193,6 +193,7 @@ class InteractiveFilter(object):
         self.axR.set_xlabel('Radius (mm)')
         self.axR.set_ylabel('Intensity')
         self.axR.get_yaxis().set_ticks([])
+        self.axR.set_ylim((0, bin_values.max()*1.2))
         
         if len(self.regions) > 0:
             self.axR.vlines(self.regions, self.axR.get_ylim()[0], 
