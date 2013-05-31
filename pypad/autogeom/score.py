@@ -453,6 +453,10 @@ class PowderReference(object):
             blob_circ = plt_patches.Circle((1000,1000), r, fill=False, lw=1, ec='white')
             self._axL.add_patch(blob_circ)
         
+        # plot beam center
+        beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='r')
+        self._axL.add_patch(beam_center)
+        
         
         # --- plot the right image
         n_bins = 800

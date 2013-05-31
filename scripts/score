@@ -35,10 +35,11 @@ parser.add_argument('params', help='A score_params yaml file.')
 args = parser.parse_args()
 
 
-print "\n\t--- SCOREING CSPAD GEOMETRY ---\t\n"
+print "\n\t--- SCORING CSPAD GEOMETRY ---\t\n"
 print " Figure Explanation:"
 print " Left Panel:  The assembled image, superimposed with white circles where"
-print "              theoretically there should be powder rings."
+print "              theoretically there should be powder rings. The red dot"
+print "              visualizes where the forward beam intersects the detector plane."
 print " Right Panel: The radial projection for each individual quad, dotted"
 print "              lines are theoretical peak predictions."
 print

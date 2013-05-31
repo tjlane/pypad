@@ -228,6 +228,10 @@ class InteractiveFilter(object):
         
         imshow_cspad(self.cspad(filtered_image), ax=self.axL)
         
+        # plot beam center
+        beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='w')
+        self.axL.add_patch(beam_center)
+        
         self.axR.cla()
         self.draw_projection(filtered_image)
         plt.draw()
