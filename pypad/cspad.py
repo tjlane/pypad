@@ -836,7 +836,7 @@ class CSPad(object):
             bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
             bin_normalizations = np.histogram( radii, bins=n_bins )
             
-            bin_values = bin_values[1:]/bin_normalizations[0][1:]
+            bin_values = bin_values/bin_normalizations[0]
             bin_centers = np.array([(bin_edges[i] + bin_edges[i+1])/2 for i in range(len(bin_values))])
         
         assert bin_centers.shape == bin_values.shape
