@@ -43,7 +43,7 @@ print "              visualizes where the forward beam intersects the detector p
 print " Right Panel: The radial projection for each individual quad, dotted"
 print "              lines are theoretical peak predictions."
 print
-print "To plot additional samples"
+print "To plot additional samples:"
 print "   Press: l for previous sample"
 print "   Press: n for next sample"
 print

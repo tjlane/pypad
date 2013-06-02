@@ -247,8 +247,9 @@ class Optimizer(object):
             self._axR.cla()
             plot.sketch_2x1s(self.cspad.pixel_positions, self._axL)
             self._axR.plot(bin_centers, bin_values, lw=2, color='k')
-            self._axR.set_xlabel('Radius')
-            self._axR.set_ylabel('Intensity')
+            self._axR.set_xlabel('Radius (mm)')
+            self._axR.set_ylabel('Intensity (arb. units)')
+            self._axR.set_ylim((0, bin_values.max()*1.1))
             plt.draw()
             
             
