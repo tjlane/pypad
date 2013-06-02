@@ -47,7 +47,7 @@ There are three sources of documentation for PyPad:
 
 Tutorial: Geometry Optimization
 -------------------------------
-Below, We'll go through a quick example of how to use the autogeom scripts, and demonstrate their function via a relevant example: shifting the CSPAD quads to gain an optimal geometry. For this example we'll use an averaged run from an experiment done on gold nanoparticles at CXI. This file is provided in `examples/gold_image.h5` in HDF5 format.
+Below, We'll go through a quick example of how to use the autogeom scripts, and demonstrate their function via a relevant example: shifting the CSPAD quadrants to gain an optimal geometry. For this example we'll use an averaged run from an experiment done on gold nanoparticles at CXI. This file is provided in `examples/gold_image.h5` in HDF5 format.
 
 Note: before you begin with any geometry optimization, you need a good calibration sample. A good sample has thin, bright rings -- the more rings, the better. Obtaining images of this sample at multiple detector positions is recommended.
 
@@ -62,14 +62,14 @@ You'll get an interactive window with something that looks like this:
 
 ![genfilter screen](https://raw.github.com/tjlane/pypad/master/doc/images/genfilter-init.png)
 
-Follow the instructions that get printed to screen. Change the dilation so the quads align in the 2D image and the peaks look sharp in the radial projection to the right, then press the `Apply Filter` button and change the threshold and filters to obtain a good contrast in the 2D image. Select one or several regions, which include one or several powder rings each. This is demonstrated in the example below, where we've selected the two brightest rings (Miller indices (111) and (200)) for these gold nanoparticles:
+Follow the instructions that get printed to screen. Change the dilation so the quadrants align in the 2D image and the peaks look sharp in the radial projection to the right, then press the `Apply Filter` button and change the threshold and filters to obtain a good contrast in the 2D image. Select one or several regions, which include one or several powder rings each. This is demonstrated in the example below, where we've selected the two brightest rings (Miller indices (111) and (200)) for these gold nanoparticles:
 
 ![genfilter screen](https://raw.github.com/tjlane/pypad/master/doc/images/genfilter-opt.png)
 
 
 ###(2) Optimize the geometry.###
 
-Once you've close the `genfilter` script and generated the `filter_params.yaml`, which include the optimized filter settings, you're ready to run:
+Once you've closed the `genfilter` script and generated the `filter_params.yaml`, which include the optimized filter settings, you're ready to run:
 
 `optgeom examples/gold-minus490mm.h5 filter_params.yaml`
 
