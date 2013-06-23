@@ -5,7 +5,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+# Jonas Sellberg <sellberg@slac.stanford.edu>
 #
 # Apr 30, 2013
 
@@ -106,6 +106,7 @@ class PowderReference(object):
         
         #sa = a
         sa = utils.smooth(a, beta=10.0, window_size=20)
+        # finds all local maxima, i.e. all points that has both adjacent points with lower values after smoothing
         max_inds = np.where(np.r_[True, sa[1:] > sa[:-1]] & np.r_[sa[:-1] > sa[1:], True] == True)[0]
         real_peak_locations = bin_centers[max_inds]
         
@@ -115,7 +116,7 @@ class PowderReference(object):
         
         print "    found: %d peaks" % len(real_peak_locations)
         
-        return 
+        return
     
         
     @classmethod
@@ -178,30 +179,30 @@ class PowderReference(object):
     
         
     @property
-    def obsd(self):
+    def observed(self):
         """
         The observed peak locations, trimmed to match those close to expected
-        peak locations (self.expt). Reciprocal space (inv. Ang.).
+        peak locations (self.expected). Reciprocal space (inv. Ang.).
         
         Returns
         --------
-        obsd : np.ndarray
+        observed : np.ndarray
             A two-d array, with the first dimension the sample number, the 
             second dimension the peak position in q-space, such that it lines
-            up w/self.expt.
+            up w/self.expected.
         """
         
-        obsd = np.zeros(( self.num_samples, self.num_millers ))
-        expt = self.expt
+        observed = np.zeros(( self.num_samples, self.num_millers ))
+        expected = self.expected
         
         for i in range(self.num_samples):
-            obsd[i] = self._match_peaks(i)
+            observed[i] = self._match_peaks(i)
                 
-        return obsd
+        return observed
                  
                  
     @property
-    def expt(self):
+    def expected(self):
         """
         The expected peak locations. Reciprocal space (inv. Ang.).
         """
@@ -229,7 +230,7 @@ class PowderReference(object):
     def _compute_expected_ring_locations(self):
         """
         Returns the q-space location (in inv. Angstoms) of each ring
-        corresponding to the Miller indicies asked for.
+        corresponding to the Miller indices asked for.
         """
         
         expected = np.zeros(len(self.millers))
@@ -244,36 +245,119 @@ class PowderReference(object):
     def _match_peaks(self, sample_index):
         """
         Automatically match observed powder rings to miller indices. Currently
-        will match observed peaks to the closest expected peak.
+        will match observed peaks to the closest expected peak weighted by its
+        peak intensity.
+        
+        Returns
+        --------
+        m_observed: np.ndarray
+            A one-d array containing the q-positions of the observed peaks that
+            matches the expected peaks the best
         """
         
-        # (1) match observed peaks to their closest expt peak
-        # (2) for expt peaks with more than one match, keep only the tallest
-        #     peak
-        
-        obsd = self.reciprocal(self.sample_peak_locs[sample_index], \
+        observed = self.reciprocal(self.sample_peak_locs[sample_index], \
                                self.sample_distances[sample_index] + \
                                    self.distance_offset )
-        expt = self.expt
-                               
-        obsd_matches = np.zeros( len(obsd), dtype=np.int32 )
-        m_obsd = np.zeros_like(expt)
+        expected = self.expected
         
-        # match each obsd value with its closest expt value
-        for i in range(len(obsd)):
-            match_index     = np.argmin( np.abs(expt - obsd[i]) )
-            obsd_matches[i] = match_index
-            
-        # for each expt value, if has multi matches, choose best
-        for i in range(self.num_millers):
-            w = (obsd_matches == i)
-            if np.sum(w) > 1:
-                mx = np.argmax( self.sample_peak_heights[sample_index][w] )
-                m_obsd[i] = obsd[ np.where(obsd_matches == i)[0][mx] ]
+        ### Old algorithm by TJ ###
+        # (1) match observed peaks to their closest expected peak
+        # (2) for expected peaks with more than one match, keep only the tallest
+        #     peak
         
-        return m_obsd
+#        observed_matches = np.zeros( len(observed), dtype=np.int32 )
+#        m_observed = np.zeros_like(expected)
+#        
+#        # match each observed value with its closest expected value
+#        for i in range(len(observed)):
+#            match_index     = np.argmin( np.abs(expected - observed[i]) )
+#            observed_matches[i] = match_index
+#        
+#        # for each expected value, if has multi matches, choose best
+#        for i in range(self.num_millers):
+#            w = (observed_matches == i)
+#            if np.sum(w) > 1:
+#                mx = np.argmax( self.sample_peak_heights[sample_index][w] )
+#                m_observed[i] = observed[ np.where(observed_matches == i)[0][mx] ]
+        
+        
+        ### New algorithm by Jonas ###
+        # Will optimize the observed peak indices that corresponds to the expected peaks
+        # based on the proximity of the peak position in q weighted by its peak intensity.
+        # This algorithm assumes:
+        # (1) all expected peaks exist in observed peaks
+        #     (i.e. has to be found by the peak finder in _load_calibration_sample()
+        #      and be present on the detector at all detector distances)
+        # (2) the peaks in observed and expected are ordered after increasing q
+        
+        observed_matches = np.zeros( self.num_millers, dtype=np.int32 )
+        assert len(expected) == self.num_millers
+        
+        opt = 1e30
+        for i in utils.multi_for(map( xrange, np.arange(self.num_millers), np.ones(self.num_millers, dtype=np.int32 )*len(observed) - np.arange(self.num_millers)[::-1] )):
+            # only try peak index combinations where all indices are different
+            if len(i) == len(set(i)):
+                indices = [x for x in i] # can't access indices with tuple, need to make it into a list
+                new_opt = sum(((expected-observed[indices])/self.sample_peak_heights[sample_index][indices])**2)
+                if new_opt < opt:
+                    opt = new_opt
+                    observed_matches[:] = indices
+        
+        m_observed = observed[observed_matches]
+        
+        ### OPTION #2 by Jonas ###
+        # currently doesn't work since the optimization algorithm fails for discrete variables,
+        # could be worth trying if a good linear optimizer for discrete variables is found. This could be a candidate:
+        # http://stackoverflow.com/questions/5179889/optimization-problem-in-python
+        
+#        def peak_objective(args):
+#            """
+#            The peak objective function -- the difference between the measured/
+#            expected peak locations weighted by their intensity.
+#            """
+#            
+#            # make sure that indices are integer numbers
+#            for i in range(len(args)):
+#                if args[i] >= (len(observed) - 1):
+#                    args[i] = len(observed) - 1
+#                elif args[i] < 0:
+#                    args[i] = 0
+#                else:
+#                    args[i] = round(i)
+#            args = np.array( args, dtype=np.int32 ).flatten()
+#            
+#            obj = (expected - observed[args])/self.sample_peak_heights[sample_index][args]
+#            
+#            return obj.flatten()
+#        
+#        i0 = np.arange(self.num_millers)
+#        #opt = optimize.leastsq(peak_objective, i0, args=(expected, observed), full_output=1)
+#        opt = optimize.leastsq(peak_objective, i0, full_output=1)
+#        
+#        observed_matches = np.array( opt[0], dtype=np.int32 )
+#        m_observed = observed[observed_matches]
+        
+        ### OPTION #3 by Jonas ###
+        # A similar algorithm to the one currently used, except that it reduces the
+        # number of loops by adjusting the lower range of the inner for loop depending
+        # on the outer loop index. Unfortunately it is hard to generalize for arbitrary
+        # number of Bragg peaks (i.e. self.num_millers)
+        
+#        observed_matches = np.zeros( self.num_millers, dtype=np.int32 )
+#        assert len(expected) == self.num_millers
+#        
+#        opt = 1e30
+#        for i in range(len(observed) - 1):
+#            for j in range(i + 1, len(observed)):
+#                indices = [i, j]
+#                new_opt = sum(((expected-observed[indices])/self.sample_peak_heights[sample_index][indices])**2)
+#                if new_opt < opt:
+#                    opt = new_opt
+#                    observed_matches[:] = indices
+        
+        return m_observed
     
-        
+    
     def evaluate(self):
         """
         The central function -- evaluates the geometry by fitting the energy,
@@ -294,7 +378,7 @@ class PowderReference(object):
                 self.energy          = args[1]
             else:
                 self.distance_offset = args[0]
-            obj = np.abs(self.obsd - self.expt)
+            obj = np.abs(self.observed - self.expected)
             return obj.flatten()
         
         
@@ -342,7 +426,7 @@ class PowderReference(object):
         self._axL.cla()
         self._axR.cla()
         
-        if (index < 0) or (index > self.num_samples):
+        if (index < 0) or (index >= self.num_samples):
             print "Cannot access sample: %d" % index
             print "Total %d samples available" %  self.num_samples
             return
@@ -361,13 +445,17 @@ class PowderReference(object):
         plot.imshow_cspad( self.cspad(img), vmin=0, ax=self._axL )
         
         # plot circles on the image, over where the powder rings should be
-        # note that (1000,900) is where the center is in pixel units
+        # note that (1000,1000) is where the center is in pixel units
         # for our fxn imshow_cspads
         
-        real_expt = self.real_space(self.expt, d) / 0.10992
-        for r in real_expt:
-            blob_circ = plt_patches.Circle((1000,900), r, fill=False, lw=1, ec='white')
+        real_expected = self.real_space(self.expected, d) / 0.10992
+        for r in real_expected:
+            blob_circ = plt_patches.Circle((1000,1000), r, fill=False, lw=1, ec='white')
             self._axL.add_patch(blob_circ)
+        
+        # plot beam center
+        beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='r')
+        self._axL.add_patch(beam_center)
         
         
         # --- plot the right image
@@ -376,12 +464,12 @@ class PowderReference(object):
         for i in range(4):
             bin_centers, a = self.cspad.intensity_profile(img, n_bins=n_bins, quad=i)
             a /= a.max()
-            a += 0.7 * i
+            a += 1.0 * i
             q_bin_centers = self.reciprocal(bin_centers, d)
             self._axR.plot(q_bin_centers, a, color=plot.quad_colors[i], lw=2)
 
-        self._axR.vlines(self.expt, 0, a.max()*1.2, color='k', linestyles='dashed')
-        # self._axR.vlines(self.obsd[index,:], 0, a.max(), color='r', linestyles='dashed')
+        self._axR.vlines(self.expected, 0, a.max()*1.2, color='k', linestyles='dashed')
+        # self._axR.vlines(self.observed[index,:], 0, a.max(), color='r', linestyles='dashed')
 
         self._axR.set_xlabel(r'q ($\AA^{-1}$)')
         self._axR.set_ylabel('Intensity')
@@ -394,10 +482,14 @@ class PowderReference(object):
     
     def _on_keypress(self, event):
         if event.key == 'l':
+            if (self._current_image % self.num_samples) == 0:
+                self._current_image += self.num_samples
             self._current_image -= 1
             self._plot_cal_sample(self._current_image)
         elif event.key == 'n':
             self._current_image += 1
+            if (self._current_image % self.num_samples) == 0:
+                self._current_image -= self.num_samples
             self._plot_cal_sample(self._current_image)
         else:
             return

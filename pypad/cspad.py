@@ -5,7 +5,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+# Jonas Sellberg <sellberg@slac.stanford.edu>
 #
 # Apr 30, 2013
 
@@ -27,6 +27,7 @@ from os.path import join as pjoin
 import numpy as np
 import scipy.ndimage.interpolation as interp
 import matplotlib.pyplot as plt
+from matplotlib.nxutils import points_inside_poly
 
 from pypad import utils
 from pypad import read
@@ -640,7 +641,7 @@ class CSPad(object):
         # --- perform some quality control checks ---
         
         # (1) ensure s/f orthogonal
-        qc_check(np.dot(s, f), err_msg='s/f vectors are not orthogonal')
+        qc_check(np.dot(s, f), err_msg='s/f vectors are not orthogonal :: enforcing orthogonality!')
         
         # --- end QC ---------------------------------
         
@@ -741,6 +742,36 @@ class CSPad(object):
     def _base_quad_rotation(self):
         # deg ccw from upstream
         return [90.0, 0.0, 270.0, 180.0]
+        
+        
+    @property
+    def do_asics_overlap(self):
+        """
+        Returns `True` if the CSPAD has two+ asics that overlap when projected
+        into the x-y plane. Else returns `False`.
+        """
+        
+        bg = self._generate_basis()
+        
+        # compute an array of the corners of each ASIC
+        corners = np.zeros(( 64, 4, 2 ))
+        
+        for i in range(64):
+            corners[i,:,:] = bg.get_grid_corners(i)[:,:2]
+        
+        # loop over each ASIC and make sure that the corners of the others
+        # are not inside the area it takes up in the xy plane
+        
+        asics_overlap = False
+        
+        for i in range(64):
+            asic   = corners[i,:,:]
+            others = np.concatenate((corners[:i], corners[i+1:])).reshape(63*4, 2)
+            any_inside = np.sum( points_inside_poly(others, asic) ).astype(np.bool)
+            if any_inside:
+                asics_overlap = True                
+        
+        return asics_overlap
     
         
     def intensity_profile(self, raw_image, n_bins=None, quad='all'):
@@ -762,7 +793,7 @@ class CSPad(object):
             The radial center of each bin.
 
         bin_values : ndarray, int
-            The total intensity in the bin.
+            The average intensity in the bin.
         """
         
         # compute radii
@@ -792,11 +823,22 @@ class CSPad(object):
             
         else:
             if n_bins == None : n_bins = int( np.sqrt(np.product(raw_image.shape)) )
+            
+            # Old algorithm by TJ to calculate angular sum
+            
+            #bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
+            
+            #bin_values = bin_values[1:]
+            #bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])/2.0
+            
+            # New algorithm by Jonas to calculate angular average instead of angular sum
+            
             bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
+            bin_normalizations = np.histogram( radii, bins=n_bins )
             
-            bin_values = bin_values[1:]
-            bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
-            
+            bin_values = bin_values/bin_normalizations[0]
+            bin_centers = np.array([(bin_edges[i] + bin_edges[i+1])/2 for i in range(len(bin_values))])
+        
         assert bin_centers.shape == bin_values.shape
         return bin_centers, bin_values
     
@@ -1001,7 +1043,7 @@ class CSPad(object):
         
         # set up the raw image and the assembled template
         raw_image = read.enforce_raw_img_shape(raw_image)
-        bounds = 2*850+200
+        bounds = 2*850 + 300 # JAS: total image range is 2000, ensures beam center is at (1000,1000)
         assembled_image = np.zeros((bounds, bounds), dtype=raw_image.dtype)
 
         # iterate over quads
@@ -1021,9 +1063,9 @@ class CSPad(object):
             base_row = [850,   850,   0,   0]
             base_col = [  0,   850, 850,   0]
             qoff_row = int(  self.quad_offset[quad_index,1] / self.pixel_size) + \
-                             base_row[quad_index] + 50
+                             base_row[quad_index] + 150
             qoff_col = int( -self.quad_offset[quad_index,0] / self.pixel_size) + \
-                             base_col[quad_index] + 50
+                             base_col[quad_index] + 150
                         
             if (qoff_row < 0) or (qoff_row >= bounds):
                 raise ValueError('qoff_row: %d out of bounds [0,%d)' % (qoff_row, bounds))

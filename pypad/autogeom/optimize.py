@@ -5,7 +5,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+# Jonas Sellberg <sellberg@slac.stanford.edu>
 #
 # Apr 30, 2013
 
@@ -247,11 +247,20 @@ class Optimizer(object):
             self._axR.cla()
             plot.sketch_2x1s(self.cspad.pixel_positions, self._axL)
             self._axR.plot(bin_centers, bin_values, lw=2, color='k')
-            self._axR.set_xlabel('Radius')
-            self._axR.set_ylabel('Intensity')
+            self._axR.set_xlabel('Radius (mm)')
+            self._axR.set_ylabel('Intensity (arb. units)')
+            self._axR.set_ylim((0, bin_values.max()*1.1))
             plt.draw()
             
+            
         # --------- HERE IS THE OBJECTIVE FUNCTION -- MODIFY TO PLAY -----------
+
+        # test to see if any ASICS are overlapping, and if they are return a big
+        # number so the optimizer avoids those regions
+        if self.cspad.do_asics_overlap:
+            print "Move caused ASIC overlap -- rejecting it"
+            return 1.0e300
+        
 
         # new objective function : overlap integral
         if self.objective_type == 'overlap':
@@ -269,17 +278,11 @@ class Optimizer(object):
             quad_profiles = np.array([ a[:m] for a in quad_profiles ])
             
             obj = - np.sum(np.product(quad_profiles, axis=0))
+            
                                        
         # old objective function : peak height
         elif self.objective_type == 'peak_height':
             obj = - bin_values.max()
-            
-            # # only count big maxima for regularization purposes
-            # max_inds = self._maxima_indices(bin_values)
-            # n_maxima = 0
-            # for ind in max_inds:
-            #     if bin_values[ind] > bin_values.mean() / 2.:
-            #         n_maxima += 1
         
             if self.width_weight != 0.0:
                 obj += self.width_weight * self._simple_width(bin_values, bar=self.horizontal_cut)

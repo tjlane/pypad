@@ -6,7 +6,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+# Jonas Sellberg <sellberg@slac.stanford.edu>
 #
 # Apr 30, 2013
 
@@ -98,7 +98,7 @@ def imshow_cspad(image, vmin=0, vmax=None, ax=None):
     return im
     
     
-class ToggleButton(Button):
+class ToggleButton(Button, object):
     """
     A quick subclass of MPL's button that has a state, such that it can toggle.
     """
@@ -207,7 +207,18 @@ class ToggleButton(Button):
         self.cnt_off += 1
         return cid
 
-                                                    
+
+    def ignore(self, *args):
+        """
+        This function is necessary to ensure matplotlib compatability
+        for versions less than 1.2 (tested for 1.0.0 and 1.1.1).
+        """
+        if hasattr( super( ToggleButton, self), 'ignore' ):
+            return super( ToggleButton, self ).ignore(*args)
+        else:
+            return False
+
+
 class InteractiveImshow(object):
     """
     A brief extension to matplotlib's imshow that puts a colorbar next to 

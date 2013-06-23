@@ -4,8 +4,9 @@ PyPad
 PyPad provides a software-independent and intuitive way to:
 
 * Automatically & robustly determine CSPAD geometries
+* Optimize detector distances and photon energies
 * Generate masks interactively
-* Visualize images on the CSPAD 
+* Visualize images on the CSPAD
 * Gain access to the pixel coordinates of the CSPAD
 
 <br>
@@ -25,28 +26,28 @@ Installation should be as easy as downloading this package and running:
 
 `python setup.py install`
 
-This will automatically install the API in your python distribution and put the scripts in your path. Autogeom depends on the follow python packages:
+This will automatically install the API in your python distribution and put the scripts in your path. PyPad depends on the following python packages:
 
 * numpy
 * scipy
 * matplotlib
 * pyyaml
-* pyh5
+* h5py
 
 
 Help
 ----
 
-There are three sources of documentation for autogeom:
+There are three sources of documentation for PyPad:
 
 * This README
-* The autogeom API is documented in-place in the code.
-* You can also pass -h to the scripts to get some help.
+* The PyPad API is documented in-place in the code
+* You can also pass -h to the scripts to get some help
 
 
 Tutorial: Geometry Optimization
 -------------------------------
-Below, I'll go through a quick example of how to use the autogeom scripts, and demonstrate their function via a relevant example: shifting the CSPAD quads to gain an optimal geometry. For this example we'll use an averaged run from an experiment done on gold nanoparticles at CXI. This file is provided in `examples/gold_image.h5` in HDF5 format.
+Below, We'll go through a quick example of how to use the autogeom scripts, and demonstrate their function via a relevant example: shifting the CSPAD quadrants to gain an optimal geometry. For this example we'll use an averaged run from an experiment done on gold nanoparticles at CXI. This file is provided in `examples/gold_image.h5` in HDF5 format.
 
 Note: before you begin with any geometry optimization, you need a good calibration sample. A good sample has thin, bright rings -- the more rings, the better. Obtaining images of this sample at multiple detector positions is recommended.
 
@@ -61,27 +62,35 @@ You'll get an interactive window with something that looks like this:
 
 ![genfilter screen](https://raw.github.com/tjlane/pypad/master/doc/images/genfilter-init.png)
 
-Follow the instructions that get printed to screen. Change the threshold and filters to obtain a good contrast in the 2D image, then set a rough center and select regions for optimization that contain bright/sharp powder rings. Select one or several regions, which include one or several powder rings each. This is demonstrated in the example below, where I've selected the two brightest rings (Miller indices (111) and (200)) for these gold nanoparticles:
+Follow the instructions that get printed to screen. Change the dilation so the quadrants align in the 2D image and the peaks look sharp in the radial projection to the right, then press the `Apply Filter` button and change the threshold and filters to obtain a good contrast in the 2D image. Select one or several regions, which include one or several powder rings each. This is demonstrated in the example below, where we've selected the two brightest rings (Miller indices (111) and (200)) for these gold nanoparticles:
 
 ![genfilter screen](https://raw.github.com/tjlane/pypad/master/doc/images/genfilter-opt.png)
 
 
 ###(2) Optimize the geometry.###
 
+Once you've closed the `genfilter` script and generated the `filter_params.yaml`, which include the optimized filter settings, you're ready to run:
+
 `optgeom examples/gold-minus490mm.h5 filter_params.yaml`
 
+which will look something like this:
+
 ![assemble output](https://raw.github.com/tjlane/pypad/master/doc/images/optgeom.png)
+
+If plotting each iteration is slow on your computer, you can turn it off by adding the flag `plot_each_iteration: False` to `filter_params.yaml`.
 
 
 ###(3) Score your optimized geometry.###
 
-This is where multiple images taken at different detector instances come in handy. You need to prepare a simple params file, like the one in `examples/score_params.yaml`, telling the script what Miller reflections you expect in your sample, and where the images to include in the scoring are:
+This is where multiple images taken at different detector distances come in handy. You need to prepare a simple params file, like the one in `examples/score_params.yaml`, telling the script what Miller indices (i.e. Bragg reflections) you expect in your sample, and where the images to include in the scoring are located. Try run:
 
 `score examples/score_params.yaml`
 
 yielding
 
 ![score output](https://raw.github.com/tjlane/pypad/master/doc/images/score-gold.png)
+
+You can switch between the images taken at different detector distances by pressing `n` or `l`, as explained by the script. The script will output the residuals for each peak included in the fit as well as the optimized sample-detector distance offset w.r.t. the recorded motor positions. If the flag `opt_energy` is changed to `True` in `examples/score_params.yaml`, the script will also optimize the photon energy at which the images were recorded.
 
 
 ###(4) Take a look at the result.###
@@ -94,7 +103,9 @@ You should get something like this:
 
 ![assemble output](https://raw.github.com/tjlane/pypad/master/doc/images/assembled-gold.png)
 
-It may vary slightly depending on the parameters you used.
+It may vary slightly depending on the parameters you used. You can plot the position where the forward beam intersects the detector plane by running:
+
+`assemble examples/gold-minus490mm.h5 --metrology my_cspad.cspad --center`
 
 
 ###(5) Export the parameters to your front-end of choice.###

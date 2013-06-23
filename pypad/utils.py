@@ -5,7 +5,7 @@
 #
 # AUTHORS:
 # TJ Lane <tjlane@stanford.edu>
-# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+# Jonas Sellberg <sellberg@slac.stanford.edu>
 #
 # Apr 30, 2013
 
@@ -142,6 +142,28 @@ def smooth(x, beta=10.0, window_size=11):
     return smoothed
 
 
+def multi_for(iterables):
+    """
+    Some python magic for multi-dimensional for loop
+    
+    Parameters
+    ----------
+    iterables: a list of iterables
+        e.g. [xrange(2), xrange(2), xrange(1), xrange(2)]
+    
+    Returns
+    -------
+    The multi-dimensional iterable
+        e.g. (0, 0, 0, 0) ... (1, 1, 0, 1)
+    """
+    if not iterables:
+        yield ()
+    else:
+        for item in iterables[0]:
+            for rest_tuple in multi_for(iterables[1:]):
+                yield (item,) + rest_tuple
+
+
 def radial_profile(image, center):
     """
     Compute the radial intensity profile of `image`.
@@ -160,7 +182,7 @@ def radial_profile(image, center):
         The radial position (x-coordinate)
     
     bin_values
-        The intensities corresponding to `bin_centers`.
+        The average intensities corresponding to `bin_centers`.
     """
     
     # compute the radii
@@ -183,8 +205,11 @@ def radial_profile(image, center):
     else:
         bin_values, bin_edges = np.histogram( r, weights=image, bins=n_bins )
     
-    bin_values = bin_values[1:]
-    bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])
+    # normalize by number of pixels in each bin to obtain average intensity
+    bin_normalizations = np.histogram( r, bins=bin_edges )
+    
+    bin_values = bin_values/bin_normalizations[0]
+    bin_centers = np.array([(bin_edges[i] + bin_edges[i+1])/2 for i in range(len(bin_values))])
     
     return bin_centers, bin_values
 

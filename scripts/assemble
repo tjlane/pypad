@@ -23,11 +23,15 @@ from pypad import utils
 from pypad import read
 
 import matplotlib.pyplot as plt
+import matplotlib.patches as plt_patches
 from pypad.plot import imshow_cspad
 
 parser = argparse.ArgumentParser(description='''Use a CSPAD geometry to assemble a raw image.''')
                                  
 parser.add_argument('image_file', help='The (raw) image file.')
+parser.add_argument('--center', action="store_true", default=False, 
+                    help='''Plot the center where the forward beam intersects
+                            the detector plane.''') 
 parser.add_argument('--metrology', default=None, 
                     help='''A CSPAD Metrology. Either a flat text file of an 
                             optical metrology (see documentation) or a saved 
@@ -49,5 +53,14 @@ else:
     cs1 = cspad.CSPad.default()
 
 plt.figure()
-imshow_cspad( cs1(raw_image) )
+ax = plt.subplot(111)
+
+# plot assembled image
+imshow_cspad( cs1(raw_image), ax=ax )
+
+if args.center:
+    # plot beam center
+    beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='r')
+    ax.add_patch(beam_center)
+
 plt.show()
