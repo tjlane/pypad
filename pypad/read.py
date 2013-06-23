@@ -67,6 +67,15 @@ def load_raw_image(filename, image_in_file=0):
     elif filename.endswith('txt'):
         raw_image = np.loadtxt(filename)
         
+    elif filename.endswith('.shot'):
+        try:
+            from odin import xray
+        except ImportError as e:
+            raise ImportError('To read `.shot` files, you must first install '
+                              'odin: https://github.com/tjlane/odin')
+        ss = xray.Shotset.load(filename)
+        raw_image = ss.average_intensity
+        
     else:
         raise ValueError('Cannot understand format of file: %s' % filename)
     
@@ -130,9 +139,23 @@ def enforce_raw_img_shape(raw_image):
                 
                 new_image[q,twoXone*2,:,:]   = sec1
                 new_image[q,twoXone*2+1,:,:] = sec2
+                
+                
+    # ODIN format
+    elif raw_image.shape == (2296960,):
+        
+        new_image = np.zeros((4,16,185,194), dtype=raw_image.dtype)
+        spacing = 185 * 194
+        
+        for i in range(4):
+            for j in range(16):
+                ASIC = i * 16 + j
+                new_image[i,j,:,:] = raw_image[spacing*ASIC:spacing*(ASIC+1)].reshape(185, 194)
+            
     
     else:
         raise ValueError("Cannot understand `raw_image`: does not have any"
-                         " known dimension structure")
+                         " known convertable shape. Image shape: %s" % \
+                         str(raw_image.shape))
     
     return new_image
