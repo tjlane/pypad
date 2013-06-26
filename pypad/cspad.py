@@ -505,7 +505,7 @@ class CSPad(object):
         
         
         
-    def _qc_angle(self, v, w, two_by_one_index, tol=0.026):
+    def _qc_angle(self, v, w, two_by_one_index, tol=0.148):
         """
         Perform a quality control check on the angle between two basis vectors.
         
@@ -517,7 +517,7 @@ class CSPad(object):
         
             theta = | arctan( 1 pixel / 388 pixels ) - pi / 2 |
         
-        which is ~0.0026. 10 pixel accuracy is ~0.026, and this is what we've
+        which is ~0.0026 rad = 0.148 and this is what we've
         set the tolerance to for now.
         """
         
