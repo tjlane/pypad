@@ -502,9 +502,40 @@ class CSPad(object):
         
         quad_metrologies = np.array( np.vsplit(met, 4) )
         return quad_metrologies
+        
+        
+        
+    def _qc_angle(self, v, w, two_by_one_index, tol=0.026):
+        """
+        Perform a quality control check on the angle between two basis vectors.
+        
+        A note on the `tol` value:
+        
+        The longest 2x1 side is 388 pixels long. Therefore to achive single
+        pixel accuracy in the metrology, the angle between the two 2x1 sides
+        should be less than
+        
+            theta = | arctan( 1 pixel / 388 pixels ) - pi / 2 |
+        
+        which is ~0.0026. 10 pixel accuracy is ~0.026, and this is what we've
+        set the tolerance to for now.
+        """
+        
+        # compute the angle between the vectors
+        value = np.degrees( np.arcsin(np.dot(v, w) / ( np.linalg.norm(v) * np.linalg.norm(w) ) ))
+        
+        if not np.abs(value) <= tol:
+            print "WARNING: Metrology quality control failed for 2x1: %d" % two_by_one_index
+            print '--> s/f vectors are not orthogonal :: enforcing orthogonality!'
+            print "    Angle: %f // tol: %f" % (value, tol)
+            passed = False
+        else:
+            passed = True
+            
+        return passed
+    
 
-
-    def _twobyone_to_bg(self, quad_metrology, two_by_one_index, tol=1e-5):
+    def _twobyone_to_bg(self, quad_metrology, two_by_one_index):
         """
         Convert a 2x1 in the optical metrology into two basis grid elements.
 
@@ -533,18 +564,6 @@ class CSPad(object):
 
         if not quad_metrology.shape == (32,3):
             raise ValueError('Invalid quad_metrology, must be shape (32,3), got: %s' % str(quad_metrology.shape))
-
-
-        def qc_check(value, err_msg=None):
-            """
-            Simple helper function for performing quality control checks.
-            """
-            if not np.abs(value) <= tol:
-                print "WARNING: Metrology quality control failed for 2x1: %d" % two_by_one_index
-                if err_msg:
-                    print '--> ' + err_msg
-                print "    Val: %f // tol: %f" % (value, tol)
-            return
         
 
         # below is the sequence in which each 2x1 is optically measured, and
@@ -639,9 +658,10 @@ class CSPad(object):
             
             
         # --- perform some quality control checks ---
-        
+                
         # (1) ensure s/f orthogonal
-        qc_check(np.dot(s, f), err_msg='s/f vectors are not orthogonal :: enforcing orthogonality!')
+        
+        self._qc_angle(s, f, two_by_one_index)
         
         # --- end QC ---------------------------------
         
