@@ -390,7 +390,7 @@ class PowderReference(object):
         print " Detector offest: %.2f mm " % opt[0][0]
         print " Energy:          %.3f keV" % (opt[0][1] / 1000.0,)
         print
-        print " Total Residuals: %f inv. Angstroms" % float( np.sum(opt[2]['fvec']) )
+        print " Total Residuals: %f inv. Angstroms" % float( np.sum(np.abs( opt[2]['fvec'] )) )
         print " Residuals for each peak:"
         print opt[2]['fvec']
         print 
