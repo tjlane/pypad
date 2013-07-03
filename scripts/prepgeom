@@ -314,7 +314,8 @@ class InteractiveFilter(object):
                        'rank_size'       : int(self.rank_slider.val),
                        'radius_range'    : radius_range,
                        'dilation'        : float(self.dilation),
-                       'use_edge_filter' : bool(self.filter_on) }
+                       'use_filter'      : bool(self.filter_on),
+                       'params_to_optimize' : ['quad_offset'] }
         
         print "\nFinal Parameters:"
         pprint(param_dict)

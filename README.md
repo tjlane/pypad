@@ -56,20 +56,20 @@ Note: before you begin with any geometry optimization, you need a good calibrati
 
 To begin, let's generate a filter that will help the optimization algorithm. Run:
 
-`genfilter examples/gold-minus490mm.h5`
+`prepgeom examples/gold-minus490mm.h5`
 
 You'll get an interactive window with something that looks like this:
 
-![genfilter screen](https://raw.github.com/tjlane/pypad/master/doc/images/genfilter-init.png)
+![prepgeom screen](https://raw.github.com/tjlane/pypad/master/doc/images/prepgeom-init.png)
 
 Follow the instructions that get printed to screen. Change the dilation so the quadrants align in the 2D image and the peaks look sharp in the radial projection to the right, then press the `Apply Filter` button and change the threshold and filters to obtain a good contrast in the 2D image. Select one or several regions, which include one or several powder rings each. This is demonstrated in the example below, where we've selected the two brightest rings (Miller indices (111) and (200)) for these gold nanoparticles:
 
-![genfilter screen](https://raw.github.com/tjlane/pypad/master/doc/images/genfilter-opt.png)
+![prepgeom screen](https://raw.github.com/tjlane/pypad/master/doc/images/prepgeom-opt.png)
 
 
 ###(2) Optimize the geometry.###
 
-Once you've closed the `genfilter` script and generated the `filter_params.yaml`, which include the optimized filter settings, you're ready to run:
+Once you've closed the `prepgeom` script and generated the `filter_params.yaml`, which include the optimized filter settings, you're ready to run:
 
 `optgeom examples/gold-minus490mm.h5 filter_params.yaml`
 
