@@ -315,7 +315,7 @@ class InteractiveFilter(object):
                        'radius_range'    : radius_range,
                        'dilation'        : float(self.dilation),
                        'use_filter'      : bool(self.filter_on),
-                       'params_to_optimize' : ['quad_offset'] }
+                       'params_to_optimize' : ['quad_offset_bydiag'] }
         
         print "\nFinal Parameters:"
         pprint(param_dict)

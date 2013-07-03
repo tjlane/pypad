@@ -57,7 +57,7 @@ class Optimizer(object):
         
         # optimization / objective function
         self.objective_type      = 'overlap'
-        self.params_to_optimize  = ['quad_offset'] # , 'quad_rotation']
+        self.params_to_optimize  = ['quad_offset_bydiag'] # , 'quad_offset', 'quad_rotation'
         
         # for objective_type : peak_height
         self.peak_weight         = 0.0
@@ -273,9 +273,7 @@ class Optimizer(object):
             quad_profiles = []
 
             for i in range(4):
-                bc, bv = self.cspad.intensity_profile(raw_image,
-                                                      n_bins=bins,
-                                                      quad=i)
+                bc, bv = self.cspad.intensity_profile(raw_image, n_bins=bins, quad=i)
                 quad_profiles.append(bv)
                 
             m = np.min([ a.shape for a in quad_profiles ])
@@ -330,7 +328,7 @@ class Optimizer(object):
         print ""
 
         initial_guesses = np.concatenate([ self.cspad.get_param(p).flatten() \
-                                           for p in self.params_to_optimize ])
+                                           for p in self.params_to_optimize ])            
 
         # turn on interactive plotting -- this is the only way I've gotten it 
         # to work

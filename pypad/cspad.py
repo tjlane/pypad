@@ -337,8 +337,9 @@ class BasisGrid(object):
 
 
 
-_array_sizes = {'quad_rotation' : (4,),
-                'quad_offset'   : (4,2)}
+_array_sizes = {'quad_rotation'       : (4,),
+                'quad_offset'         : (4,2),
+                'quad_offset_bydiag'  : (4,2)}
 
 class CSPad(object):
     """
@@ -692,9 +693,13 @@ class CSPad(object):
         Parameter getter function.
         """
         if param_name in self._param_list:
-            return self.__dict__[param_name]
+            if hasattr(self, param_name):
+                return getattr(self, param_name)
+            else:
+                raise AttributeError('Current CSPad object does not have '
+                                     'parameter: %s instantiated' % param_name)
         else:
-            raise ValueError('No parameter with name: %s, (check input file)' % param_name)
+            raise ValueError('No known parameter with name: %s, (check input file)' % param_name)
     
             
     def set_param(self, param_name, value):
@@ -703,7 +708,10 @@ class CSPad(object):
         """
         if hasattr(self, param_name):
             if value.shape == _array_sizes[param_name]:
-                self.__dict__[param_name] = value
+                if param_name == 'quad_offset_bydiag':
+                    self._set_offset_bydiag(value)
+                else:
+                    self.__dict__[param_name] = value
             else:
                 raise ValueError('`value` has wrong shape for: %s' % param_name)
         else:
@@ -726,6 +734,24 @@ class CSPad(object):
             raise TypeError('`param_names` & `param_values` must be type list')
     
         
+    @property
+    def quad_offset_bydiag(self):
+        """
+        This is a parameterization of `self.quad_offset` in terms of x+y, x-y
+        instead of x/y. Useful for the optimization routine.
+        """
+        quad_offset_bydiag = np.zeros_like(self.quad_offset)
+        quad_offset_bydiag[0,:] = self.quad_offset[0,:] + self.quad_offset[1,:]
+        quad_offset_bydiag[1,:] = self.quad_offset[0,:] - self.quad_offset[1,:]
+        return quad_offset_bydiag
+        
+        
+    def _set_offset_bydiag(self, quad_offset_bydiag):
+        self.quad_offset[0,:] = (quad_offset_bydiag[0,:] + quad_offset_bydiag[1,:]) / 2.0
+        self.quad_offset[1,:] = (quad_offset_bydiag[0,:] - quad_offset_bydiag[1,:]) / 2.0
+        return
+    
+
     @property
     def basis_repr(self):
         return self._generate_basis()
@@ -852,7 +878,7 @@ class CSPad(object):
             bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
             bin_normalizations = np.histogram( radii, bins=n_bins )
             
-            bin_values = bin_values/bin_normalizations[0]
+            bin_values = bin_values / (bin_normalizations[0] + 1e-300)
             bin_centers = np.array([(bin_edges[i] + bin_edges[i+1])/2 for i in range(len(bin_values))])
         
         assert bin_centers.shape == bin_values.shape
