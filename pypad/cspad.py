@@ -12,9 +12,8 @@
 """
 cspad.py
 
-An interface to the CSPad geometry. Converts the pyana/psana parameters that
-definte the CSPad geometry into actual images or a pixel map of the positions
-of each pixel.
+An interface to the CSPad geometry. Converts LCLS optical metrologies into
+explicit pixel positions.
 """
 
 import sys
@@ -344,12 +343,10 @@ _array_sizes = {'quad_rotation' : (4,),
 class CSPad(object):
     """
     This is a container class for saving, loading, and interacting with the 
-    parameter set that defines the CSPad geometry.
+    CSPad geometry. It contains an interface to read the optical metrologies
+    performed at LCLS by the CSPAD group, and can write many file formats.
     
-    The main idea here is that you can instantiate a CSPad instance that is
-    defined by a set of parameters, and use that instance to display images
-    collected on the CSPad:
-    
+    Further, this class lets you visualize data on a specific geometry.
     Imagine you have a 'raw_image', an np array from psana with the measured
     intensities for each pixel. You also have a directory 'my_params', which
     contains a directory structure like 
@@ -364,13 +361,12 @@ class CSPad(object):
     Then, you should be able to turn those mysterious parameters into a CSPad
     geometry by doing something like this:
     
-    >>> geom = CSPad.from_dir('my_params', run=0)
+    >>> from pypad import cspad, plot
+    >>> geom = cspad.CSPad('path/to/metrology.txt')
     >>> assembled_image = geom(raw_image)
-    >>> imshow(assembled_image)
+    >>> plot.imshow_cspad(assembled_image)
     
     Of course, the 'geom' object can be re-used to assemble many images.
-    
-    This class is largely based on XtcExplorer's cspad.py
     """
     
     def __init__(self, metrology, quad_offset=np.zeros((4,2)), 
