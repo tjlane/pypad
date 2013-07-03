@@ -2,7 +2,7 @@
 # the geometry you want to score
 geometry:   examples/my_cspad.cspad
 energy:     9603.224    # eV, optional
-opt_energy: False       # optional
+opt_energy: True       # optional
 initial_offset: 590.0   # mm, optional
 
 # define which Bragg reflections to monitor
