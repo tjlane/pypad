@@ -268,7 +268,7 @@ class Optimizer(object):
         # test to see if any ASICS are overlapping, and if they are return a big
         # number so the optimizer avoids those regions
         if self.cspad.do_asics_overlap:
-            print "Move caused ASIC overlap: rejecting it (no worry man, this is common)"
+            print "Move caused ASIC overlap: rejecting it"
             return 1.0e300
         
 

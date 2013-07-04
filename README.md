@@ -47,14 +47,14 @@ There are three sources of documentation for PyPad:
 
 Tutorial: Geometry Optimization
 -------------------------------
-Below, We'll go through a quick example of how to use the autogeom scripts, and demonstrate their function via a relevant example: shifting the CSPAD quadrants to gain an optimal geometry. For this example we'll use an averaged run from an experiment done on gold nanoparticles at CXI. This file is provided in `examples/gold_image.h5` in HDF5 format.
+Below, We'll go through a quick example of how to use the autogeom scripts, and demonstrate their function via a relevant example: shifting the CSPAD quadrants to gain an optimal geometry. For this example we'll use an averaged run from an experiment done on gold nanoparticles at CXI. This file is provided in `examples/gold-minus490mm.h5` in HDF5 format.
 
 Note: before you begin with any geometry optimization, you need a good calibration sample. A good sample has thin, bright rings -- the more rings, the better. Obtaining images of this sample at multiple detector positions is recommended.
 
 
 ###(1) Generate a filter that will remove experimental noise.###
 
-To begin, let's interactively set up the parameters for the optimization algorithm. Load in an image to optimize and the optical metrology (provided by LCLS) with the following command:
+To begin, let's interactively set up the parameters for the optimization algorithm. Load an image to optimize and the optical metrology (provided by LCLS) with the following command:
 
 `prepgeom  -m examples/ds1_jun2011_opticalmetrology.txt examples/gold-minus490mm.h5`
 
@@ -62,7 +62,7 @@ You'll get an interactive window with something that looks like this:
 
 ![prepgeom screen](https://raw.github.com/tjlane/pypad/master/doc/images/prepgeom-init.png)
 
-Follow the instructions that get printed to screen. Change the dilation so the quadrants align in the 2D image and the peaks look sharp in the radial projection to the right, then press the `Apply Filter` button and change the threshold and filters to obtain a good contrast in the 2D image. Select one or several regions, which include one or several powder rings each. This is demonstrated in the example below, where we've selected the two brightest rings (Miller indices (111) and (200)) for these gold nanoparticles:
+Follow the instructions that get printed to screen. First, change the dilation so the quadrants align in the 2D image and the peaks look sharp in the radial projection to the right. If you want, you can then press the `Apply Filter` button and change the threshold and filters to obtain a good contrast in the 2D image. (For the gold example, the filters seems to give a slightly worse geometry optimization, but this may depend heavily on the data that is optimized.) Last, select one or several regions, which include one or several powder rings each. This is demonstrated in the example below, where we've selected the two brightest rings (Miller indices (111) and (200)) for these gold nanoparticles:
 
 ![prepgeom screen](https://raw.github.com/tjlane/pypad/master/doc/images/prepgeom-opt.png)
 
@@ -71,13 +71,13 @@ Follow the instructions that get printed to screen. Change the dilation so the q
 
 Once you've closed the `prepgeom` script and generated the `filter_params.yaml`, which include the optimized filter settings, you're ready to run:
 
-`optgeom examples/gold-minus490mm.h5 filter_params.yaml`
+`optgeom examples/gold-minus490mm.h5 filter_params.yaml -m examples/ds1_jun2011_opticalmetrology.txt`
 
 which will look something like this:
 
 ![assemble output](https://raw.github.com/tjlane/pypad/master/doc/images/optgeom.png)
 
-If plotting each iteration is slow on your computer, you can turn it off by adding the flag `plot_each_iteration: False` to `filter_params.yaml`.
+If the script is rejecting a bunch of moves initially, don't worry about it. Eventually it will narrow down the steps which will stop causing the ASIC overlaps. If plotting each iteration is slow on your computer, you can turn it off by adding the flag `plot_each_iteration: False` to `filter_params.yaml`.
 
 
 ###(3) Score your optimized geometry.###
@@ -90,7 +90,7 @@ yielding
 
 ![score output](https://raw.github.com/tjlane/pypad/master/doc/images/score-gold.png)
 
-You can switch between the images taken at different detector distances by pressing `n` or `l`, as explained by the script. The script will output the residuals for each peak included in the fit as well as the optimized sample-detector distance offset w.r.t. the recorded motor positions. If the flag `opt_energy` is changed to `True` in `examples/score_params.yaml`, the script will also optimize the photon energy at which the images were recorded.
+You can switch between the images taken at different detector distances by pressing `n` or `l`, as explained by the script. The script will output the residuals for each peak included in the fit as well as the optimized sample-detector distance offset w.r.t. the recorded motor positions. If the flag `opt_energy` is set to `True` in `examples/score_params.yaml`, the script will also optimize the photon energy at which the images were recorded.
 
 
 ###(4) Take a look at the result.###
