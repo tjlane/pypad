@@ -1269,8 +1269,26 @@ class CSPad(object):
         cspad : CSPad
             An CSPad object.
         """
-        raise NotImplementedError()
         
+        try:
+            from odin import xray
+        except ImportError as e:
+            raise ImportError('Cannot find Odin. You must have Odin installed to '
+                              'export to Odin. Download and install Odin from '
+                              'https://github.com/tjlane/odin')
+        
+        dtc = xray.Detector.load(filename)
+        
+        # we have to convert from an odin-type basis grid
+        pypad_bg = BasisGrid()
+        odin_bg  = dtc._basis_grid
+        
+        for i in range(odin_bg.num_grids):
+            p, s, f, shp = odin_bg.get_grid(i)
+            pypad_bg.add_grid(p, s, f, shp)
+            
+        return cls(pypad_bg)
+    
         
     @classmethod
     def load_crystfel(cls, filename, verbose=False):
@@ -1363,17 +1381,17 @@ class CSPad(object):
     def to_cheetah(self, filename):
         export.to_cheetah(self, filename)
         return
-        
+    
         
     def to_odin(self, energy, distance_offset, filename):
         export.to_odin(self, energy, distance_offset, filename)
         return
-        
+    
         
     def to_text(self, filename):
         export.to_text(self, filename)
         return
-        
+    
         
     # Below: save/load methods. The saving here is quite lazy on my part, and
     # will be totally incomprehensable to anyone who tries to read the file...
@@ -1413,20 +1431,30 @@ class CSPad(object):
         print 'Wrote %s to disk.' % filename
 
         return
+    
 
     @classmethod
     def load(cls, filename):
         """
         Load a metrology. Currently supports:
         
-        File Type               Extension
-        ---------               ---------
-        Optical Metrology       .txt
-        Serialized CSPad        .cspad
-        Odin Detector           .dtc
-        Cheetah PixMap          .h5
-        CrystFEL Geom           .geom
+            File Type               Extension
+            ---------               ---------
+            Optical Metrology       .txt
+            Serialized CSPad        .cspad
+            Odin Detector           .dtc
+            Cheetah PixMap          .h5
+            CrystFEL Geom           .geom
         
+        Parameters
+        ----------
+        filename : str
+            The path to the file to load
+            
+        Returns
+        -------
+        cspad : CSPad
+            A CSPad object.
         """
         
         if filename.endswith('.txt'):
