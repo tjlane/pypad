@@ -1099,6 +1099,11 @@ class CSPad(object):
         
         # set up the raw image and the assembled template
         raw_image = read.enforce_raw_img_shape(raw_image)
+        
+        # for some reason, bool types don't work. Make them ints
+        if raw_image.dtype == np.bool:
+            raw_image = raw_image.astype(np.int32)
+        
         bounds = 2*850 + 300 # JAS: total image range is 2000, ensures beam center is at (1000,1000)
         assembled_image = np.zeros((bounds, bounds), dtype=raw_image.dtype)
 

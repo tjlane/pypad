@@ -66,7 +66,7 @@ def sketch_2x1s(pixel_positions, mpl_axes=None):
         plt.show()
 
 
-def imshow_cspad(image, vmin=0, vmax=None, ax=None):
+def imshow_cspad(image, vmin=0, vmax=None, ax=None, show=False):
     """
     Show an assembled image (e.g. from CSPad(raw_image) ) as it would be seen
     when viewed from upstream at CXI. CXI convention is that the plus-x direction
@@ -94,6 +94,9 @@ def imshow_cspad(image, vmin=0, vmax=None, ax=None):
                     
     if not ax.xaxis_inverted():
         ax.invert_xaxis()
+        
+    if show:
+        plt.show()
     
     return im
     
