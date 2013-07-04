@@ -407,9 +407,16 @@ class CSPad(object):
             qms = metrology
             
         elif type(metrology) == BasisGrid:
+            
+            # in this case we assume that the overall positions and rotations
+            # of the geometry are more or less set, so we set the base rotations
+            # to zero
+            
             self._metrology_basis = metrology
-            self._base_quad_rotation = [0.0, 0.0, 0.0, 0.0]
-            return # we need to skip the rest
+            self._base_quad_rotation = [0.0, 0.0, 0.0, 0.0]  # deg ccw from upstream
+            
+            # skip the rest, which is about converting an optical metrology
+            return 
                                  
         else:
             raise TypeError('`metrology` must be {str, np.ndarray, BasisGrid}')
@@ -421,7 +428,7 @@ class CSPad(object):
         # That information is incorporated in _generate_positional_basis()
         
         self._metrology_basis = BasisGrid()
-        self._base_quad_rotation = [90.0, 0.0, 270.0, 180.0]
+        self._base_quad_rotation = [90.0, 0.0, 270.0, 180.0] # deg ccw from upstream
         
         for q in range(4):
             print "\nParsing: quad %d" % q
@@ -430,8 +437,7 @@ class CSPad(object):
                 asic_geoms = self._twobyone_to_bg(qms[q], two_by_one)
                 
                 for asic in range(2):
-                    self._metrology_basis.add_grid( *asic_geoms[0] )
-        
+                    self._metrology_basis.add_grid( *asic_geoms[asic] )
         
         return
     
