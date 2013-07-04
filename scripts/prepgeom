@@ -16,7 +16,6 @@ optimization.
 """
 
 import argparse
-import tables
 import yaml
 from pprint import pprint
 

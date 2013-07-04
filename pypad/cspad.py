@@ -20,6 +20,7 @@ import sys
 import os
 import cPickle
 import h5py
+import re
 from glob import glob
 from os.path import join as pjoin
 
@@ -336,7 +337,7 @@ class BasisGrid(object):
         return xyz
 
 
-
+pixel_size = 0.10992 # sort of a universal constant, in mm
 _array_sizes = {'quad_rotation'       : (4,),
                 'quad_offset'         : (4,2),
                 'quad_offset_bydiag'  : (4,2)}
@@ -380,7 +381,7 @@ class CSPad(object):
         self.metrology = metrology
         
         self._param_list = _array_sizes.keys()
-        self.pixel_size  = 0.10992
+        self.pixel_size  = pixel_size
         
         if not quad_offset.shape == _array_sizes['quad_offset']:
             raise ValueError('quad_offset must have shape (4,2), got: %s' % str(quad_offset.shape))
@@ -404,16 +405,32 @@ class CSPad(object):
                 raise ValueError('`metrology` array is wrong shape. Must be (4,32,3),'
                                  ' got %s' % str(metrology.shape))
             qms = metrology
+            
+        elif type(metrology) == BasisGrid:
+            self._metrology_basis = metrology
+            self._base_quad_rotation = [0.0, 0.0, 0.0, 0.0]
+            return # we need to skip the rest
                                  
         else:
-            raise TypeError('`metrology` must be str or np.ndarray')
+            raise TypeError('`metrology` must be {str, np.ndarray, BasisGrid}')
 
+
+        # generate the _metrology_basis -- this is the first of two BasisGrid
+        # objects that form the back end of a CSPad object. This BasisGrid has
+        # no information encoded about the relative positions of the quads.
+        # That information is incorporated in _generate_positional_basis()
         
-        self.metrology_basis = [[],[],[],[]]
+        self._metrology_basis = BasisGrid()
+        self._base_quad_rotation = [90.0, 0.0, 270.0, 180.0]
+        
         for q in range(4):
             print "\nParsing: quad %d" % q
             for two_by_one in range(8):
-                self.metrology_basis[q].append( self._twobyone_to_bg(qms[q], two_by_one) )
+                
+                asic_geoms = self._twobyone_to_bg(qms[q], two_by_one)
+                
+                for asic in range(2):
+                    self._metrology_basis.add_grid( *asic_geoms[0] )
         
         
         return
@@ -499,8 +516,7 @@ class CSPad(object):
         
         quad_metrologies = np.array( np.vsplit(met, 4) )
         return quad_metrologies
-        
-        
+    
         
     def _qc_angle(self, v, w, two_by_one_index, tol=0.148):
         """
@@ -603,7 +619,7 @@ class CSPad(object):
         # other 2x1 diagonal measured
         
         # NOTE : later, we swap x to reach CXI convention -- this is done after
-        #        we position the quads in _generate_basis()
+        #        we position the quads in _generate_positional_basis()
         
         if two_by_one_index in [0,1]:
 
@@ -754,7 +770,7 @@ class CSPad(object):
 
     @property
     def basis_repr(self):
-        return self._generate_basis()
+        return self._generate_positional_basis()
         
     
     @property
@@ -764,7 +780,7 @@ class CSPad(object):
         shape-(3, 4, 16, 185, 194), indexed as: (x/y/z, quad, ASIC, slow, fast)
         """
         
-        bg = self._generate_basis()
+        bg = self.basis_repr
         pix_pos = np.zeros((3, 4, 16, 185, 194))
         for i in range(4):
             for j in range(16):
@@ -780,11 +796,25 @@ class CSPad(object):
         return pix_pos
     
         
-    @property
-    def _base_quad_rotation(self):
-        # deg ccw from upstream
-        return [90.0, 0.0, 270.0, 180.0]
+    # @property
+    # def _base_quad_rotation(self):
+    #     # deg ccw from upstream
+    #     return [90.0, 0.0, 270.0, 180.0]
         
+        
+    def _asic_index(self, quad, two_by_one, asic):
+        """
+        Given a quad index, two_by_one index, asic index, all ints, return the 
+        absolute index of the basis grid.
+        """
+        if quad > 4:
+            raise ValueError('There are only 4 quads! Asked for quad: %d' % quad)
+        if two_by_one > 8:
+            raise ValueError('There are only 8 2x1s per quad! Asked for 2x1: %d' % two_by_one)
+        if asic > 2:
+            raise ValueError('There are only 2 ASICs per 2x1! Asked for ASIC: %d' % asic)
+        return int(quad * 16 + two_by_one * 2 + asic)
+    
         
     @property
     def do_asics_overlap(self):
@@ -793,7 +823,7 @@ class CSPad(object):
         into the x-y plane. Else returns `False`.
         """
         
-        bg = self._generate_basis()
+        bg = self.basis_repr
         
         # compute an array of the corners of each ASIC
         corners = np.zeros(( 64, 4, 2 ))
@@ -866,13 +896,6 @@ class CSPad(object):
         else:
             if n_bins == None : n_bins = int( np.sqrt(np.product(raw_image.shape)) )
             
-            # Old algorithm by TJ to calculate angular sum
-            
-            #bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
-            
-            #bin_values = bin_values[1:]
-            #bin_centers = bin_edges[1:-1] + np.abs(bin_edges[2] - bin_edges[1])/2.0
-            
             # New algorithm by Jonas to calculate angular average instead of angular sum
             
             bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
@@ -896,21 +919,11 @@ class CSPad(object):
         return vector
     
 
-    def _generate_basis(self):
+    def _generate_positional_basis(self):
         """
-        Generate a BasisGrid representation of the CSPad 
+        Generate a BasisGrid representation of the CSPad, with all offsets,
+        tilts, that dictate the relative positions of the quads applied.
         """
-
-        # The loop over quads below is [1,2,3,0] because
-        # the quad positions are supposed to be (as viewed from upstream):
-        # 
-        #     Q0     Q1
-        # 
-        #         x
-        # 
-        #     Q3     Q2
-        #
-        # -- TJL 28.2.13
 
         bg = BasisGrid()
         
@@ -921,7 +934,7 @@ class CSPad(object):
                 
                 for j in range(2): # ASIC in 2x1
                 
-                    p, s, f, shape = self.metrology_basis[quad_index][i][j]
+                    p, s, f, shape = self._metrology_basis.get_grid( self._asic_index(quad_index, i, j) )
                     
                     # replace references w/objects so we dont modify the metrology
                     p = p.copy()
@@ -977,7 +990,7 @@ class CSPad(object):
         # determine the rotation
         i = asic_index / 2
         j = asic_index % 2
-        p, s, f, shape = self.metrology_basis[quad_index][i][j]
+        p, s, f, shape = self._metrology_basis.get_grid( self._asic_index(quad_index, i, j) )
         theta = utils.arctan3(f[1], f[0]) * (360. / (np.pi * 2.0))
         
         # remove what the default is, due to the CSPad geometry,
@@ -1015,7 +1028,7 @@ class CSPad(object):
         """
         
         # always take the first ASIC
-        p, s, f, shape = self.metrology_basis[quad_index][two_by_one_index][0]
+        p, s, f, shape = self._metrology_basis.get_grid( self._asic_index(quad_index, two_by_one_index, 0) )
         
         # CXI is the wild west -- no rules, so roll it manually
         if two_by_one_index in [0,1]:
@@ -1122,10 +1135,217 @@ class CSPad(object):
         return assembled_image
         
         
+    # Here we have a series of import/export functions that facilitate
+    # conversion between different formats
+        
     @classmethod
     def default(cls):
         metrology = np.array([default.q0, default.q1, default.q2, default.q3])
         return cls(metrology)
+    
+        
+    @classmethod
+    def load_cspad(cls, filename):
+        """
+        Loads the a CSPad from disk.
+
+        Parameters
+        ----------
+        filename : str
+            The path to the shotset file.
+
+        Returns
+        -------
+        cspad : pypad.CSPad
+            A CSPad object
+        """
+
+        if not filename.endswith('.cspad'):
+            raise ValueError('Must load a cspad file (.cspad extension)')
+
+        if not os.path.exists(filename):
+            raise IOError('File: %s not found.' % filename)
+
+        hdf = h5py.File(filename, 'r')
+        c = cls._from_serial(hdf['/cspad'])
+        hdf.close()
+        
+        return c
+    
+        
+    @classmethod
+    def load_cheetah(cls, filename):
+        """
+        Convert a cheetah pixelmap to a CSPad object.
+
+        Parameters
+        ----------
+        filename : str
+            The path to the cheetah pixelmap.
+
+        Returns
+        -------
+        cspad : CSPad
+            An CSPad object.
+        """
+
+        f = h5py.File(filename)
+
+        if not f.keys() == ['x', 'y', 'z']:
+            raise IOError('File: %s is not a valid pixel map, should contain fields'
+                          ' ["x", "y", "z"] exlusively' % filename)
+
+        # convert m --> mm
+        x = read.enforce_raw_img_shape( np.array(f['x']) * 1000.0 )
+        y = read.enforce_raw_img_shape( np.array(f['y']) * 1000.0 )
+
+        # for some reason z is in microns, so um --> mm
+        z = read.enforce_raw_img_shape( np.array(f['z']) / 1000.0 )
+
+        f.close()
+
+        bg = BasisGrid()
+        shape = (185, 194) # will always be this for each ASIC
+
+        # loop over each ASIC, and convert it into a basis grid
+        for i in range(4):
+            for j in range(16):
+
+                # extract all the corner positions (code ineligant but explicit)
+                # corners are numbered 0 -> 4, starting top left and continuing cw
+                corners = np.zeros(( 4, 3 ))
+                corners[0,:] = ( x[i,j,0,0],   y[i,j,0,0],   z[i,j,0,0]   )
+                corners[1,:] = ( x[i,j,0,-1],  y[i,j,0,-1],  z[i,j,0,-1]  )
+                corners[2,:] = ( x[i,j,-1,-1], y[i,j,-1,-1], z[i,j,-1,-1] )
+                corners[3,:] = ( x[i,j,-1,0],  y[i,j,-1,0],  z[i,j,-1,0]  )
+
+                # dont use this -- takes the vectors from 2 px inside the ASIC
+                # if your starting pixel map is good, this should give the same
+                # result as the above
+                # corners[0,:] = ( x[i,j,2,2],   y[i,j,2,2],   z[i,j,2,2]   )
+                # corners[1,:] = ( x[i,j,2,-3],  y[i,j,2,-3],  z[i,j,2,-3]  )
+                # corners[2,:] = ( x[i,j,-3,-3], y[i,j,-3,-3], z[i,j,-3,-3] )
+                # corners[3,:] = ( x[i,j,-3,2],  y[i,j,-3,2],  z[i,j,-3,2]  )
+
+
+                # average the vectors formed by the corners to find f/s vects
+                # the fast scan direction is the last index, s is next
+                # f points left -> right, s points bottom -> top
+                f = (( corners[1,:] - corners[0,:] ) + ( corners[2,:] - corners[3,:] ))
+                s = (( corners[3,:] - corners[0,:] ) + ( corners[2,:] - corners[1,:] ))
+
+                # make them pixel-size magnitude
+                f = f * (pixel_size / np.linalg.norm(f))
+                s = s * (pixel_size / np.linalg.norm(s))
+
+                # center is just the average of the 4 corners
+                c = np.mean( corners, axis=0 )
+                assert c.shape == (3,)
+                # c[2] += distance_offset
+
+                bg.add_grid_using_center(c, s, f, shape)
+
+        return cls(bg)
+    
+        
+    @classmethod
+    def load_dtc(cls, filename):
+        """
+        Load an Odin detector into a CSPad object
+
+        Parameters
+        ----------
+        filename : str
+            The path to the Detector object on disk.
+
+        Returns
+        -------
+        cspad : CSPad
+            An CSPad object.
+        """
+        raise NotImplementedError()
+        
+        
+    @classmethod
+    def load_crystfel(cls, filename, verbose=False):
+        """
+        Convert a CrystFEL geom file to a CSPad object.
+
+        Parameters
+        ----------
+        filename : str
+            The path to the geom text file.
+
+        Returns
+        -------
+        cspad : CSPad
+            An CSPad object.
+        """
+        
+        if not filename.endswith('.geom'):
+            raise IOError('Can only read flat text files with extension `.geom`.'
+                          ' Got: %s' % filename)
+
+        if verbose: print "Converting CSPAD geometry in: %s ..." % filename
+        f = open(filename, 'r')
+        geom_txt = f.read()
+        f.close()
+
+        # initialize an odin BasisGrid object -- will add ASICs to this
+        bg = BasisGrid()
+        shp = (185, 194) # this never changes for the CSPAD
+
+        # now we'll read out the geometry -- do this all in a try block so we can
+        # throw an error if something is not there
+        try:
+
+            # measure the absolute detector offset
+            # right now this appears to be the only z-information in the geometry...
+            re_pz = re.search('coffset = (\d+.\d+..\d+)', geom_txt)
+            p_z = float(re_pz.group(1))
+
+            # iterate over each quad / ASIC
+            for q in range(4):
+                for a in range(16):
+
+                    if verbose:
+                        print "Reading geometry for: QUAD %d / ASIC %d" % (q, a)
+
+                    # match f/s vectors
+                    re_fs = re.search('q%da%d/fs =\s+(.\d+.\d+)x\s+(.\d+.\d+)y' % (q, a), geom_txt)
+                    f_x = float( re_fs.group(1) )
+                    f_y = float( re_fs.group(2) )
+                    f = np.array([f_x, f_y, 0.0])
+                    f = f * (pixel_size / np.linalg.norm(f))
+
+                    re_ss = re.search('q%da%d/ss =\s+(.\d+.\d+)x\s+(.\d+.\d+)y' % (q, a), geom_txt)
+                    s_x = float( re_ss.group(1) )
+                    s_y = float( re_ss.group(2) )
+                    s = np.array([s_x, s_y, 0.0])
+                    s = s * (pixel_size / np.linalg.norm(s))
+
+                    # match corner postions, that become the p vector
+                    re_cx = re.search('q%da%d/corner_x = (.\d+.\d+)' % (q, a), geom_txt)
+                    p_x = float( re_cx.group(1) )
+
+                    re_cy = re.search('q%da%d/corner_y = (.\d+.\d+)' % (q, a), geom_txt)
+                    p_y = float( re_cy.group(1) )
+
+                    p = np.array([p_x, p_y, p_z])
+
+                    # finally, add the ASIC to the odin basis grid
+                    bg.add_grid(p, s, f, shp)
+
+
+        # if an Attr error gets thrown, it's because a re failed to match
+        except AttributeError as e:
+            print e
+            raise IOError('Geometry file incomplete -- could not find one or more '
+                          'required fields.')
+
+        if verbose: print " ... successfully converted geometry."
+        
+        return cls(bg)
     
 
     def to_cheetah(self, filename):
@@ -1182,32 +1402,39 @@ class CSPad(object):
 
         return
 
-
     @classmethod
     def load(cls, filename):
         """
-        Loads the a CSPad from disk.
-
-        Parameters
-        ----------
-        filename : str
-            The path to the shotset file.
-
-        Returns
-        -------
-        cspad : pypad.CSPad
-            A CSPad object
-        """
-
-        if not filename.endswith('.cspad'):
-            raise ValueError('Must load a cspad file (.cspad extension)')
-
-        if not os.path.exists(filename):
-            raise IOError('File: %s not found.' % filename)
-
-        hdf = h5py.File(filename, 'r')
-        c = cls._from_serial(hdf['/cspad'])
-        hdf.close()
+        Load a metrology. Currently supports:
         
-        return c
+        File Type               Extension
+        ---------               ---------
+        Optical Metrology       .txt
+        Serialized CSPad        .cspad
+        Odin Detector           .dtc
+        Cheetah PixMap          .h5
+        CrystFEL Geom           .geom
+        
+        """
+        
+        if filename.endswith('.txt'):
+            geom = cls(filename)
+            
+        elif filename.endswith('.cspad'):
+            geom = cls.load_cspad(filename)
+            
+        elif filename.endswith('.dtc'):
+            geom = cls.load_dtc(filename)
+            
+        elif filename.endswith('.h5'):
+            geom = cls.load_cheetah(filename)
+            
+        elif filename.endswith('.geom'):
+            geom = cls.load_crystfel(filename)
+            
+        else:
+            raise IOError('Cannot understand filetype/extension of: %s' % filename)
+            
+        return geom
+
 

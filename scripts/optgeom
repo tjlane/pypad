@@ -15,7 +15,6 @@ Take a raw image and a set of psana parameters and produce an assembled image.
 """
 
 import yaml
-import tables
 import argparse
 
 from pypad import cspad

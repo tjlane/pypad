@@ -15,7 +15,6 @@ A simple script that takes a CSPad specification and a raw image and renders
 an assembled image.
 """
 
-import tables
 import argparse
 
 from pypad import cspad
@@ -43,12 +42,7 @@ args = parser.parse_args()
 raw_image = read.load_raw_image(args.image_file)
 
 if args.metrology:
-    if args.metrology.endswith('.txt'):
-        cs1 = cspad.CSPad(args.metrology)
-    elif args.metrology.endswith('.cspad'):
-        cs1 = cspad.CSPad.load(args.metrology)
-    else:
-        raise ValueError('Could not understand format of file: %s' % args.metrology)
+    cs1 = cspad.CSPad.load(args.metrology)
 else:
     cs1 = cspad.CSPad.default()
 

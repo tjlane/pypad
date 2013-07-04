@@ -159,3 +159,4 @@ def enforce_raw_img_shape(raw_image):
                          str(raw_image.shape))
     
     return new_image
+

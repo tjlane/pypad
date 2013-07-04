@@ -1,0 +1,28 @@
+#!/usr/bin/env python
+
+# THIS FILE IS PART OF PyPad, AND IS GOVERENED BY A PERMISSIBILITY LICENSE 
+# GOVERNING ITS USE AND DISTRIBUTION. YOU SHOULD HAVE RECIEVED A COPY OF THIS
+# LICENSE WITH THE SOFTWARE; IF NOT PROVIDED, WRITE TO <tjlane@stanford.edu>.
+#
+# AUTHORS:
+# TJ Lane <tjlane@stanford.edu>
+# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+#
+# Apr 30, 2013
+
+"""
+Sketch a CSPad metrology. Useful for debugging.
+"""
+
+import argparse
+from pypad import cspad
+from pypad.plot import sketch_2x1s
+
+parser = argparse.ArgumentParser(description='''Sketch a CSPad metrology. Useful for debugging.''')
+
+parser.add_argument('metrology', help='A CSPAD Metrology.')
+                            
+args = parser.parse_args()
+
+cs1 = cspad.CSPad.load(args.metrology)
+sketch_2x1s(cs1.pixel_positions)
