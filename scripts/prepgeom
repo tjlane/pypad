@@ -124,6 +124,7 @@ class InteractiveFilter(object):
         self.dilation     = 0.0
         self.regions      = []
         self.filter_on    = False
+        self.center       = [0.0, 0.0]
         
         # display the image with sliders for each parameter
         axcolor = 'lightgoldenrodyellow'
@@ -251,6 +252,8 @@ class InteractiveFilter(object):
             # the center is always at (1000, 1000): so translate the entire 
             # cspad to move the center
             if event.inaxes == self.axL:
+                self.center[0] += 1000.0 - event.xdata
+                self.center[1] += 1000.0 - event.ydata
                 delta_center = (1000.0 - event.xdata, 1000.0 - event.ydata)
                 print "\nShifting center in x/y by: (%.2f, %.2f)" % delta_center
                 
@@ -329,6 +332,7 @@ class InteractiveFilter(object):
                        'rank_size'       : int(self.rank_slider.val),
                        'radius_range'    : radius_range,
                        'dilation'        : float(self.dilation),
+                       'center_shift'    : list(self.center),
                        'use_filter'      : bool(self.filter_on),
                        'params_to_optimize' : ['quad_offset_bydiag', 'quad_rotation'] }
         
