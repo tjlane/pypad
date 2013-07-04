@@ -54,9 +54,9 @@ Note: before you begin with any geometry optimization, you need a good calibrati
 
 ###(1) Generate a filter that will remove experimental noise.###
 
-To begin, let's generate a filter that will help the optimization algorithm. Run:
+To begin, let's interactively set up the parameters for the optimization algorithm. Load in an image to optimize and the optical metrology (provided by LCLS) with the following command:
 
-`prepgeom examples/gold-minus490mm.h5`
+`prepgeom  -m examples/ds1_jun2011_opticalmetrology.txt examples/gold-minus490mm.h5`
 
 You'll get an interactive window with something that looks like this:
 

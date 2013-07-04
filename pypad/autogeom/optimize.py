@@ -60,7 +60,7 @@ class Optimizer(object):
         
         # optimization / objective function
         self.objective_type      = 'overlap'
-        self.params_to_optimize  = ['quad_offset_bydiag'] # , 'quad_offset', 'quad_rotation'
+        self.params_to_optimize  = ['quad_offset_bydiag', 'quad_rotation'] # , 'quad_offset'
         
         # for objective_type : peak_height
         self.peak_weight         = 0.0
@@ -377,10 +377,12 @@ class Optimizer(object):
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
         
         # print some diagnostics
+        final_objective = self._objective(opt_params, image)
         print ""
         print "Optimization terminated normally"
         print "--------------------------------"
-        print "Objective function change:  %f" % (self._objective(opt_params, image) - init_objective)
+        print "Final objective value:      %.4e" % final_objective
+        print "Objective function change:  %.4e" % (final_objective - init_objective)
         print "Time to reach solution:     %.2g min" % ((time.clock()-time0) / 60.0)
         #print "Final parameters:"
         #pprint(param_dict)
