@@ -26,10 +26,10 @@ parser = argparse.ArgumentParser(description='''Generate a mask for the CSPad,
 
 parser.add_argument('image', help='''An image to display, to aid masking. 
                                      Consider using a dark calibration.''')                                     
-parser.add_argument('--output', default='my_mask.mask',
+parser.add_argument('-o', '--output', default='my_mask.mask',
                     help='''The name of the file to write, containing the final 
                             mask. Default: my_mask.mask''')
-parser.add_argument('--format', default='pypad', choices=['pypad', 'odin', 'cheetah'],
+parser.add_argument('-f', '--format', default='pypad', choices=['pypad', 'odin', 'cheetah'],
                     help='''The file format to write.''')
 
 args = parser.parse_args()

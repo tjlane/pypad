@@ -28,10 +28,10 @@ from pypad.plot import imshow_cspad
 parser = argparse.ArgumentParser(description='''Use a CSPAD geometry to assemble a raw image.''')
                                  
 parser.add_argument('image_file', help='The (raw) image file.')
-parser.add_argument('--center', action="store_true", default=False, 
+parser.add_argument('-c', '--center', action="store_true", default=False, 
                     help='''Plot the center where the forward beam intersects
                             the detector plane.''') 
-parser.add_argument('--metrology', default=None, 
+parser.add_argument('-m', '--metrology', default=None, 
                     help='''A CSPAD Metrology. Either a flat text file of an 
                             optical metrology (see documentation) or a saved 
                             pypad.CSPad object. If not passed uses a default

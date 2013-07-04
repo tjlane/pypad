@@ -35,12 +35,12 @@ def parse():
     parser.add_argument('filter_params', default='filter_params.yaml',
                         help='''The filter parameters to employ (default: filter_params.yaml),
                                 can be easily generated from the `genfilter` script''')
-    parser.add_argument('--metrology', default=None, 
+    parser.add_argument('-m', '--metrology', default=None, 
                         help='''A CSPAD Metrology. Either a flat text file of an 
                                 optical metrology (see documentation) or a saved 
                                 pypad.CSPad object. If not passed uses a default
                                 metrology.''')
-    parser.add_argument('--output', default='my_cspad.cspad', type=str,
+    parser.add_argument('-o', '--output', default='my_cspad.cspad', type=str,
                         help='The file optimized CSPAD to (default: my_cspad.cspad)')
                         
     args = parser.parse_args()
@@ -67,7 +67,7 @@ def main():
     
     # load the initial CSPad object to start from
     if args.metrology:
-        cs1 = cspad.CSPad(args.metrology)
+        cs1 = cspad.CSPad.load(args.metrology)
     else:
         cs1 = cspad.CSPad.default()
     
