@@ -449,7 +449,7 @@ class MaskGUI(object):
         elif isinstance(mask, PadMask):
             self.mask = mask
         else:
-            raise TypeError('`mask` argument must be a pypad.padmask.PadMask object')
+            raise TypeError('`mask` argument must be a pypad.mask.PadMask object')
         
         
         # inject a new mask type into our PadMask obj
@@ -487,7 +487,7 @@ class MaskGUI(object):
         plt.figure()
         
         self.ax = plt.subplot(111)
-        self.im = plt.imshow( (self.log_image * self.mask.mask2d).T - 1e-10, cmap=self.palette,
+        self.im = plt.imshow( (self.log_image * self.mask.mask2d) - 1e-10, cmap=self.palette,
                               origin='lower', interpolation='nearest', vmin=1e-10, 
                               extent=[0, self.log_image.shape[0], 0, self.log_image.shape[1]] )
         
