@@ -18,11 +18,19 @@ import argparse
 from pypad import cspad
 from pypad.plot import sketch_2x1s
 
-parser = argparse.ArgumentParser(description='''Sketch a CSPad metrology. Useful for debugging.''')
+parser = argparse.ArgumentParser(description='''Sketch a CSPad metrology. 
+Useful for debugging.''')
 
-parser.add_argument('metrology', help='A CSPAD Metrology.')
+parser.add_argument('-m', '--metrology', help='''A CSPAD Metrology. Note you can also pass
+ "default" to draw a default CSPad, which is useful to show you how things 
+ should look.''', default='default')
                             
 args = parser.parse_args()
 
-cs1 = cspad.CSPad.load(args.metrology)
+if args.metrology == 'default':
+    cs1 = cspad.CSPad.default()
+else:
+    cs1 = cspad.CSPad.load(args.metrology)
+    
+cs1.dilate(5.0)
 sketch_2x1s(cs1.pixel_positions)

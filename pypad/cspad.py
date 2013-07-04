@@ -410,9 +410,10 @@ class CSPad(object):
             
             # in this case we assume that the overall positions and rotations
             # of the geometry are more or less set, so we set the base rotations
-            # to zero
+            # to zero and don't reflect over x
             
-            self._metrology_basis = metrology
+            self._metrology_basis    = metrology
+            self._reflect_xaxis      = False
             self._base_quad_rotation = [0.0, 0.0, 0.0, 0.0]  # deg ccw from upstream
             
             # skip the rest, which is about converting an optical metrology
@@ -428,14 +429,13 @@ class CSPad(object):
         # That information is incorporated in _generate_positional_basis()
         
         self._metrology_basis = BasisGrid()
+        self._reflect_xaxis = True
         self._base_quad_rotation = [90.0, 0.0, 270.0, 180.0] # deg ccw from upstream
         
         for q in range(4):
             print "\nParsing: quad %d" % q
             for two_by_one in range(8):
-                
                 asic_geoms = self._twobyone_to_bg(qms[q], two_by_one)
-                
                 for asic in range(2):
                     self._metrology_basis.add_grid( *asic_geoms[asic] )
         
@@ -802,12 +802,6 @@ class CSPad(object):
         return pix_pos
     
         
-    # @property
-    # def _base_quad_rotation(self):
-    #     # deg ccw from upstream
-    #     return [90.0, 0.0, 270.0, 180.0]
-        
-        
     def _asic_index(self, quad, two_by_one, asic):
         """
         Given a quad index, two_by_one index, asic index, all ints, return the 
@@ -913,7 +907,7 @@ class CSPad(object):
         assert bin_centers.shape == bin_values.shape
         return bin_centers, bin_values
     
-    
+        
     def _rotate_xy(self, vector, degrees_ccw):
         """
         Perform a rotation in the x-y plane of a 3-vector
@@ -959,9 +953,10 @@ class CSPad(object):
                     # we must mirror the x-coordinates of each vector to be consistent with
                     # the CXI coordinate convention, where the x-axis is positive towards
                     # the hutch door (right handed system)
-                    p[0] = -p[0]
-                    s[0] = -s[0]
-                    f[0] = -f[0]
+                    if self._reflect_xaxis:
+                        p[0] = -p[0]
+                        s[0] = -s[0]
+                        f[0] = -f[0]
                     
                     
                     # add the quad offset, which defines the relative spatial
@@ -1288,6 +1283,9 @@ class CSPad(object):
             An CSPad object.
         """
         
+        # NOTE ON UNITS: all CrystFEL units are pixel units, except the
+        # sample-to-detector offset
+        
         if not filename.endswith('.geom'):
             raise IOError('Can only read flat text files with extension `.geom`.'
                           ' Got: %s' % filename)
@@ -1308,7 +1306,7 @@ class CSPad(object):
             # measure the absolute detector offset
             # right now this appears to be the only z-information in the geometry...
             re_pz = re.search('coffset = (\d+.\d+..\d+)', geom_txt)
-            p_z = float(re_pz.group(1))
+            p_z = float(re_pz.group(1)) / 1000.0 # m --> mm
 
             # iterate over each quad / ASIC
             for q in range(4):
@@ -1331,11 +1329,14 @@ class CSPad(object):
                     s = s * (pixel_size / np.linalg.norm(s))
 
                     # match corner postions, that become the p vector
+                    # note we have to convert from pixel units to mm
+                    # and also that CrystFEL measures the corner from the actual
+                    # *corner*, and not the center of the corner pixel!
                     re_cx = re.search('q%da%d/corner_x = (.\d+.\d+)' % (q, a), geom_txt)
-                    p_x = float( re_cx.group(1) )
+                    p_x = (float( re_cx.group(1) ) + 0.5) * pixel_size
 
                     re_cy = re.search('q%da%d/corner_y = (.\d+.\d+)' % (q, a), geom_txt)
-                    p_y = float( re_cy.group(1) )
+                    p_y = (float( re_cy.group(1) ) + 0.5) * pixel_size
 
                     p = np.array([p_x, p_y, p_z])
 
