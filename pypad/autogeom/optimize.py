@@ -15,6 +15,9 @@ optimize.py
 Determine the relative positions of each quad at CXI using a calibration sample.
 """
 
+import time
+import pprint
+
 import numpy as np
 from scipy import optimize, interpolate
 
@@ -358,17 +361,34 @@ class Optimizer(object):
                                            sobel=self.sobel)
         else:
             image = raw_image
+            
+            
+        # benchmark our starting condition
+        init_objective = self._objective(initial_guesses, image)
+        time0 = time.clock()
 
         # run minimization -- downhill simplex
         opt_params = optimize.fmin(self._objective, initial_guesses, 
-                                   args=(image,), xtol=1e-3, ftol=1e-3)
+                                   args=(image,), xtol=1e-3, ftol=1e-3,
+                                   disp=0)
+        
+        # un-ravel & inject the param values in the CSPad object                           
+        param_dict = self._unravel_params(opt_params)
+        self.cspad.set_many_params(param_dict.keys(), param_dict.values())
+        
+        # print some diagnostics
+        print ""
+        print "Optimization terminated normally"
+        print "--------------------------------"
+        print "Objective function change:  %f" % (self._objective(opt_params, image) - init_objective)
+        print "Time to reach solution:     %.2g min" % ((time.clock()-time0) / 60.0)
+        #print "Final parameters:"
+        #pprint(param_dict)
+        print ""
+
                                           
         # turn off interactive plotting
         if self.plot_each_iteration: plt.ioff()
-                                   
-        # un-ravel & inject the param values in the CSPad object
-        param_dict = self._unravel_params(opt_params)
-        self.cspad.set_many_params(param_dict.keys(), param_dict.values())
-
+        
         return
     

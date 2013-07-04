@@ -15,6 +15,7 @@ This is an interactive platform for getting initial parameters for a geometry
 optimization.
 """
 
+import sys
 import argparse
 import yaml
 from pprint import pprint
@@ -70,7 +71,8 @@ def print_instructions():
     print " Adjust the sliders to optimize your image -- the goal is to get one"
     print " or more sharp powder rings on the image to show up above the noise."
     print ""
-    print " Instructions:"
+    print " Instructions"
+    print " ------------"
     print " -- Dilate:       Sets the size of the center hole for the forward"
     print "                  beam of the CSPAD."
     print " -- Threshold:    Sets a binary intensity threshold. The scale next"
@@ -84,9 +86,11 @@ def print_instructions():
     print " -- Gaussian:     A Gaussian filter, where each pixel is convoluted"
     print "                  by a Gaussian function. The parameter sets the"
     print "                  standard deviation of this Gaussian function."
-    print " -- Right Panel:  (Right Click) Set a 'peak limit', the algorithm"
-    print "                                only optimizes peaks between these "
-    print "                                limits. You can set many such regions."
+    print " -- Right Click: (Left Panel)  Sets the guess of the center of the "
+    print "                               image."
+    print "                 (Right Panel) Set a 'peak limit', the algorithm"
+    print "                               only optimizes peaks between these "
+    print "                               limits. You can set many such regions."
     print ""
     print " Once you are done, close the figure and the final parameters you have"
     print " in your window will be written to disk in a file that can be interpreted"
@@ -239,11 +243,28 @@ class InteractiveFilter(object):
     
     def on_click(self, event):
         """
-        If the user clicks on the image, put the beam_loc there.
+        If the user clicks on the image
         """
         if event.inaxes and (event.button is not 1):
-                                    
-            if event.inaxes == self.axR:
+
+            # clicks on left panel -- set beam center
+            # the center is always at (1000, 1000): so translate the entire 
+            # cspad to move the center
+            if event.inaxes == self.axL:
+                delta_center = (1000.0 - event.xdata, 1000.0 - event.ydata)
+                print "\nShifting center in x/y by: (%.2f, %.2f)" % delta_center
+                
+                offset = np.array(delta_center)[None,:] * 0.10992 # pxl --> mm
+                
+                if np.any( np.abs(self.cspad.quad_offset + offset) > 15.0 ):
+                    print "Warning: center move placed image outside reasonable"
+                    print "bounds: try again with."
+                else:
+                    self.cspad.quad_offset += offset                    
+                    self.update_image(event)
+                
+            # clicks on right panel -- set opt limits
+            elif event.inaxes == self.axR:
                 v_line = event.xdata
                 print "Set peak limit at: %f" % v_line
                 self.regions.append(v_line)
