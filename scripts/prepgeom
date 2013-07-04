@@ -332,7 +332,7 @@ class InteractiveFilter(object):
                        'rank_size'       : int(self.rank_slider.val),
                        'radius_range'    : radius_range,
                        'dilation'        : float(self.dilation),
-                       'center_shift'    : list(self.center),
+                       'center_shift'    : [ float(self.center[0]), float(self.center[1]) ],
                        'use_filter'      : bool(self.filter_on),
                        'params_to_optimize' : ['quad_offset_bydiag', 'quad_rotation'] }
         
