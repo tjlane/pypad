@@ -262,7 +262,7 @@ class Optimizer(object):
         # test to see if any ASICS are overlapping, and if they are return a big
         # number so the optimizer avoids those regions
         if self.cspad.do_asics_overlap:
-            print "Move caused ASIC overlap -- rejecting it"
+            print "Move caused ASIC overlap: rejecting it (no worry man, this is common)"
             return 1.0e300
         
 
@@ -328,7 +328,18 @@ class Optimizer(object):
         print ""
 
         initial_guesses = np.concatenate([ self.cspad.get_param(p).flatten() \
-                                           for p in self.params_to_optimize ])            
+                                           for p in self.params_to_optimize ])
+                                           
+                                           
+        # check to make sure the parameters are more or less on the same abs
+        # scale -- this can help ensure the optimizer works as advertised
+        if ( ( np.abs(initial_guesses).std() / np.abs(initial_guesses).mean()) > 5.0):
+            print "\nWARNING:"
+            print "  There is a large variation in the magnitudes of the intial"
+            print "  parameters passed to the optimization routine. Consider an"
+            print "  appropriate scaling to equilize the scale of each."
+            print "Parameters:", initial_guesses
+            print ""
 
         # turn on interactive plotting -- this is the only way I've gotten it 
         # to work
