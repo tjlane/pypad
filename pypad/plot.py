@@ -15,8 +15,10 @@ A library for plotting pretty images of all kinds.
 """
 
 import numpy as np
+
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
+import matplotlib.patches as plt_patches
 
 quad_colors = ['k', 'g', 'purple', 'b']
 
@@ -55,6 +57,8 @@ def sketch_2x1s(pixel_positions, mpl_axes=None):
             ax.plot(corners[:,0], corners[:,1], lw=2, color=quad_colors[i])
             ax.scatter(x[0,0], y[0,0])
             
+    beam_center = plt_patches.Circle((0, 0), 2, fill=True, lw=1, color='orange')
+    ax.add_patch(beam_center)
             
     # mirror x axis for CXI convention
     if not ax.xaxis_inverted():

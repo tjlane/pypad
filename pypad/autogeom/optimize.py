@@ -83,6 +83,7 @@ class Optimizer(object):
         self.radius_range        = []
         self.plot_each_iteration = True
         self.dilation            = 5.0
+        self.center_shift        = (0.0, 0.0)
         
         # probably deprecated
         # self.n_bins              = 200
@@ -111,8 +112,10 @@ class Optimizer(object):
         else:
             self.radius_range = np.sort(np.array(self.radius_range, dtype=np.float))
         
-        # apply the dilation
+        # apply the dilation and center offset
         self.cspad.dilate(self.dilation)
+        offset = np.array(self.center_shift)[None,:] * 0.10992
+        self.cspad.quad_offset += offset
         
         return
 
