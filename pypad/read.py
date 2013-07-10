@@ -67,17 +67,19 @@ def load_raw_image(filename, image_in_file=0):
             except:
                 raise IOError('Was expecting old cheetah format, but: /data/data not found!')
                 
-        elif 'entry_1' in f.keys():
-            try:
-                ds = f['/entry_1/instrument_1/detector_1/data']
-                raw_image = ds[image_in_file]
-            except:
-                raise IOError('Error reading image %d in cheetah/CXIdb file' % image_in_file)
-            
         else:
             raise IOError('Could not safely interpret hdf5 file. Can only read'
                           'Cheetah and Psana h5 images.')
         
+        f.close()
+
+    elif filename.endswith('.cxi'):
+        f = h5py.File(filename)
+        try:
+            ds = f['/entry_1/instrument_1/detector_1/data']
+            raw_image = ds[image_in_file]
+        except:
+             raise IOError('Error reading image %d in cheetah/CXIdb file' % image_in_file)
         f.close()
         
     elif filename.endswith('.npz'):
