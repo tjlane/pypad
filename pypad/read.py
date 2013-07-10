@@ -27,7 +27,7 @@ def load_raw_image(filename, image_in_file=0):
     
     Currently supported formats:
         -- psana hdf5
-        -- cheetah hdf5
+        -- cheetah hdf5 (old & CXIdb)
         -- npz : numpy-z compression
         -- txt : flat text
     
@@ -52,14 +52,33 @@ def load_raw_image(filename, image_in_file=0):
     
     if filename.endswith('.h5'):
         f = h5py.File(filename)
-        try:
-            # psana format
-            raw_image = np.array( f[('/data%d/raw' % image_in_file)] )
-        except:
-            # cheetah format
-            raw_image = np.array( f['/data/data'] )
-        finally:
-            f.close()
+
+        # psana format
+        if ('data%d' % image_in_file) in f.keys():
+            try:
+                raw_image = np.array( f[('/data%d/raw' % image_in_file)] )
+            except:
+                raise IOError('Was expecting psana format, but: /dataX/raw not found!')
+            
+        # old cheetah format
+        elif 'data' in f.keys():
+            try:
+                raw_image = np.array( f['/data/data'] )
+            except:
+                raise IOError('Was expecting old cheetah format, but: /data/data not found!')
+                
+        elif 'entry_1' in f.keys():
+            try:
+                ds = f['/entry_1/instrument_1/detector_1/data']
+                raw_image = ds[image_in_file]
+            except:
+                raise IOError('Error reading image %d in cheetah/CXIdb file' % image_in_file)
+            
+        else:
+            raise IOError('Could not safely interpret hdf5 file. Can only read'
+                          'Cheetah and Psana h5 images.')
+        
+        f.close()
         
     elif filename.endswith('.npz'):
         raw_image = np.load(filename)['arr_%d' % image_in_file]
@@ -159,4 +178,3 @@ def enforce_raw_img_shape(raw_image):
                          str(raw_image.shape))
     
     return new_image
-
