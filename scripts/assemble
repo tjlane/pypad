@@ -46,11 +46,11 @@ if args.metrology:
 else:
     cs1 = cspad.CSPad.default()
 
-plt.figure()
+fig = plt.figure()
 ax = plt.subplot(111)
 
 # plot assembled image
-imshow_cspad( cs1(raw_image), ax=ax )
+imshow_cspad( cs1(raw_image), ax=ax, scrollable=True )
 
 if args.center:
     # plot beam center

@@ -367,11 +367,11 @@ class Optimizer(object):
             
             
         # benchmark our starting condition
-        init_objective = self._objective(initial_guesses, image)
+        init_objective = float( self._objective(initial_guesses, image) )
         time0 = time.clock()
 
         # run minimization -- downhill simplex
-        opt_params = optimize.fmin(self._objective, initial_guesses, 
+        opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
                                    args=(image,), xtol=1e-3, ftol=1e-3,
                                    disp=0)
         

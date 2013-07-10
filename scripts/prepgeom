@@ -170,6 +170,7 @@ class InteractiveFilter(object):
         
         # deals with clicking on the plot
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
+        self.fig.canvas.mpl_connect('scroll_event', self.on_scroll)
         
         # actually show the image!
         self.update_image()
@@ -229,7 +230,7 @@ class InteractiveFilter(object):
                                               rank_size=rnk,
                                               sobel=self.sobel_filter)
         
-        imshow_cspad(self.cspad(filtered_image), ax=self.axL)
+        self.im = imshow_cspad(self.cspad(filtered_image), ax=self.axL)
         
         # plot beam center
         beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='w')
@@ -275,6 +276,20 @@ class InteractiveFilter(object):
                 self.update_image(event)
                     
         return
+        
+        
+    def on_scroll(self, event):
+        
+        lims = self.im.get_clim()
+        speed = 1.2
+
+        if event.button == 'up':
+            colmax = lims[1] / speed
+        elif event.button == 'down':
+            colmax = lims[1] * speed
+
+        self.im.set_clim(lims[0], colmax)
+        plt.draw()
     
 
     def reset(self, event):
