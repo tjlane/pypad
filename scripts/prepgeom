@@ -126,6 +126,7 @@ class InteractiveFilter(object):
         self.dilation     = 0.0
         self.regions      = []
         self.filter_on    = False
+        self.colorbar     = None
         
         # display the image with sliders for each parameter
         axcolor = 'lightgoldenrodyellow'
@@ -230,7 +231,13 @@ class InteractiveFilter(object):
                                               rank_size=rnk,
                                               sobel=self.sobel_filter)
         
-        imshow_cspad(self.cspad(filtered_image), ax=self.axL)
+        self.im = imshow_cspad(self.cspad(filtered_image), ax=self.axL)
+        
+        # add colorbar
+        if not self.colorbar:
+            self.colorbar = plt.colorbar(self.im, ax=self.axL, pad=0.03)
+            print self.colorbar
+            self.orglims = self.im.get_clim()
         
         # plot beam center
         beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='w')
@@ -247,15 +254,38 @@ class InteractiveFilter(object):
         """
         If the user clicks on the image, put the beam_loc there.
         """
-        if event.inaxes and (event.button is not 1):
-                                    
-            if event.inaxes == self.axR:
+        print "on_click"
+        if event.inaxes:
+            print "inaxes"
+            lims = self.im.get_clim()
+            colmin = lims[0]
+            colmax = lims[1]
+            range = colmax - colmin
+            value = colmin + event.ydata * range
+            if event.button is 1:
+                print "button1"
+                if value > colmin and value < colmax:
+                    print value
+                    colmin = value
+            elif event.button is 2:
+                print "button2"
+                colmin, colmax = self.orglims
+            elif event.button is 3:
+                print "button3"
+                if value > colmin and value < colmax:
+                    print value
+                    colmax = value
+            self.im.set_clim(colmin, colmax)
+            plt.draw()
+            
+            if event.inaxes == self.axR and event.button is 3:
+                print "TJ"
                 v_line = event.xdata
                 print "Set peak limit at: %f" % v_line
                 self.regions.append(v_line)
                 self.axR.cla()
                 self.update_image(event)
-                    
+        
         return
     
 
