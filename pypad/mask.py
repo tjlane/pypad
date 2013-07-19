@@ -409,7 +409,7 @@ class PadMask(object):
             m._masks[k] = np.array(f[k])
         f.close()
         
-        return
+        return m
     
     
 class MaskGUI(object):
