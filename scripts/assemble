@@ -36,10 +36,12 @@ parser.add_argument('-m', '--metrology', default=None,
                             optical metrology (see documentation) or a saved 
                             pypad.CSPad object. If not passed uses a default
                             metrology.''')
+parser.add_argument('-s', '--shot', default=0, type=int,
+                    help='''Which shot to display (for files with many shots). Default: 0''')
                             
 args = parser.parse_args()
 
-raw_image = read.load_raw_image(args.image_file)
+raw_image = read.load_raw_image(args.image_file, args.shot)
 
 if args.metrology:
     cs1 = cspad.CSPad.load(args.metrology)
