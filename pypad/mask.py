@@ -45,7 +45,7 @@ class PadMask(object):
         m = np.product( np.array(self._masks.values()), axis=0 )
         assert m.shape == (4,16,185,194)
         return m
-        
+    
         
     @property
     def mask2d(self):

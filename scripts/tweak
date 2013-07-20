@@ -1,0 +1,105 @@
+#!/usr/bin/env python
+
+# THIS FILE IS PART OF PyPad, AND IS GOVERENED BY A PERMISSIBILITY LICENSE 
+# GOVERNING ITS USE AND DISTRIBUTION. YOU SHOULD HAVE RECIEVED A COPY OF THIS
+# LICENSE WITH THE SOFTWARE; IF NOT PROVIDED, WRITE TO <tjlane@stanford.edu>.
+#
+# AUTHORS:
+# TJ Lane <tjlane@stanford.edu>
+# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+#
+# Apr 30, 2013
+
+"""
+Tweak a geometry manually.
+"""
+
+import argparse
+import numpy as np
+
+from pypad import cspad
+from pypad import plot
+from pypad import read
+
+import matplotlib.pyplot as plt
+
+
+
+class Tweaker(object):
+    
+    def __init__(self, raw_image, geom):
+        
+        self.raw_image = raw_image
+        self.geom = geom
+        
+        self.fig = plt.figure()
+        self.ax = plt.subplot(111)
+        self.im = plot.imshow_cspad( self.geom(raw_image), ax=self.ax, scrollable=True )
+        self.fig.canvas.mpl_connect('key_press_event', self._on_keypress)
+        plt.show()
+        
+        return
+    
+        
+    def _on_keypress(self, event):
+        
+        # dilation
+        if event.key == 'd':
+            dilation = float( raw_input('\nEnter dilation [mm]: ') )
+            self.geom.dilate(dilation)
+        
+        # offset
+        elif event.key == 'f':
+            print "\nAdjusting quad offsets"
+            print "Current offsets:", geom.quad_offset
+            ri_xoffsets = raw_input('Enter x-axis offset for each quad [mm]: ')
+            ri_yoffsets = raw_input('Enter y-axis offset for each quad [mm]: ')
+    
+            offsets = np.vstack([ np.fromstring(ri_xoffsets, dtype=np.float, sep=' '), 
+                                  np.fromstring(ri_yoffsets, dtype=np.float, sep=' ') ])
+    
+            print "New offsets:", offsets
+            self.geom.set_param('quad_offset', offsets)
+    
+        # tilt
+        elif event.key == 't':
+            print "\nAdjusting quad tilts"
+            print "Current tilts:", geom.quad_offset
+            tilts = np.fromstring(raw_input('Enter tilts for each quad [deg]: '),
+                                  dtype=np.float, sep=' ')
+            print "New tilts:", offsets
+            self.geom.set_param('quad_rotation', offsets)
+            
+            
+        elif event.key == 'x':
+            print "Saving..."
+            self.geom.save('tweaked.cspad')
+        
+        else:
+            pass
+        
+        # update the image
+        plot.imshow_cspad( self.geom(self.raw_image), ax=self.ax )
+        plt.draw()
+    
+        return
+    
+
+# parse
+parser = argparse.ArgumentParser(description='''Tweak a geometry manually.''')
+parser.add_argument('image_file', help='The (raw) image file of the calibration standard')
+parser.add_argument('cspad', help='The geometry file.')
+args = parser.parse_args()
+
+raw_image = read.load_raw_image(args.image_file)
+geom = cspad.CSPad.load(args.cspad)
+
+print ""
+print "Instructions"
+print " d = dilation "
+print " f = offsets "
+print " t = tilts / rotations "
+print " x = save "
+print ""
+
+tw = Tweaker(raw_image, geom)
