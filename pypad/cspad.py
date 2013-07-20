@@ -372,12 +372,13 @@ class CSPad(object):
     """
     
     def __init__(self, metrology, quad_offset=np.zeros((4,2)), 
-                 quad_rotation=np.zeros(4)):
+                 quad_rotation=np.zeros(4), verbose=True):
         """
         Initialize an instance of CSPad, corresponding to a single CSPad
         geometry.             
         """
         
+        self.verbose = verbose
         self.metrology = metrology
         
         self._param_list = _array_sizes.keys()
@@ -433,7 +434,7 @@ class CSPad(object):
         self._base_quad_rotation = [90.0, 0.0, 270.0, 180.0] # deg ccw from upstream
         
         for q in range(4):
-            print "\nParsing: quad %d" % q
+            if self.verbose: print "\nParsing: quad %d" % q
             for two_by_one in range(8):
                 asic_geoms = self._twobyone_to_bg(qms[q], two_by_one)
                 for asic in range(2):
@@ -544,9 +545,10 @@ class CSPad(object):
         value = np.degrees( np.arcsin(np.dot(v, w) / ( np.linalg.norm(v) * np.linalg.norm(w) ) ))
         
         if not np.abs(value) <= tol:
-            print "WARNING: Metrology quality control failed for 2x1: %d" % two_by_one_index
-            print '--> s/f vectors are not orthogonal :: enforcing orthogonality!'
-            print "    Angle: %f // tol: %f" % (value, tol)
+            if self.verbose:
+                print "WARNING: Metrology quality control failed for 2x1: %d" % two_by_one_index
+                print '--> s/f vectors are not orthogonal :: enforcing orthogonality!'
+                print "    Angle: %f // tol: %f" % (value, tol)
             passed = False
         else:
             passed = True
@@ -1147,7 +1149,7 @@ class CSPad(object):
     @classmethod
     def default(cls):
         metrology = np.array([default.q0, default.q1, default.q2, default.q3])
-        return cls(metrology)
+        return cls(metrology, verbose=False)
     
         
     @classmethod

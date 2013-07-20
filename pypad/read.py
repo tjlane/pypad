@@ -1,5 +1,3 @@
-
-
 # THIS FILE IS PART OF PyPad, AND IS GOVERENED BY A PERMISSIBILITY LICENSE 
 # GOVERNING ITS USE AND DISTRIBUTION. YOU SHOULD HAVE RECIEVED A COPY OF THIS
 # LICENSE WITH THE SOFTWARE; IF NOT PROVIDED, WRITE TO <tjlane@stanford.edu>.
@@ -66,7 +64,11 @@ def load_raw_image(filename, image_in_file=0):
                 raw_image = np.array( f['/data/data'] )
             except:
                 raise IOError('Was expecting old cheetah format, but: /data/data not found!')
-                
+            if raw_image.shape != (1480,1552):
+                try:
+                    raw_image = np.array( f['/data/correcteddata'] )
+                except:
+                    raise IOError('/data/rawdata not found!')
         else:
             raise IOError('Could not safely interpret hdf5 file. Can only read'
                           'Cheetah and Psana h5 images.')
