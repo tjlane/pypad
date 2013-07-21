@@ -68,7 +68,7 @@ def load_raw_image(filename, image_in_file=0):
                 try:
                     raw_image = np.array( f['/data/correcteddata'] )
                 except:
-                    raise IOError('/data/rawdata not found!')
+                    raise IOError('/data/correcteddata not found!')
         else:
             raise IOError('Could not safely interpret hdf5 file. Can only read'
                           'Cheetah and Psana h5 images.')
@@ -182,3 +182,4 @@ def enforce_raw_img_shape(raw_image):
                          str(raw_image.shape))
     
     return new_image
+
