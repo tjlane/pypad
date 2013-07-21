@@ -971,7 +971,7 @@ class CSPad(object):
         return bg
     
         
-    def _asic_rotation(self, quad_index, asic_index):
+    def _asic_rotation(self, quad_index, asic_index, remove_base=True):
         """
         Return the xy-rotation of the asic *within the frame of the quad*. Does
         this by comparing the fast-scan vector to [1,0].
@@ -998,148 +998,100 @@ class CSPad(object):
         
         # remove what the default is, due to the CSPad geometry,
         # after our manipulations
-        if i in [0,1]:
-            base = 0.0
-        elif i in [2,3,6,7]:
-            base = 270.0
-        elif i in [4,5]:
-            base = 180.0
+        if remove_base:
+            if i in [0,1]:
+                base = 0.0
+            elif i in [2,3,6,7]:
+                base = 270.0
+            elif i in [4,5]:
+                base = 180.0
             
-        theta -= base
+            theta -= base
         
         return theta
     
-
-    def _twobyone_location(self, quad_index, two_by_one_index):
-        """
-        Return the lower-left corner of the asic *within the frame of the quad*.
-        
-        Parameters
-        ----------
-        quad_index : int
-            The quad index: 0,1,2,3
-            
-        two_by_one_index : int
-            The index of the 2x1: 0,1,...,7
-            
-        Returns
-        -------
-        c : np.ndarray
-            A 3-vector indicating where the lower-left corner of the ASIC is.
-            Note that here ***x has not been mirrored*** since we are working
-            in the frame of the quad metrology.
-        """
-        
-        # always take the first ASIC
-        p, s, f, shape = self._metrology_basis.get_grid( self._asic_index(quad_index, two_by_one_index, 0) )
-        
-        # CXI is the wild west -- no rules, so roll it manually
-        if two_by_one_index in [0,1]:
-            c = p.copy() + 185 * s.copy()
-        elif two_by_one_index in [2,3,6,7]:
-            c = p.copy() + 185 * s.copy() + (194*2 + 3) * f.copy()
-        elif two_by_one_index in [4,5]:
-            c = p.copy() + (194*2 + 3) * f.copy()
-        else:
-            raise ValueError('`two_by_one_index` must be in [0,7]')
-        
-        return c
-    
-        
-    def _assemble_quad(self, quad_image, quad_index):
-        """
-        Assemble the geometry of an individual quad
-        """
-
-        assert quad_image.shape == (16,185,194)
-
-        # make the array for this quadrant
-        quad_px_size = 850
-        quadrant = np.zeros( (quad_px_size, quad_px_size), dtype=quad_image.dtype )
-
-        for i in range(8):
-
-            # assemble the 2x1 -- insert a 3 px gap
-            gap = np.zeros( (185,3), dtype=quad_image.dtype )
-            two_by_one = np.hstack( (quad_image[i*2,:,:], gap, 
-                                    quad_image[i*2+1,:,:]) )
-
-            # re-orient data
-            if i in [0,1]:
-                two_by_one = two_by_one[::-1,:]
-            elif i in [2,3,6,7]:
-                two_by_one = two_by_one[::-1,::-1].T
-            elif i in [4,5]:
-                two_by_one = two_by_one[:,::-1]
-
-
-            # rotate the 2x1 to be in the correct orientation
-            two_by_one = interp.rotate(two_by_one, -self._asic_rotation(quad_index, i),
-                                       output=two_by_one.dtype)
-
-            # find the corner
-            c = self._twobyone_location(quad_index, i)
-            cs = int( c[0] / self.pixel_size )
-            rs = int( c[1] / self.pixel_size )
-      
-            if (rs < 0) or (rs+two_by_one.shape[0] > quad_px_size):
-                raise ValueError('rs: out of bounds in rows')
-            if (cs < 0) or (cs+two_by_one.shape[1] > quad_px_size):
-                raise ValueError('cs: out of bounds in cols')
-
-            quadrant[rs:rs+two_by_one.shape[0],cs:cs+two_by_one.shape[1]] = two_by_one.copy()
-       
-        return quadrant
-           
            
     def _assemble_image(self, raw_image):
         """
         Build each of the four quads, and put them together.
         """
-    
-        assert raw_image.shape == (4,16,185,194)
         
         # set up the raw image and the assembled template
         raw_image = read.enforce_raw_img_shape(raw_image)
+        assert raw_image.shape == (4,16,185,194)
         
         # for some reason, bool types don't work. Make them ints
         if raw_image.dtype == np.bool:
             raw_image = raw_image.astype(np.int32)
         
-        bounds = 2*850 + 300 # JAS: total image range is 2000, ensures beam center is at (1000,1000)
+        bounds = 2000 # JAS: total image range is 2000, ensures beam center is at (1000,1000)
         assembled_image = np.zeros((bounds, bounds), dtype=raw_image.dtype)
-
+    
         # iterate over quads
         for quad_index in range(4):
+            for two_by_one in range(8):
+                
+                # assemble the 2x1 -- insert a 3 px gap
+                gap = np.zeros( (185,3), dtype=raw_image.dtype )
+                two_by_one_img = np.hstack( (raw_image[quad_index,two_by_one*2,:,:], gap, 
+                                             raw_image[quad_index,two_by_one*2+1,:,:]) )
+                                             
+                # re-orient data according to the way data are read off each
+                # two-by-one
+                if two_by_one in [0,1]:
+                    two_by_one_img = two_by_one_img[::-1,:]
+                elif two_by_one in [2,3,6,7]:
+                    two_by_one_img = two_by_one_img[::-1,::-1].T
+                elif two_by_one in [4,5]:
+                    two_by_one_img = two_by_one_img[:,::-1]
+                
+                
+                # here the rotation is off between dtc/cspad by 180 in some quads
+                print self._asic_rotation(quad_index, two_by_one), self._base_quad_rotation[quad_index], self.quad_rotation[quad_index]
+                two_by_one_img = interp.rotate(two_by_one_img,
+                                               -self._asic_rotation(quad_index, two_by_one) - self._base_quad_rotation[quad_index] - self.quad_rotation[quad_index],
+                                               output=two_by_one_img.dtype,
+                                               reshape=True)
+                
+                # determine the position of the 2x1 corner that is furthest
+                # towards the bottom-left -- do this by first finding the center
+                corners0 = self.basis_repr.get_grid_corners( self._asic_index(quad_index, two_by_one, 1) )
+                corners1 = self.basis_repr.get_grid_corners( self._asic_index(quad_index, two_by_one, 0) )
+                
+                # un-swap x-axis and re-swap below -- necessary b/c now we
+                # have data in two_by_one_img that needs swap
+                corners0[:,0] = -corners0[:,0]
+                corners1[:,0] = -corners1[:,0]
+                
+                center = ( np.concatenate([corners0[:,0], corners1[:,0]]).mean(),
+                           np.concatenate([corners0[:,1], corners1[:,1]]).mean() )
+                 
+                # corner          
+                c = (center[0] / self.pixel_size - two_by_one_img.shape[1] / 2.,
+                     center[1] / self.pixel_size - two_by_one_img.shape[0] / 2.,)
 
-            quad_index_image = self._assemble_quad( raw_image[quad_index], quad_index )
+                # the center will be at 1000, 1000 by convention
+                cs = int(c[0]) + 1000
+                rs = int(c[1]) + 1000
 
-            qr = [90, 0 , 270, 180]
-            
-            # this interp method goes CW, so we have to take the negative...
-            quad_index_image = interp.rotate( quad_index_image, 
-                                              -(self._base_quad_rotation[quad_index] + self.quad_rotation[quad_index]),
-                                              reshape=False,
-                                              output=quad_index_image.dtype )
-                                  
-            # shift the quads into their respective places
-            base_row = [850,   850,   0,   0]
-            base_col = [  0,   850, 850,   0]
-            qoff_row = int(  self.quad_offset[quad_index,1] / self.pixel_size) + \
-                             base_row[quad_index] + 150
-            qoff_col = int( -self.quad_offset[quad_index,0] / self.pixel_size) + \
-                             base_col[quad_index] + 150
-                        
-            if (qoff_row < 0) or (qoff_row >= bounds):
-                raise ValueError('qoff_row: %d out of bounds [0,%d)' % (qoff_row, bounds))
-            if (qoff_col < 0) or (qoff_col >= bounds):
-                raise ValueError('qoff_col: %d out of bounds [0,%d)' % (qoff_col, bounds))
-            
-            assembled_image[qoff_row:qoff_row+850, qoff_col:qoff_col+850] = quad_index_image[:,:]
+                if (rs < 0) or (rs+two_by_one_img.shape[0] > bounds):
+                    raise ValueError('rs: out of bounds in rows. CSPAD geometry '
+                                     'extends beyond 2000 x 2000 grid it is '
+                                     'assembled on. It is likely that your CSPAD '
+                                     'geometry is wacky in some respect -- use '
+                                     '`sketch-metrology` script to check.')
+                if (cs < 0) or (cs+two_by_one_img.shape[1] > bounds):
+                    raise ValueError('cs: out of bounds in cols. CSPAD geometry '
+                                     'extends beyond 2000 x 2000 grid it is '
+                                     'assembled on. It is likely that your CSPAD '
+                                     'geometry is wacky in some respect -- use '
+                                     '`sketch-metrology` script to check.')
+
+                assembled_image[rs:rs+two_by_one_img.shape[0],cs:cs+two_by_one_img.shape[1]] = two_by_one_img
         
         # swap x-axis to conform to CXI convention
         assembled_image = assembled_image[:,::-1]
-
+    
         return assembled_image
         
         
