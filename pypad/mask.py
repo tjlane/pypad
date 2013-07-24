@@ -575,7 +575,7 @@ class MaskGUI(object):
     
     
     def update_image(self):
-        self.im.set_data( (self.log_image * self.mask.mask2d).T - 1e-10 )
+        self.im.set_data( (self.log_image * self.mask.mask2d) - 1e-10 )
         return
 
     
@@ -615,8 +615,8 @@ class MaskGUI(object):
             self.xy = np.vstack(( self.xy, self.xy[0,:] ))
             inds = self.points[points_inside_poly(self.points+0.5, self.xy)]
             
-            print self.xy
-            print inds
+            #print self.xy
+            #print inds
 
             # if we're going to mask, mask
             if event.key == 'm':
@@ -640,11 +640,8 @@ class MaskGUI(object):
         # reset all masks
         elif event.key == 'r':
             print 'Unmasking all'
-            
             self.mask._masks['manual'] = self.mask._blank_mask()
-            
             self.update_image()
-            
             self._reset()
             #self.im.autoscale()
             plt.draw()
@@ -736,7 +733,7 @@ class MaskGUI(object):
         
         # index each asic, in the correct order
         # abs asic_index = x / num_x + y / num_y * asics-in-x
-        of64 = (inds[:,0] / 185) * 2 + (inds[:,1] / 388) * 16 + (inds[:,1] / 194) % 2
+        of64 = (inds[:,1] / 185) * 2 + (inds[:,0] / 388) * 16 + (inds[:,0] / 194) % 2
         assert np.all(of64 < 64)
         
         # quads / asics
@@ -744,8 +741,8 @@ class MaskGUI(object):
         inds_4d[:,1] = of64 % 16
         
         # x / y
-        inds_4d[:,2] = inds[:,0] % 185
-        inds_4d[:,3] = inds[:,1] % 194
+        inds_4d[:,2] = inds[:,1] % 194
+        inds_4d[:,3] = inds[:,0] % 185
         
         return inds_4d
         
