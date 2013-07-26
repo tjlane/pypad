@@ -489,7 +489,7 @@ class MaskGUI(object):
         self.ax = plt.subplot(111)
         self.im = plt.imshow( (self.log_image * self.mask.mask2d) - 1e-10, cmap=self.palette,
                               origin='lower', interpolation='nearest', vmin=1e-10, 
-                              extent=[0, self.log_image.shape[0], 0, self.log_image.shape[1]] )
+                              extent=[0, self.log_image.shape[1], 0, self.log_image.shape[0]] )
         
         self.lc, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
         self.lm, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
@@ -732,17 +732,19 @@ class MaskGUI(object):
         inds_4d = np.zeros((inds.shape[0], 4), dtype=np.int32)
         
         # index each asic, in the correct order
-        # abs asic_index = x / num_x + y / num_y * asics-in-x
-        of64 = (inds[:,1] / 185) * 2 + (inds[:,0] / 388) * 16 + (inds[:,0] / 194) % 2
+        of64 = (inds[:,1] / 194) * 2 + (inds[:,0] / 370) * 16 + (inds[:,0] / 185) % 2
         assert np.all(of64 < 64)
         
         # quads / asics
+        # print 'masking in ASICs:', inds, of64
         inds_4d[:,0] = of64 / 16
         inds_4d[:,1] = of64 % 16
         
-        # x / y
-        inds_4d[:,2] = inds[:,1] % 194
-        inds_4d[:,3] = inds[:,0] % 185
+        # x / y : note the image is displayed transposed
+        inds_4d[:,2] = (inds[:,1] % 185)
+        inds_4d[:,3] = (inds[:,0] % 194)
+        
+        print inds_4d
         
         return inds_4d
         
