@@ -272,8 +272,8 @@ class BasisGrid(object):
                              ' (zero indexed)' % (self.num_grids, grid_number))
 
         # compute the lengths of the parallelogram sides
-        s_side = self._fs[grid_number] * float(self._shapes[grid_number][0])
-        f_side = self._ss[grid_number] * float(self._shapes[grid_number][1])
+        s_side = self._ss[grid_number] * float(self._shapes[grid_number][0])
+        f_side = self._fs[grid_number] * float(self._shapes[grid_number][1])
         pc = self._ps[grid_number].copy()
 
         corners = np.zeros((4,3))
@@ -971,7 +971,7 @@ class CSPad(object):
         return bg
     
         
-    def _asic_rotation(self, quad_index, asic_index, remove_base=True):
+    def _asic_rotation(self, quad_index, asic_index):
         """
         Return the xy-rotation of the asic *within the frame of the quad*. Does
         this by comparing the fast-scan vector to [1,0].
@@ -990,23 +990,28 @@ class CSPad(object):
             The rotation, in degrees.
         """
         
+        if (quad_index > 3) or (quad_index < 0) or (asic_index > 16) or (asic_index < 0):
+            raise ValueError('Invalid ASIC index (quad, asic) : (%d, %d)' % (quad_index, asic_index))
+        
         # determine the rotation
         i = asic_index / 2
         j = asic_index % 2
-        p, s, f, shape = self._metrology_basis.get_grid( self._asic_index(quad_index, i, j) )
+        
+        p, s, f, shape = self.basis_repr.get_grid( self._asic_index(quad_index, i, j) )
         theta = utils.arctan3(f[1], f[0]) * (360. / (np.pi * 2.0))
         
         # remove what the default is, due to the CSPad geometry,
         # after our manipulations
-        if remove_base:
-            if i in [0,1]:
-                base = 0.0
-            elif i in [2,3,6,7]:
-                base = 270.0
-            elif i in [4,5]:
-                base = 180.0
-            
-            theta -= base
+        # if i in [0,1]:
+        #     base = 0.0
+        # elif i in [2,3]:
+        #     base = 90.0
+        # elif i in [4,5]:
+        #     base = 180.0
+        # elif i in [6,7]:
+        #     base = 90.0
+        #
+        # theta -= base
         
         return theta
     
@@ -1036,27 +1041,32 @@ class CSPad(object):
                 two_by_one_img = np.hstack( (raw_image[quad_index,two_by_one*2,:,:], gap, 
                                              raw_image[quad_index,two_by_one*2+1,:,:]) )
                                              
-                # re-orient data according to the way data are read off each
-                # two-by-one
-                if two_by_one in [0,1]:
-                    two_by_one_img = two_by_one_img[::-1,:]
-                elif two_by_one in [2,3,6,7]:
-                    two_by_one_img = two_by_one_img[::-1,::-1].T
-                elif two_by_one in [4,5]:
-                    two_by_one_img = two_by_one_img[:,::-1]
+                # flip x data to conform w/CXI convention
+                # note that which dim is x changes w/two_by_one and quad_index
+                if quad_index in [0,2]:
+                    if two_by_one in [2,3,6,7]:
+                        two_by_one_img = two_by_one_img[:,::-1]
+                    elif two_by_one in [0,1,4,5]:
+                        two_by_one_img = two_by_one_img[::-1,:]
+                elif quad_index in [1,3]:
+                    if two_by_one in [2,3,6,7]:
+                        two_by_one_img = two_by_one_img[::-1,:]
+                    elif two_by_one in [0,1,4,5]:
+                        two_by_one_img = two_by_one_img[:,::-1]
                 
                 
                 # here the rotation is off between dtc/cspad by 180 in some quads
-                print self._asic_rotation(quad_index, two_by_one), self._base_quad_rotation[quad_index], self.quad_rotation[quad_index]
+                print quad_index, two_by_one, self._asic_rotation(quad_index, two_by_one*2)
                 two_by_one_img = interp.rotate(two_by_one_img,
-                                               -self._asic_rotation(quad_index, two_by_one) - self._base_quad_rotation[quad_index] - self.quad_rotation[quad_index],
+                                               -self._asic_rotation(quad_index, two_by_one*2),
                                                output=two_by_one_img.dtype,
                                                reshape=True)
                 
+                
                 # determine the position of the 2x1 corner that is furthest
                 # towards the bottom-left -- do this by first finding the center
-                corners0 = self.basis_repr.get_grid_corners( self._asic_index(quad_index, two_by_one, 1) )
-                corners1 = self.basis_repr.get_grid_corners( self._asic_index(quad_index, two_by_one, 0) )
+                corners0 = self.basis_repr.get_grid_corners( self._asic_index(quad_index, two_by_one, 0) )
+                corners1 = self.basis_repr.get_grid_corners( self._asic_index(quad_index, two_by_one, 1) )
                 
                 # un-swap x-axis and re-swap below -- necessary b/c now we
                 # have data in two_by_one_img that needs swap
@@ -1066,7 +1076,7 @@ class CSPad(object):
                 center = ( np.concatenate([corners0[:,0], corners1[:,0]]).mean(),
                            np.concatenate([corners0[:,1], corners1[:,1]]).mean() )
                  
-                # corner          
+                # find the bottom left corner (note x is cols, so swap inds)         
                 c = (center[0] / self.pixel_size - two_by_one_img.shape[1] / 2.,
                      center[1] / self.pixel_size - two_by_one_img.shape[0] / 2.,)
 
@@ -1089,9 +1099,10 @@ class CSPad(object):
 
                 assembled_image[rs:rs+two_by_one_img.shape[0],cs:cs+two_by_one_img.shape[1]] = two_by_one_img
         
+        
         # swap x-axis to conform to CXI convention
         assembled_image = assembled_image[:,::-1]
-    
+        
         return assembled_image
         
         
