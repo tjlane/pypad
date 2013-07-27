@@ -45,8 +45,17 @@ raw_image = read.load_raw_image(args.image_file, args.shot)
 
 if args.metrology:
     cs1 = cspad.CSPad.load(args.metrology)
+    fn = args.metrology
 else:
     cs1 = cspad.CSPad.default()
+    fn = 'DEFAULT'
+    
+print ""
+print "Assembling image on: %s" % fn
+print "Note that assembled image is accurate to only one pixel and is a "
+print "projection into the x/y plane"
+print ""
+    
 
 fig = plt.figure()
 ax = plt.subplot(111)
