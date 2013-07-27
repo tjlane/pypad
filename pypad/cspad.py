@@ -1000,19 +1000,6 @@ class CSPad(object):
         p, s, f, shape = self.basis_repr.get_grid( self._asic_index(quad_index, i, j) )
         theta = utils.arctan3(f[1], f[0]) * (360. / (np.pi * 2.0))
         
-        # remove what the default is, due to the CSPad geometry,
-        # after our manipulations
-        # if i in [0,1]:
-        #     base = 0.0
-        # elif i in [2,3]:
-        #     base = 90.0
-        # elif i in [4,5]:
-        #     base = 180.0
-        # elif i in [6,7]:
-        #     base = 90.0
-        #
-        # theta -= base
-        
         return theta
     
            
@@ -1056,7 +1043,6 @@ class CSPad(object):
                 
                 
                 # here the rotation is off between dtc/cspad by 180 in some quads
-                print quad_index, two_by_one, self._asic_rotation(quad_index, two_by_one*2)
                 two_by_one_img = interp.rotate(two_by_one_img,
                                                -self._asic_rotation(quad_index, two_by_one*2),
                                                output=two_by_one_img.dtype,
