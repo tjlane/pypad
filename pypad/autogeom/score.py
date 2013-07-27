@@ -16,6 +16,7 @@ Methods for evaluating optimized geometries.
 """
 
 import yaml
+import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -42,7 +43,7 @@ class PowderReference(object):
     
     def __init__(self, lattice_spacing, millers, calibration_samples, geometry,
                  energy_guess=9600.0, distance_offset_guess=0.0, 
-                 opt_energy=False):
+                 opt_energy=False, unit_cell='cubic'):
         """
         Generate a powder reference for assessing an x-ray scattering detector
         geometry.
@@ -68,6 +69,7 @@ class PowderReference(object):
             The geometry to score.
         """
         
+        self.unit_cell = unit_cell
         self.lattice_spacing = lattice_spacing
         self.millers = millers
         
@@ -157,6 +159,8 @@ class PowderReference(object):
             kwargs['opt_energy'] = bool(params['opt_energy'])
         if 'initial_offset' in params.keys():
             kwargs['distance_offset_guess'] = float(params['initial_offset'])
+        if 'unit_cell' in params.keys():
+            kwargs['unit_cell'] = params['unit_cell']
         
         return cls(params['lattice'], params['millers'], params['samples'], 
                    geom, **kwargs)
@@ -235,13 +239,53 @@ class PowderReference(object):
         
         expected = np.zeros(len(self.millers))
         
+        # calculate reciprocal unit vectors b1, b2, b3 for various lattices
+        if (self.unit_cell == 'cubic' or self.unit_cell == 'sc' or self.unit_cell == 'bcc' or self.unit_cell == 'fcc'):
+            # lattice spacing
+            try:
+                if (len(self.lattice_spacing) > 1):
+                    print "WARNING: edge lengths a = b = c in cubic unit cells, ignoring", self.lattice_spacing[1:]
+                a = self.lattice_spacing[0]
+            except TypeError:
+                a = self.lattice_spacing
+            
+            # reciprocal unit vectors
+            b1 = np.array([2.0*np.pi/a, 0, 0])
+            b2 = np.array([0, 2.0*np.pi/a, 0])
+            b3 = np.array([0, 0, 2.0*np.pi/a])
+            
+        elif (self.unit_cell == 'hexagonal'):
+            # lattice spacing
+            try:
+                if (len(self.lattice_spacing) > 2):
+                    print "WARNING: edge lengths a = b in cubic unit cells, ignoring", self.lattice_spacing[2:]
+                a = self.lattice_spacing[0]
+                c = self.lattice_spacing[1]
+            except TypeError:
+                print "ERROR: need to specify two edge lengths in hexagonal unit cells, aborting."
+                sys.exit(1)
+            
+            # reciprocal unit vectors
+            b1 = np.array([2.0*np.pi/(a*np.sqrt(3)), 2.0*np.pi/a, 0])
+            b2 = np.array([-2.0*np.pi/(a*np.sqrt(3)), 2.0*np.pi/a, 0])
+            b3 = np.array([0, 0, 2.0*np.pi/c])
+            
+        else:
+            print "ERROR: unknown unit cell `%s`, aborting." % self.unit_cell
+            sys.exit(1)
+        
+        # calculate reciprocal lattice vector for each set of Miller indices,
+        # its length determines the momentum transfer
         for i,miller_index in enumerate(self.millers):
-            zf = np.sqrt( np.sum( np.power( np.array(miller_index), 2 ) ) )
-            expected[i] = (2.0 * np.pi * zf) / self.lattice_spacing
+            # reciprocal lattice vector
+            G = miller_index[0]*b1 + miller_index[1]*b2 + miller_index[2]*b3
+            
+            # momentum transfer q = |G|
+            expected[i] = np.sqrt( np.sum( np.power( G, 2 ) ) )
         
         return expected
     
-        
+    
     def _match_peaks(self, sample_index):
         """
         Automatically match observed powder rings to miller indices. Currently
