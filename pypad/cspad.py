@@ -1388,6 +1388,11 @@ class CSPad(object):
     def to_odin(self, energy, distance_offset, filename):
         export.to_odin(self, energy, distance_offset, filename)
         return
+        
+    
+    def to_crystfel(self, filename):
+        export.to_crystfel(self, filename)
+        return
     
         
     def to_text(self, filename):
