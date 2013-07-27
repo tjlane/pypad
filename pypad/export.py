@@ -96,6 +96,7 @@ def to_odin(geometry, energy, distance_offset, filename):
     try:
         from odin import xray
     except ImportError as e:
+        print e
         raise ImportError('Cannot find Odin. You must have Odin installed to '
                           'export to Odin. Download and install Odin from '
                           'https://github.com/tjlane/odin')
