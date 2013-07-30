@@ -17,7 +17,7 @@ Library for exporting autogeom geometries to other software packages.
 
 import numpy as np
 import h5py
-
+import math
     
 def to_cheetah(geometry, filename="pixelmap-cheetah-raw.h5"):
     """
@@ -215,14 +215,15 @@ def to_crystfel(geometry, filename, intensity_file_type='cheetah'):
                 print >> of, "%s/badrow_direction = -" % panel_name
                 print >> of, "%s/res = 9097.525473" % panel_name
                 
-                # write the basis vectors            
+                # write the basis vectors           
+                sqt = math.sqrt(f[0]**2 + f[1]**2) 
                 print >> of, "%s/fs = %s%fx %s%fy" % ( panel_name,
-                                                       get_sign(f[0]), abs(f[0]), 
-                                                       get_sign(f[1]), abs(f[1]) )
-
+                                                       get_sign(f[0]/sqt), abs(f[0]/sqt), 
+                                                       get_sign(f[1]/sqt), abs(f[1]/sqt) )
+                sqt = math.sqrt(s[0]**2 + s[1]**2)
                 print >> of, "%s/ss = %s%fx %s%fy" % ( panel_name,
-                                                       get_sign(s[0]), abs(s[0]), 
-                                                       get_sign(s[1]), abs(s[1]) )
+                                                       get_sign(s[0]/sqt), abs(s[0]/sqt), 
+                                                       get_sign(s[1]/sqt), abs(s[1]/sqt) )
                 
                 # write the corner positions
                 tagcx = "%s/corner_x" % panel_name
