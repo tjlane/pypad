@@ -19,14 +19,15 @@ import argparse
 
 from pypad import cspad
 
-parser = argparse.ArgumentParser(description='''Convert a CSPad object (.cspad 
-file) to another file format.''')
+parser = argparse.ArgumentParser(description='''Convert a CSPad geometry file to
+ another file format.''')
                                  
 parser.add_argument('geometry', default=None, 
-                    help='''A CSPAD Metrology, in .cspad format.''')
+                    help='''A CSPAD Metrology, in {.cspad, .h5, .geom, .dtc} format''')
 parser.add_argument('-o', '--output', required=True,
                     help='''The name of the file to write, containing the final mask.''')
-parser.add_argument('-f', '--format', required=True, choices=['odin', 'cheetah', 'text'],
+parser.add_argument('-f', '--format', required=True, 
+                    choices=['odin', 'cheetah', 'crystfel', 'text'],
                     help='''The file format to write.''')
 args = parser.parse_args()
 
@@ -39,6 +40,8 @@ if args.format == 'odin':
     geom.to_odin(energy, dist, args.output)
 elif args.format == 'cheetah':
     geom.to_cheetah(args.output)
+elif args.format == 'crystfel':
+    geom.to_crystfel(args.output)
 elif args.format == 'text':
     geom.to_text(args.output)
 else:
