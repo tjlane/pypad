@@ -19,6 +19,58 @@ import h5py
 import numpy as np
 
 
+class MultiImage(object):
+    """
+    abc
+    """
+    def __init__(self): pass
+    # todo fill this in
+
+    def get_shot(self, shot_index):
+        pass
+    def get_iter(self, start, stop, stride):
+        pass
+
+    @property
+    def num_shots(self):
+        pass
+    
+
+
+class CXI(MultiImage):
+
+    def __init__(self, filename):
+
+        if not filename.endswith('.cxi'):
+            raise IOError()
+
+        self.filename = filename
+
+        try:
+            import tables
+        except ImportError as e:
+            print e
+            raise ImportError('pytables required for CXIdb parsing')
+
+        self._hdf = tables.File(filename, 'r')
+        self._ds1 = self._hdf.root.entry_1.instrument_1.detector_1.data
+
+        return
+
+
+    def get_shot(self, shot_index):
+        cheetah = np.squeeze( self._ds1.read(shot_index) )
+        return enforce_raw_img_shape(cheetah)
+
+    def get_iter(self, start, stop, stride):
+        for intx in self._ds1.iterrows(start, stop, stride):
+            yield enforce_raw_img_shape(intx)
+
+    @property
+    def num_shots(self):
+        return self._ds1.shape[0]
+
+
 def load_raw_image(filename, image_in_file=0):
     """
     Attempts to be a general and forgiving file-loading platform for raw images.

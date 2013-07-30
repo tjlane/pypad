@@ -16,6 +16,8 @@ an assembled image.
 """
 
 import argparse
+import numpy as np
+import time
 
 from pypad import cspad
 from pypad import utils
@@ -23,40 +25,133 @@ from pypad import read
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as plt_patches
+from matplotlib import animation
 from pypad.plot import imshow_cspad
 
-parser = argparse.ArgumentParser(description='''Use a CSPAD geometry to assemble a raw image.''')
-                                 
-parser.add_argument('image_file', help='The (raw) image file.')
-parser.add_argument('-c', '--center', action="store_true", default=False, 
-                    help='''Plot the center where the forward beam intersects
-                            the detector plane.''') 
-parser.add_argument('-m', '--metrology', default=None, 
-                    help='''A CSPAD Metrology. Either a flat text file of an 
-                            optical metrology (see documentation) or a saved 
-                            pypad.CSPad object. If not passed uses a default
-                            metrology.''')
-parser.add_argument('-s', '--shot', default=0, type=int,
-                    help='''Which shot to display (for files with many shots). Default: 0''')
-                            
-args = parser.parse_args()
 
-raw_image = read.load_raw_image(args.image_file, args.shot)
+class Assembler(object):
+
+    def __init__(self, multi_frame_img, geom):
+        
+        """
+        """
+
+        if not isinstance(multi_frame_img, read.MultiImage):
+            raise TypeError('`multi_frame_img` must be an instance of pypad.read.MultiImage')
+        if not isinstance(geom, cspad.CSPad):
+            raise TypeError()
+
+        # initialize
+        self.multi_img = multi_frame_img
+        self.geom = geom
+        self._flipping = False
+        self.shot_lim = self.multi_img.num_shots
+        self.stride = 1
+        self.current_shot = 0
+          
+        # set up the canvas
+        self.fig = plt.figure()
+        #self.fig.canvas.mpl_connect('key_press_event', self._on_keypress)
+        self.ax  = plt.subplot(111)
+
+        # plot first frame to start
+        self.im = imshow_cspad( self.geom(multi_frame_img.get_shot(0)), 
+                                ax=self.ax, scrollable=True )
+
+        beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='r')
+        self.ax.add_patch(beam_center)
+
+        self._ani = animation.FuncAnimation(self.fig, self.draw_image, self._flip_iter,
+                                            blit=False, interval=10, repeat=True)
+
+        self.fig.canvas.mpl_connect('key_press_event', self._on_keypress)
+        plt.show() 
+
+        return
+
+
+    def draw_image(self, image):
+        print 'drawing...', self._flipping
+        self.im.set_data( self.geom(image) )
+        self.fig.canvas.draw()
+        return
+
+
+    def _flip_iter(self):
+        """
+        flipping through shots.
+        """
+        
+        iter = self.multi_img.get_iter(self.current_shot, self.shot_lim, self.stride)
+        img = iter.next()
+        self.current_shot = 0
+        
+        while self.current_shot < self.shot_lim:
+
+            if self._flipping:
+                img = iter.next()
+                self.current_shot += 1
+            else:
+                pass # stay on same img
+
+            yield img
+
+
+    def _on_keypress(self, event):
+
+        # toggle flipping
+        if event.key == 'f':
+            if not self._flipping:
+                print "Flipping through shots at stide: %d" % self.stride
+            else:
+                print "Stopping flipping"
+            self._flipping ^= True
+
+        elif event.key == 'right':
+            self.current_shot += 1
+            img = self.multi_img.get_shot(self.current_shot)
+            self.draw_image(img)
+
+        elif event.key == 'left':
+            self.current_shot -= 1
+            img = self.multi_img.get_shot(self.current_shot)
+            self.draw_image(img)
+
+        return
+
+
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description='''Use a CSPAD geometry to assemble a raw image.''')
+                                 
+    parser.add_argument('image_file', help='The (raw) image file.')
+    parser.add_argument('-m', '--metrology', default=None, 
+                        help='''A CSPAD Metrology. Either a flat text file of an 
+                                optical metrology (see documentation) or a saved 
+                                pypad.CSPad object. If not passed uses a default
+                                metrology.''')
+    parser.add_argument('-s', '--shot', default='::', type=str,
+                        help='''Which shots to display (for files with many shots). 
+                                Format is '-s start:stop:stride', with start/stop/
+                                stride all integers. Default: All Shots.''')
+                            
+    args = parser.parse_args()
+
+
+
 
 if args.metrology:
     cs1 = cspad.CSPad.load(args.metrology)
 else:
     cs1 = cspad.CSPad.default()
 
-fig = plt.figure()
-ax = plt.subplot(111)
+if args.image_file.endswith('.cxi'):
+    image_handle = read.CXI(args.image_file)
+    a = Assembler(image_handle, cs1)
 
-# plot assembled image
-imshow_cspad( cs1(raw_image), ax=ax, scrollable=True )
+else:
+    raw_image = read.load_raw_image(args.image_file, args.shot)
 
-if args.center:
-    # plot beam center
-    beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='r')
-    ax.add_patch(beam_center)
 
-plt.show()
