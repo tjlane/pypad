@@ -1324,56 +1324,65 @@ class CSPad(object):
         bg = BasisGrid()
         shp = (185, 194) # this never changes for the CSPAD
 
-        # now we'll read out the geometry -- do this all in a try block so we can
-        # throw an error if something is not there
-        try:
 
-            # measure the absolute detector offset
-            # right now this appears to be the only z-information in the geometry...
-            re_pz = re.search('coffset = (\d+.\d+..\d+)', geom_txt)
+        # measure the absolute detector offset
+        # right now this appears to be the only z-information in the geometry...
+        re_pz = re.search('coffset = (\d+.\d+..\d+)', geom_txt)
+        if re_pz == None:
+            print "WARNING: Could not find `coffset` field, defaulting z-offset to 0.0"
+            p_z = 0.0
+        else:
             p_z = float(re_pz.group(1)) / 1000.0 # m --> mm
 
-            # iterate over each quad / ASIC
-            for q in range(4):
-                for a in range(16):
+        # iterate over each quad / ASIC
+        for q in range(4):
+            for a in range(16):
 
-                    if verbose:
-                        print "Reading geometry for: QUAD %d / ASIC %d" % (q, a)
+                if verbose:
+                    print "Reading geometry for: QUAD %d / ASIC %d" % (q, a)
+
+                try:
 
                     # match f/s vectors
-                    re_fs = re.search('q%da%d/fs =\s+(.\d+.\d+)x\s+(.\d+.\d+)y' % (q, a), geom_txt)
+                    re_fs = re.search('q%da%d/fs =\s+((.)?\d+.\d+)x\s+((.)?\d+.\d+)y' % (q, a), geom_txt)
                     f_x = float( re_fs.group(1) )
-                    f_y = float( re_fs.group(2) )
+                    f_y = float( re_fs.group(3) )
                     f = np.array([f_x, f_y, 0.0])
                     f = f * (pixel_size / np.linalg.norm(f))
 
-                    re_ss = re.search('q%da%d/ss =\s+(.\d+.\d+)x\s+(.\d+.\d+)y' % (q, a), geom_txt)
+                    re_ss = re.search('q%da%d/ss =\s+((.)?\d+.\d+)x\s+((.)?\d+.\d+)y' % (q, a), geom_txt)
                     s_x = float( re_ss.group(1) )
-                    s_y = float( re_ss.group(2) )
+                    s_y = float( re_ss.group(3) )
                     s = np.array([s_x, s_y, 0.0])
                     s = s * (pixel_size / np.linalg.norm(s))
+                    
+                except AttributeError as e:
+                    print e
+                    raise IOError('Geometry file incomplete -- cant parse one or '
+                                  'more basis vector fields (ss/fs) QUAD %d / ASIC %d' % (q, a))
 
-                    # match corner postions, that become the p vector
-                    # note we have to convert from pixel units to mm
-                    # and also that CrystFEL measures the corner from the actual
-                    # *corner*, and not the center of the corner pixel!
-                    re_cx = re.search('q%da%d/corner_x = (.\d+.\d+)' % (q, a), geom_txt)
+                # match corner postions, that become the p vector
+                # note we have to convert from pixel units to mm
+                # and also that CrystFEL measures the corner from the actual
+                # *corner*, and not the center of the corner pixel!
+                
+                try:
+                    
+                    re_cx = re.search('q%da%d/corner_x =\s+((.)?\d+.\d+)' % (q, a), geom_txt)
                     p_x = (float( re_cx.group(1) ) + 0.5) * pixel_size
 
-                    re_cy = re.search('q%da%d/corner_y = (.\d+.\d+)' % (q, a), geom_txt)
+                    re_cy = re.search('q%da%d/corner_y =\s+((.)?\d+.\d+)' % (q, a), geom_txt)
                     p_y = (float( re_cy.group(1) ) + 0.5) * pixel_size
 
                     p = np.array([p_x, p_y, p_z])
 
-                    # finally, add the ASIC to the odin basis grid
-                    bg.add_grid(p, s, f, shp)
+                except AttributeError as e:
+                    print e
+                    raise IOError('Geometry file incomplete -- cant parse one or '
+                                  'more corner fields for QUAD %d / ASIC %d' % (q, a))
 
-
-        # if an Attr error gets thrown, it's because a re failed to match
-        except AttributeError as e:
-            print e
-            raise IOError('Geometry file incomplete -- could not find one or more '
-                          'required fields.')
+                # finally, add the ASIC to the odin basis grid
+                bg.add_grid(p, s, f, shp)
 
         if verbose: print " ... successfully converted geometry."
         

@@ -145,6 +145,13 @@ def to_crystfel(geometry, filename, intensity_file_type='cheetah'):
     pixel_size = 0.10992 # in mm
     bg = geometry.basis_repr
     
+    def get_sign(v):
+        if v >= 0:
+            s = '+'
+        else:
+            s = '-'
+        return s
+    
     
     if intensity_file_type == 'cheetah':
         
@@ -204,24 +211,17 @@ def to_crystfel(geometry, filename, intensity_file_type='cheetah'):
                 print >> of, intensity_map[grid_index].strip()
                 
                 # these are constant for the CSPAD
-                print >> of, "q0a0/badrow_direction = -"
-                print >> of, "q0a0/res = 9097.525473"
+                print >> of, "%s/badrow_direction = -" % panel_name
+                print >> of, "%s/res = 9097.525473" % panel_name
                 
-                # write the basis vectors
-                tagfs = "%s/fs" % panel_name
-                tagss = "%s/ss" % panel_name
-            
-                if f[1] > 0:
-                  tsign = "+"
-                else:
-                  tsign = "-"
-                print >> of, "%s = %fx %s %fy" % (tagfs, f[0], tsign, abs(f[1]))
-                
-                if s[1] > 0:
-                  tsign = "+"
-                else:
-                  tsign = "-"
-                print >> of, "%s = %fx %s %fy" % (tagss, s[0], tsign, abs(s[1]))
+                # write the basis vectors            
+                print >> of, "%s/fs = %s%fx %s%fy" % ( panel_name,
+                                                       get_sign(f[0]), abs(f[0]), 
+                                                       get_sign(f[1]), abs(f[1]) )
+
+                print >> of, "%s/ss = %s%fx %s%fy" % ( panel_name,
+                                                       get_sign(s[0]), abs(s[0]), 
+                                                       get_sign(s[1]), abs(s[1]) )
                 
                 # write the corner positions
                 tagcx = "%s/corner_x" % panel_name
@@ -233,7 +233,7 @@ def to_crystfel(geometry, filename, intensity_file_type='cheetah'):
                 print >> of, "%s = %f" % (tagcy, float(p[1])/pixel_size - 0.5 )
                 
                 # this tells CrystFEL to use this panel
-                print >> of, "q0a0/no_index = 0"
+                print >> of, "%s/no_index = 0" % panel_name
                 
                 print >> of, "" # new line
     
