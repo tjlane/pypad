@@ -295,7 +295,8 @@ class PadMask(object):
         
         print "Masking row 13"
         
-        raise NotImplementedError()
+        #raise NotImplementedError()
+        print "Warning: row 13 masking is untested, tell the dev team if you need it."
         
         #this is for masking out row13 of the CSPAD
         col=181
@@ -382,7 +383,7 @@ class PadMask(object):
             
         else:
             raise IOError('Unrecognized format for PadMask: %s. Should be one of'
-                          ' {"pypad", "twod"}' % fmt)
+                          ' {"pypad", "odin", "cheetah", "twod"}' % fmt)
         
         print "Wrote: %s" % filename
         return
