@@ -484,18 +484,19 @@ class MaskGUI(object):
         
                 
         # draw the main GUI, which is an image that can be interactively masked
-        plt.figure()
-        
+        plt.figure(figsize=(9,6))
         self.ax = plt.subplot(111)
-        self.im = plt.imshow( (self.log_image * self.mask.mask2d) - 1e-10, cmap=self.palette,
-                              origin='lower', interpolation='nearest', vmin=1e-10, 
-                              extent=[0, self.log_image.shape[1], 0, self.log_image.shape[0]] )
+        
+        self.im = self.ax.imshow( (self.log_image * self.mask.mask2d) - 1e-10, cmap=self.palette,
+                                  origin='lower', interpolation='nearest', vmin=1e-10, aspect=1,
+                                  extent=[0, self.log_image.shape[0], 0, self.log_image.shape[1]] )
         
         self.lc, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
         self.lm, = self.ax.plot((0,0),(0,0),'-+m', linewidth=1, markersize=8, markeredgewidth=1)
         
         self.line_corner = (0,0)
         self.xy = None
+        self.lines_xy = None
         self.single_px = None # for masking single pixels
         
         self.colorbar = plt.colorbar(self.im, pad=0.01)
@@ -580,22 +581,39 @@ class MaskGUI(object):
 
     
     def on_click(self, event):
+        
+        # for WHATEVER reason, the imshow drawing is stretched incorrectly
+        # such that pixel positions for x/y are off by the ratio used below
+        # ... this is likely due to me not understanding MPL, hence this hack
+        # -- TJL
+        ratio = float(self.log_image.shape[0]) / float(self.log_image.shape[1])
+        x_coord = event.xdata / ratio
+        y_coord = event.ydata * ratio
          
         # if a button that is *not* the left click is pressed
         if event.inaxes and (event.button is not 1):
-        
+
+            # save the points for masking in pixel coordinates
             if self.xy != None:
-                self.xy = np.vstack(( self.xy, np.array([int(event.xdata), 
-                                                         int(event.ydata)]) ))
+                self.xy = np.vstack(( self.xy, np.array([int(x_coord), 
+                                                         int(y_coord)]) ))
             else:
-                self.xy = np.array([int(event.xdata), int(event.ydata)])
+                self.xy = np.array([int(x_coord), int(y_coord)])
+
+            # save the points for drawing the lines in MPL coordinates
+            if self.lines_xy != None:
+                self.lines_xy = np.vstack(( self.lines_xy, np.array([int(event.xdata), 
+                                                                     int(event.ydata)]) ))
+            else:
+                self.lines_xy = np.array([int(event.xdata), int(event.ydata)])
             
-            self.lc.set_data(self.xy.T) # draws lines
+            self.lc.set_data(self.lines_xy.T) # draws lines
             self.line_corner = (int(event.xdata), int(event.ydata))
             
         # if the left button is pressed
         elif event.inaxes and (event.button is 1):
-            self.single_px = (int(event.xdata), int(event.ydata))            
+            self.single_px = (int(x_coord), int(y_coord))
+            print "Selected: (%s, %s)" % self.single_px        
         
         return
 
@@ -607,35 +625,35 @@ class MaskGUI(object):
             
             if self.xy == None:
                 print "No area selected, mask not changed."
+            else:
             
-            # print "Masking region inside:"
-            # print self.xy
+                # print "Masking region inside:"
+                # print self.xy
            
-            # wrap around to close polygon
-            self.xy = np.vstack(( self.xy, self.xy[0,:] ))
-            inds = self.points[points_inside_poly(self.points+0.5, self.xy)]
+                # wrap around to close polygon
+                self.xy = np.vstack(( self.xy, self.xy[0,:] ))
+                inds = self.points[points_inside_poly(self.points+0.5, self.xy)]
             
-            #print self.xy
-            #print inds
+                #print self.xy
+                #print inds
 
-            # if we're going to mask, mask
-            if event.key == 'm':
-                print 'Masking convex area...'
-                x = self._conv_2dinds_to_4d(inds)
-                self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 0
+                # if we're going to mask, mask
+                if event.key == 'm':
+                    print 'Masking convex area...'
+                    x = self._conv_2dinds_to_4d(inds)
+                    self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 0
                 
-            # if we're unmasking, unmask
-            elif event.key == 'u':
-                print 'Unmasking convex area...'
-                x = self._conv_2dinds_to_4d(inds)
-                self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 1
+                # if we're unmasking, unmask
+                elif event.key == 'u':
+                    print 'Unmasking convex area...'
+                    x = self._conv_2dinds_to_4d(inds)
+                    self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 1
             
-            # draw and reset
-            self.update_image()
-
-            self._reset()
-            #self.im.autoscale()
-            plt.draw()
+                # draw and reset
+                self.update_image()
+                self._reset()
+                plt.draw()
+        
 
         # reset all masks
         elif event.key == 'r':
@@ -670,6 +688,7 @@ class MaskGUI(object):
             
         # clear mouse selection
         elif event.key == 'x':
+            print "Reset selections"
             self._reset()
             
            
@@ -707,6 +726,7 @@ class MaskGUI(object):
     def _reset(self):
         self.single_pixel = None
         self.xy = None
+        self.lines_xy = None
         self.lc.set_data([], [])
         self.lm.set_data([], [])
         self.line_corner = (0, 0)
@@ -732,7 +752,7 @@ class MaskGUI(object):
         inds_4d = np.zeros((inds.shape[0], 4), dtype=np.int32)
         
         # index each asic, in the correct order
-        of64 = (inds[:,1] / 194) * 2 + (inds[:,0] / 370) * 16 + (inds[:,0] / 185) % 2
+        of64 = (inds[:,1] / 185) * 2 + (inds[:,0] / 388) * 16 + (inds[:,0] / 194) % 2
         assert np.all(of64 < 64)
         
         # quads / asics
@@ -744,10 +764,8 @@ class MaskGUI(object):
         inds_4d[:,2] = (inds[:,1] % 185)
         inds_4d[:,3] = (inds[:,0] % 194)
         
-        print inds_4d
-        
         return inds_4d
-        
+    
         
     def print_gui_help(self):
         
