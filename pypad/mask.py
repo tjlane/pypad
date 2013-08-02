@@ -460,7 +460,7 @@ class MaskGUI(object):
         
         # deal with negative values
         self.mask._inject_mask('negatives', m.copy())
-        self.mask._masks['negatives'][raw_image < 0.0] = 0
+        self.mask._masks['negatives'][raw_image <= 0.0] = 0
         print "Masked: %d negative pixels" % np.sum(np.logical_not(self.mask._masks['negatives']))
         
         
