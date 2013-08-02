@@ -1,4 +1,4 @@
-
+k
 # THIS FILE IS PART OF PyPad, AND IS GOVERENED BY A PERMISSIBILITY LICENSE 
 # GOVERNING ITS USE AND DISTRIBUTION. YOU SHOULD HAVE RECIEVED A COPY OF THIS
 # LICENSE WITH THE SOFTWARE; IF NOT PROVIDED, WRITE TO <tjlane@stanford.edu>.
@@ -431,8 +431,8 @@ class PowderReference(object):
         
         print
         print " --- Optimized Energy & Detector Distance --- "
-        print " Detector offest: %.2f mm " % opt[0][0]
-        print " Energy:          %.3f keV" % (opt[0][1] / 1000.0,)
+        print " Detector offset: %.3f mm " % opt[0][0]
+        print " Energy:          %.4f keV" % (opt[0][1] / 1000.0,)
         print
         print " Total Residuals: %f inv. Angstroms" % float( np.sum(np.abs( opt[2]['fvec'] )) )
         print " Residuals for each peak:"
