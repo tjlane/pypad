@@ -22,7 +22,7 @@ from pprint import pprint
 
 from pypad import cspad
 from pypad.utils import preprocess_image
-from pypad.plot import imshow_cspad, ToggleButton
+from pypad.plot import ManipTwoPanelCSPAD, ToggleButton
 from pypad.read import load_raw_image
 
 import numpy as np
@@ -101,58 +101,46 @@ def print_instructions():
     return
 
     
-class InteractiveFilter(object):
+class InteractiveFilter(ManipTwoPanelCSPAD):
     """
     Build an interactive environment for determining good parameters for
     the geometry optimization.
     """
     
-    def __init__(self, raw_unfiltered_image, cspad):
+    def __init__(self, image, cspad):
         
-        self.raw_unfiltered_image = raw_unfiltered_image
-        self.cspad = cspad
-        self.assembled_unfiltered_image = self.cspad(self.raw_unfiltered_image)
-
-        # initialize the plot
-        self.fig = plt.figure( figsize=(12,7))
-        self.axL = plt.subplot(121)
-        self.axR = plt.subplot(122)
-        plt.subplots_adjust(left=0.25, bottom=0.45)
+        self.raw_unfiltered_image = image.copy()
         
         # initial values
         self.sobel_filter = False
-        self.dilation     = 0.0
         self.regions      = []
         self.filter_on    = False
-        self.center       = [0.0, 0.0]
+        
+        # initialize the plot
+        super(InteractiveFilter, self).__init__(image, cspad)
+        plt.subplots_adjust(bottom=0.45)
         
         # display the image with sliders for each parameter
-        axcolor = 'lightgoldenrodyellow'
-        ax_dilt = plt.axes([0.25, 0.10, 0.65, 0.03], axisbg=axcolor)
-        ax_thsd = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)
-        ax_sigm = plt.axes([0.25, 0.20, 0.65, 0.03], axisbg=axcolor)
-        ax_minf = plt.axes([0.25, 0.25, 0.65, 0.03], axisbg=axcolor)
-        ax_rank = plt.axes([0.25, 0.30, 0.65, 0.03], axisbg=axcolor)
-
-        self.dilation_slider  = Slider(ax_dilt, 'Dilate', 0.0, 10.0, valinit=5.0)
+        ax_thsd = plt.axes([0.20, 0.15, 0.60, 0.03], axisbg=self.axcolor)
+        ax_sigm = plt.axes([0.20, 0.20, 0.60, 0.03], axisbg=self.axcolor)
+        ax_minf = plt.axes([0.20, 0.25, 0.60, 0.03], axisbg=self.axcolor)
+        ax_rank = plt.axes([0.20, 0.30, 0.60, 0.03], axisbg=self.axcolor)
+        
         self.threshold_slider = Slider(ax_thsd, 'Threshold', -5.0, 0.0, valinit=-2.0) # log10 scale
         self.sigma_slider     = Slider(ax_sigm, 'Gaussian Filter', 0.0, 5.0, valinit=1.0)
         self.minf_slider      = Slider(ax_minf, 'Minimum Filter', 1, 25, valinit=3)
         self.rank_slider      = Slider(ax_rank, 'Rank 1 Filter', 1, 25, valinit=8)
         
-
         ax_reset = plt.axes([0.8, 0.02, 0.1, 0.04])
-        self.reset_button = Button(ax_reset, 'Reset', color=axcolor, hovercolor='0.975')
+        self.reset_button = Button(ax_reset, 'Reset', color=self.axcolor, hovercolor='0.975')
 
         ax_sobel = plt.axes([0.69, 0.02, 0.1, 0.04])
-        self.filter_button = ToggleButton(ax_sobel, 'Apply Filter', color=axcolor, hovercolor='0.975')
+        self.filter_button = ToggleButton(ax_sobel, 'Apply Filter', color=self.axcolor, hovercolor='0.975')
         
         ax_sobel = plt.axes([0.58, 0.02, 0.1, 0.04])
-        self.sobel_button = ToggleButton(ax_sobel, 'Sobel Filter', color=axcolor, hovercolor='0.975')
+        self.sobel_button = ToggleButton(ax_sobel, 'Sobel Filter', color=self.axcolor, hovercolor='0.975')
         
         # link mouse actions to functions
-        self.dilation_slider.on_changed(self.update_image)
-        
         self.threshold_slider.on_changed(self.update_image)
         self.sigma_slider.on_changed(self.update_image)
         self.minf_slider.on_changed(self.update_image)
@@ -167,78 +155,33 @@ class InteractiveFilter(object):
         self.sobel_button.on_turned_on(self.update_image)
         self.sobel_button.on_turned_off(self._sobel_off)
         self.sobel_button.on_turned_off(self.update_image)
-        
-        # deals with clicking on the plot
-        self.fig.canvas.mpl_connect('button_press_event', self.on_click)
-        self.fig.canvas.mpl_connect('scroll_event', self.on_scroll)
-        
+                
         # actually show the image!
         self.update_image()
         
         return
     
-
-    def show(self):
-        """ display the image and wait for the user to quit out of it """
-        plt.show()
-        return
     
-
-    def draw_projection(self, image):
-        """
-        Draw a radial projection of the intensities, in the rightmost panel.
-        """
-        
-        # histogram the intensities
-        bin_centers, bin_values = self.cspad.intensity_profile(image, n_bins=200)
-        
-        # draw the actual image
-        self.axR.plot(bin_centers, bin_values, lw=2)
-        self.axR.set_xlabel('Radius (mm)')
-        self.axR.set_ylabel('Intensity')
-        self.axR.get_yaxis().set_ticks([])
-        self.axR.set_ylim((0, bin_values.max()*1.2))
-        
-        if len(self.regions) > 0:
-            self.axR.vlines(self.regions, self.axR.get_ylim()[0], 
-                            self.axR.get_ylim()[1], lw=2, color='k')
-        
-        return
-    
-
     def update_image(self, val=None):
         """
         If a slider gets moved, update the panels
         """
         
-        # apply our dilation
-        delta_dilation = self.dilation_slider.val - self.dilation
-        self.cspad.dilate(delta_dilation)
-        self.dilation  = self.dilation_slider.val
-        
         # apply our filters
         if not self.filter_on:
-            filtered_image = self.raw_unfiltered_image
+            self.image = self.raw_unfiltered_image
         else:        
             thd = np.power( 10, self.threshold_slider.val )
             sig = self.sigma_slider.val
             mnf = int( self.minf_slider.val )
             rnk = int( self.rank_slider.val )
-            filtered_image = preprocess_image(self.raw_unfiltered_image, 
-                                              threshold=thd, 
-                                              sigma=sig, minf_size=mnf, 
-                                              rank_size=rnk,
-                                              sobel=self.sobel_filter)
+            self.image = preprocess_image(self.raw_unfiltered_image, 
+                                          threshold=thd, 
+                                          sigma=sig, minf_size=mnf, 
+                                          rank_size=rnk,
+                                          sobel=self.sobel_filter)
         
-        self.im = imshow_cspad(self.cspad(filtered_image), ax=self.axL)
-        
-        # plot beam center
-        beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='w')
-        self.axL.add_patch(beam_center)
-        
-        self.axR.cla()
-        self.draw_projection(filtered_image)
-        plt.draw()
+        super(InteractiveFilter, self).update_image(val)
         
         return
         
@@ -249,47 +192,27 @@ class InteractiveFilter(object):
         """
         if event.inaxes and (event.button is not 1):
 
-            # clicks on left panel -- set beam center
-            # the center is always at (1000, 1000): so translate the entire 
-            # cspad to move the center
             if event.inaxes == self.axL:
-                self.center[0] += 1000.0 - event.xdata
-                self.center[1] += 1000.0 - event.ydata
-                delta_center = (1000.0 - event.xdata, 1000.0 - event.ydata)
-                print "\nShifting center in x/y by: (%.2f, %.2f)" % delta_center
-                
-                offset = np.array(delta_center)[None,:] * 0.10992 # pxl --> mm
-                
-                if np.any( np.abs(self.cspad.quad_offset + offset) > 15.0 ):
-                    print "Warning: center move placed image outside reasonable"
-                    print "bounds: try again with."
-                else:
-                    self.cspad.quad_offset += offset                    
-                    self.update_image(event)
+                super(InteractiveFilter, self).on_click(event)
                 
             # clicks on right panel -- set opt limits
             elif event.inaxes == self.axR:
                 v_line = event.xdata
                 print "Set peak limit at: %f" % v_line
                 self.regions.append(v_line)
-                self.axR.cla()
                 self.update_image(event)
                     
         return
         
         
-    def on_scroll(self, event):
+    def draw_projection(self, image):
         
-        lims = self.im.get_clim()
-        speed = 1.2
-
-        if event.button == 'up':
-            colmax = lims[1] / speed
-        elif event.button == 'down':
-            colmax = lims[1] * speed
-
-        self.im.set_clim(lims[0], colmax)
-        plt.draw()
+        super(InteractiveFilter, self).draw_projection(image)
+        if len(self.regions) > 0:
+            self.axR.vlines(self.regions, self.axR.get_ylim()[0],
+                            self.axR.get_ylim()[1], lw=2, color='k')
+        
+        return
     
 
     def reset(self, event):

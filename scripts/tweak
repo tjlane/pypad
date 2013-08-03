@@ -22,65 +22,86 @@ from pypad import plot
 from pypad import read
 
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Button
 
-
-
-class Tweaker(object):
+class Tweaker(plot.ManipTwoPanelCSPAD):
     
-    def __init__(self, raw_image, geom):
+    def __init__(self, image, cspad):
         
-        self.raw_image = raw_image
-        self.geom = geom
+        super(Tweaker, self).__init__(image, cspad)
         
-        self.fig = plt.figure()
-        self.ax = plt.subplot(111)
-        self.im = plot.imshow_cspad( self.geom(raw_image), ax=self.ax, scrollable=True )
+        self._active_quad = 0
+        self.increment = 1.0
+                
+        # build the quad selection buttons
+        ax_Q0 = plt.axes([0.20, 0.02, 0.1, 0.04])
+        self.q0_button = Button(ax_Q0, 'Quad 0', color=self.axcolor, hovercolor='0.975')
+        ax_Q1 = plt.axes([0.30, 0.02, 0.1, 0.04])
+        self.q1_button = Button(ax_Q1, 'Quad 1', color=self.axcolor, hovercolor='0.975')
+        ax_Q2 = plt.axes([0.40, 0.02, 0.1, 0.04])
+        self.q2_button = Button(ax_Q2, 'Quad 2', color=self.axcolor, hovercolor='0.975')
+        ax_Q3 = plt.axes([0.50, 0.02, 0.1, 0.04])
+        self.q3_button = Button(ax_Q3, 'Quad 3', color=self.axcolor, hovercolor='0.975')
+        
+        self.q0_button.on_clicked(self._select_q0)
+        self.q1_button.on_clicked(self._select_q1)
+        self.q2_button.on_clicked(self._select_q2)
+        self.q3_button.on_clicked(self._select_q3)
+        
+        # connect key press event
         self.fig.canvas.mpl_connect('key_press_event', self._on_keypress)
-        plt.show()
         
         return
+        
+        
+    def _select_q0(self):
+        print "Manipulating: Quad 0"
+        self._active_quad = 0
     
+    def _select_q1(self):
+        print "Manipulating: Quad 1"
+        self._active_quad = 1
+        
+    def _select_q2(self):
+        print "Manipulating: Quad 2"
+        self._active_quad = 2
+        
+    def _select_q3(self):
+        print "Manipulating: Quad 3"
+        self._active_quad = 3
         
     def _on_keypress(self, event):
         
         # dilation
         if event.key == 'd':
             dilation = float( raw_input('\nEnter dilation [mm]: ') )
-            self.geom.dilate(dilation)
+            self.cspad.dilate(dilation)
         
         # offset
-        elif event.key == 'f':
-            print "\nAdjusting quad offsets"
-            print "Current offsets:", geom.quad_offset
-            ri_xoffsets = raw_input('Enter x-axis offset for each quad [mm]: ')
-            ri_yoffsets = raw_input('Enter y-axis offset for each quad [mm]: ')
-    
-            offsets = np.vstack([ np.fromstring(ri_xoffsets, dtype=np.float, sep=' '), 
-                                  np.fromstring(ri_yoffsets, dtype=np.float, sep=' ') ])
-    
-            print "New offsets:", offsets
-            self.geom.set_param('quad_offset', offsets)
+        elif event.key in ['up', 'down', 'right', 'left']:
+
+            if event.key == 'up':
+                
+                cspad.quad_offset[self._active_quad,0] += self.increment
     
         # tilt
         elif event.key == 't':
             print "\nAdjusting quad tilts"
-            print "Current tilts:", geom.quad_offset
+            print "Current tilts:", cspad.quad_offset
             tilts = np.fromstring(raw_input('Enter tilts for each quad [deg]: '),
                                   dtype=np.float, sep=' ')
             print "New tilts:", offsets
-            self.geom.set_param('quad_rotation', offsets)
+            self.cspad.set_param('quad_rotation', offsets)
             
             
         elif event.key == 'x':
             print "Saving..."
-            self.geom.save('tweaked.cspad')
+            self.cspad.save('tweaked.cspad')
         
         else:
             pass
         
-        # update the image
-        plot.imshow_cspad( self.geom(self.raw_image), ax=self.ax )
-        plt.draw()
+        self.update_image()
     
         return
     
@@ -88,18 +109,11 @@ class Tweaker(object):
 # parse
 parser = argparse.ArgumentParser(description='''Tweak a geometry manually.''')
 parser.add_argument('image_file', help='The (raw) image file of the calibration standard')
-parser.add_argument('cspad', help='The geometry file.')
+parser.add_argument('-m', '--metrology', help='The metrology to tweak.', required=True)
 args = parser.parse_args()
 
 raw_image = read.load_raw_image(args.image_file)
-geom = cspad.CSPad.load(args.cspad)
-
-print ""
-print "Instructions"
-print " d = dilation "
-print " f = offsets "
-print " t = tilts / rotations "
-print " x = save "
-print ""
+geom = cspad.CSPad.load(args.metrology)
 
 tw = Tweaker(raw_image, geom)
+tw.show()
