@@ -374,7 +374,7 @@ class ManipTwoPanelCSPAD(TwoPanelCSPAD):
                 
         # build the dilation slider
         self.ax_dilt = plt.axes([0.20, 0.10, 0.60, 0.03], axisbg=self.axcolor)
-        self.dilation_slider = Slider(self.ax_dilt, 'Dilate', 0.0, 10.0, valinit=5.0)
+        self.dilation_slider = Slider(self.ax_dilt, 'Dilate [mm]', 0.0, 10.0, valinit=5.0)
         self.dilation_slider.on_changed(self.update_image)
         
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
@@ -390,7 +390,7 @@ class ManipTwoPanelCSPAD(TwoPanelCSPAD):
         if hasattr(self, 'dilation_slider'):
             delta_dilation = self.dilation_slider.val - self.dilation
             self.cspad.dilate(delta_dilation)
-            self.dilation  = self.dilation_slider.val
+            self.dilation = self.dilation_slider.val
             if np.abs(delta_dilation) > 1e-8:
                 print "Dilation set to: %.2f" % self.dilation
         
@@ -412,7 +412,7 @@ class ManipTwoPanelCSPAD(TwoPanelCSPAD):
                 self.center[0] += 1000.0 - event.xdata
                 self.center[1] += 1000.0 - event.ydata
                 delta_center = (1000.0 - event.xdata, 1000.0 - event.ydata)
-                print "\nShifting center in x/y by: (%.2f, %.2f)" % delta_center
+                print "Shifting center in x/y by: (%.2f, %.2f)" % delta_center
                 
                 offset = np.array(delta_center)[None,:] * 0.10992 # pxl --> mm
                 

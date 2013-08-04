@@ -14,24 +14,28 @@
 Tweak a geometry manually.
 """
 
+import sys
 import argparse
 import numpy as np
+from scipy import signal
 
 from pypad import cspad
 from pypad import plot
 from pypad import read
 
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button
+import matplotlib.patches as plt_patches
+from matplotlib.widgets import Button, Slider
 
 class Tweaker(plot.ManipTwoPanelCSPAD):
     
     def __init__(self, image, cspad):
         
-        super(Tweaker, self).__init__(image, cspad)
-        
         self._active_quad = 0
         self.increment = 1.0
+        self.show_rings = False
+        
+        super(Tweaker, self).__init__(image, cspad)
                 
         # build the quad selection buttons
         ax_Q0 = plt.axes([0.20, 0.02, 0.1, 0.04])
@@ -48,72 +52,192 @@ class Tweaker(plot.ManipTwoPanelCSPAD):
         self.q2_button.on_clicked(self._select_q2)
         self.q3_button.on_clicked(self._select_q3)
         
+        # draw the increment slider
+        self.ax_incr = plt.axes([0.20, 0.15, 0.60, 0.03], axisbg=self.axcolor)
+        self.increment_slider = Slider(self.ax_incr, 'Increment [px/deg]', 0.0, 5.0, valinit=1.0)
+        self.increment_slider.on_changed(self._update_increment)
+        
+        # finally the button to turn on rings
+        ax_rings = plt.axes([0.65, 0.02, 0.15, 0.04])
+        self.rings_button = plot.ToggleButton(ax_rings, 'Toggle Ring Guides', color=self.axcolor, hovercolor='0.975')
+        self.rings_button.on_turned_on(self._rings_on)
+        self.rings_button.on_turned_off(self._rings_off)
+        
         # connect key press event
         self.fig.canvas.mpl_connect('key_press_event', self._on_keypress)
         
         return
         
         
-    def _select_q0(self):
+    def _select_q0(self, event=None):
         print "Manipulating: Quad 0"
         self._active_quad = 0
+        return
     
-    def _select_q1(self):
+    def _select_q1(self, event=None):
         print "Manipulating: Quad 1"
         self._active_quad = 1
+        return
         
-    def _select_q2(self):
+    def _select_q2(self, event=None):
         print "Manipulating: Quad 2"
         self._active_quad = 2
+        return
         
-    def _select_q3(self):
+    def _select_q3(self, event=None):
         print "Manipulating: Quad 3"
         self._active_quad = 3
+        return
+        
+    def _update_increment(self, event=None):
+        self.increment = self.increment_slider.val
+        return
+        
+    def _rings_on(self, event=None):
+        print "Displaying ring guides"
+        self.show_rings = True
+        self.update_image()
+        return
+        
+    def _rings_off(self, event=None):
+        print "Not displaying ring guides"
+        self.show_rings = False
+        self.update_image()
+        return
         
     def _on_keypress(self, event):
         
+        
         # dilation
         if event.key == 'd':
-            dilation = float( raw_input('\nEnter dilation [mm]: ') )
-            self.cspad.dilate(dilation)
+            self.dilation_slider.val = float( raw_input('\nEnter dilation [mm]: ') )
         
         # offset
         elif event.key in ['up', 'down', 'right', 'left']:
-
+            
+            print "Moving Quad %d :: %.2f px %s" % (self._active_quad,
+                                                    self.increment,
+                                                    event.key)
+            
+            # note right/left swapped due to CXI convention
             if event.key == 'up':
-                
-                cspad.quad_offset[self._active_quad,0] += self.increment
-    
-        # tilt
-        elif event.key == 't':
-            print "\nAdjusting quad tilts"
-            print "Current tilts:", cspad.quad_offset
-            tilts = np.fromstring(raw_input('Enter tilts for each quad [deg]: '),
-                                  dtype=np.float, sep=' ')
-            print "New tilts:", offsets
-            self.cspad.set_param('quad_rotation', offsets)
+                self.cspad.quad_offset[self._active_quad,1] += self.increment * 0.10992
+            elif event.key == 'down':
+                self.cspad.quad_offset[self._active_quad,1] -= self.increment * 0.10992
+            elif event.key == 'right':
+                self.cspad.quad_offset[self._active_quad,0] -= self.increment * 0.10992
+            elif event.key == 'left':
+                self.cspad.quad_offset[self._active_quad,0] += self.increment * 0.10992
+        
+        # tilts
+        elif event.key == 'n':
+            print "Tilting Quad %d :: %d degrees CCW" % (self._active_quad,
+                                                         self.increment)
+            self.cspad.quad_rotation[self._active_quad] += self.increment
+            
+        elif event.key == 'm':
+            print "Tilting Quad %d :: %d degrees CW" % (self._active_quad,
+                                                        self.increment)
+            self.cspad.quad_rotation[self._active_quad] -= self.increment
             
             
-        elif event.key == 'x':
+        elif event.key == 'w':
             print "Saving..."
-            self.cspad.save('tweaked.cspad')
+            filename = raw_input('Enter filename [tweaked.cspad]: ')
+            
+            if filename == '':
+                filename = 'tweaked.cspad'
+            
+            if not filename.endswith('.cspad'):
+                filename += '.cspad'
+            
+            self.cspad.save(filename)
+            sys.exit(0)
+            
+        elif event.key == 'q':
+            print "Exiting w/o saving..."
+            sys.exit(0)
         
         else:
-            pass
+            return # skip image update
         
         self.update_image()
     
         return
     
+        
+    def update_image(self, event=None):
+        
+        super(Tweaker, self).update_image(event)
 
-# parse
-parser = argparse.ArgumentParser(description='''Tweak a geometry manually.''')
-parser.add_argument('image_file', help='The (raw) image file of the calibration standard')
-parser.add_argument('-m', '--metrology', help='The metrology to tweak.', required=True)
-args = parser.parse_args()
+        if self.show_rings:
+            self.draw_rings()
+        
+        plt.draw()
+        
+        return
+    
+        
+    def draw_rings(self):
+        """
+        Draw rings on top of peaks in assembled image to help guide the eye.
+        """
+        
+        # manually remove any previous rings
+        self.axL.patches = []
+        
+        bin_centers, a = self.cspad.intensity_profile(self.image, n_bins=800)
+        
+        widths = np.arange(0.5,25,0.5) # peak sizes to search for, in units of 1/800
+        peak_inds = signal.find_peaks_cwt(a, widths, min_snr=3.0)
+        
+        for r in peak_inds:
+            blob_circ = plt_patches.Circle((1000,1000), bin_centers[r] / 0.10992, fill=False, lw=1, ec='white')
+            self.axL.add_patch(blob_circ)
+            self.axR.vlines(bin_centers[r], -0.2, 5.2, color='k', linestyles='dashed')
+        
+            beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='w')
+            self.axL.add_patch(beam_center)
+        
+        return
+    
+        
+    def print_instructions(self):
+        print
+        print
+        print "   --- WELCOME TO PYPAD's MANUAL OPTIMIZATION ENVIRONMENT --- "
+        print
+        print " Tweak your own geometry -- either generate a manual metrology"
+        print " from scratch, or fix up a failed optimization. Press the quad"
+        print " buttons to adjust quads individually."
+        print
+        print " Keystrokes"
+        print " ----------"
+        print " arrow keys : move quad `increment` pixels in the directon of arrow"
+        print " n/m :        rotate quad `increment` degrees CCW/CW respectively"
+        print " w : save & exit        q : exit w/o saving"
+        print
+        print " Mouse"
+        print " -----"
+        print " Right Click: (Left Panel)  Sets the guess of the center of the "
+        print "                            image."
+        print 
+        print "                          ----- // -----"
+        print
+        
+        
 
-raw_image = read.load_raw_image(args.image_file)
-geom = cspad.CSPad.load(args.metrology)
+if __name__ == '__main__':
 
-tw = Tweaker(raw_image, geom)
-tw.show()
+    # parse
+    parser = argparse.ArgumentParser(description='''Tweak a geometry manually.''')
+    parser.add_argument('image_file', help='The (raw) image file of the calibration standard')
+    parser.add_argument('-m', '--metrology', help='The metrology to tweak.', required=True)
+    args = parser.parse_args()
+
+    raw_image = read.load_raw_image(args.image_file)
+    geom = cspad.CSPad.load(args.metrology)
+
+    tw = Tweaker(raw_image, geom)
+    tw.print_instructions()
+    tw.show()
