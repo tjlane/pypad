@@ -17,6 +17,7 @@ Functions for reading image files from disk, from a variety of formats.
 import os
 import h5py
 import numpy as np
+from scipy import io as spio
 
 
 def load_raw_image(filename, image_in_file=0):
@@ -98,6 +99,13 @@ def load_raw_image(filename, image_in_file=0):
                               'odin: https://github.com/tjlane/odin')
         ss = xray.Shotset.load(filename)
         raw_image = ss.average_intensity
+        
+    elif filename.endswith('.mat'):
+        mat = spio.loadmat(filename)
+        if not 'img_avg' in mat.keys():
+            raise IOError('Could not find `img_avg` key in .mat file: %s!' % filename)
+        else:
+            raw_image = mat['img_avg']
         
     else:
         raise ValueError('Cannot understand format of file: %s' % filename)
