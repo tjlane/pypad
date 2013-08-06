@@ -38,13 +38,15 @@ parser.add_argument('-m', '--metrology', default=None,
                             metrology.''')
 parser.add_argument('-s', '--shot', default=0, type=int,
                     help='''Which shot to display (for files with many shots). Default: 0''')
+parser.add_argument('-t', '--type', help='''The metrology type.''', 
+                    default='cxi', choices=['cxi', 'xpp'])
                             
 args = parser.parse_args()
 
 raw_image = read.load_raw_image(args.image_file, args.shot)
 
 if args.metrology:
-    cs1 = cspad.CSPad.load(args.metrology)
+    cs1 = cspad.CSPad.load(args.metrology, mettype=args.type)
     fn = args.metrology
 else:
     cs1 = cspad.CSPad.default()

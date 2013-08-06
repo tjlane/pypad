@@ -372,10 +372,35 @@ class CSPad(object):
     """
     
     def __init__(self, metrology, quad_offset=np.zeros((4,2)), 
-                 quad_rotation=np.zeros(4), verbose=True):
+                 quad_rotation=np.zeros(4), mettype='cxi', verbose=True):
         """
         Initialize an instance of CSPad, corresponding to a single CSPad
-        geometry.             
+        geometry.
+        
+        Parameters
+        ----------
+        metrology : str OR ndarray OR BasisGrid
+            If a string, this points to an optical metrology file organized by
+            (ASIC, x, y, z). If a numpy array, should be (4,32), representing 
+            the metrology measurements for each quad. If a BasisGrid, then
+            should be a 64-element basis grid specifying the full geometry.        
+        
+        quad_offset : ndarray, float
+            A (4 x 2) array of an offsets to apply to each quad (first array 
+            dim) in the x/y dimension (second array dim). For now z-offsets 
+            cannot be manipulated here.
+            
+        quad_rotation : ndarray, float
+            CCW rotations, in degrees, to apply to each quad.
+            
+        mettype : str, {'cxi', 'xpp'}
+            Indicate what kind of metrology you are passing. The main difference
+            is that for XPP type metrologies, the quads are assembled in space,
+            where as at CXI one must apply rotations to each quad in order to
+            orient them.
+            
+        Verbose : bool
+            Be loud and noisy -- for debugging.
         """
         
         self.verbose = verbose
@@ -431,7 +456,17 @@ class CSPad(object):
         
         self._metrology_basis = BasisGrid()
         self._reflect_xaxis = True
-        self._base_quad_rotation = [90.0, 0.0, 270.0, 180.0] # deg ccw from upstream
+        
+        # deg ccw from upstream
+        if mettype.lower() == 'cxi':
+            self._base_quad_rotation = [90.0, 0.0, 270.0, 180.0]
+        elif mettype.lower() == 'xpp':
+            self._base_quad_rotation = [0.0, 0.0, 0.0, 0.0]
+            # xpp metrology is way off from center -- make a guess
+            self.quad_offset += np.array([89.0, -92.0])[None,:]
+        else:
+            raise ValueError('Cannot understand `mettype` %s; must be one of '
+                             '{"cxi", "xpp"}' % mettype)
         
         for q in range(4):
             if self.verbose: print "\nParsing: quad %d" % q
@@ -1399,7 +1434,7 @@ class CSPad(object):
     
 
     @classmethod
-    def load(cls, filename):
+    def load(cls, filename, mettype='cxi'):
         """
         Load a metrology. Currently supports:
         
@@ -1416,6 +1451,9 @@ class CSPad(object):
         filename : str
             The path to the file to load
             
+        mettype : {'cxi', 'xpp'}
+            Which kind of metrology we're dealing with.
+            
         Returns
         -------
         cspad : CSPad
@@ -1423,7 +1461,7 @@ class CSPad(object):
         """
         
         if filename.endswith('.txt'):
-            geom = cls(filename)
+            geom = cls(filename, mettype=mettype)
             
         elif filename.endswith('.cspad'):
             geom = cls.load_cspad(filename)

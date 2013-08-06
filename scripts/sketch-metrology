@@ -22,15 +22,18 @@ parser = argparse.ArgumentParser(description='''Sketch a CSPad metrology.
 Useful for debugging.''')
 
 parser.add_argument('-m', '--metrology', help='''A CSPAD Metrology. Note you can also pass
- "default" to draw a default CSPad, which is useful to show you how things 
- should look.''', default='default')
+"default" to draw a default CSPad, which is useful to show you how things 
+should look.''', default='default')
+parser.add_argument('-t', '--type', help='''The metrology type.''', 
+                    default='cxi', choices=['cxi', 'xpp'])
                             
 args = parser.parse_args()
 
 if args.metrology == 'default':
     cs1 = cspad.CSPad.default()
 else:
-    cs1 = cspad.CSPad.load(args.metrology)
-    
-cs1.dilate(5.0)
+    cs1 = cspad.CSPad.load(args.metrology, mettype=args.type)
+
+if type(args.metrology) == str:    
+    cs1.dilate(5.0)
 sketch_2x1s(cs1.pixel_positions)
