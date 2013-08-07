@@ -792,6 +792,8 @@ class CSPad(object):
         else:
             raise TypeError('`param_names` & `param_values` must be type list')
     
+    # below we have some special parameters for use with the optimization
+    # algorithm
         
     @property
     def quad_offset_bydiag(self):
@@ -800,14 +802,27 @@ class CSPad(object):
         instead of x/y. Useful for the optimization routine.
         """
         quad_offset_bydiag = np.zeros_like(self.quad_offset)
-        quad_offset_bydiag[0,:] = self.quad_offset[0,:] + self.quad_offset[1,:]
-        quad_offset_bydiag[1,:] = self.quad_offset[0,:] - self.quad_offset[1,:]
+        quad_offset_bydiag[:,0] = self.quad_offset[:,0] + self.quad_offset[:,1]
+        quad_offset_bydiag[:,1] = self.quad_offset[:,0] - self.quad_offset[:,1]
         return quad_offset_bydiag
         
         
     def _set_offset_bydiag(self, quad_offset_bydiag):
-        self.quad_offset[0,:] = (quad_offset_bydiag[0,:] + quad_offset_bydiag[1,:]) / 2.0
-        self.quad_offset[1,:] = (quad_offset_bydiag[0,:] - quad_offset_bydiag[1,:]) / 2.0
+        self.quad_offset[:,0] = (quad_offset_bydiag[:,0] + quad_offset_bydiag[:,1]) / 2.0
+        self.quad_offset[:,1] = (quad_offset_bydiag[:,0] - quad_offset_bydiag[:,1]) / 2.0
+        return
+        
+    @property
+    def quad_offset_together(self):
+        """
+        Move all the quads together, effectively moving the beam intersection
+        with the detector.
+        """
+        raise NotImplementedError()
+        return 
+        
+    def _set_offset_together(self):
+        raise NotImplementedError()
         return
     
 
