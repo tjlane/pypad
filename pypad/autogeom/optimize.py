@@ -60,7 +60,7 @@ class Optimizer(object):
         
         # optimization / objective function
         self.objective_type      = 'overlap'
-        self.params_to_optimize  = ['quad_offset_bydiag', 'quad_rotation'] # , 'quad_offset'
+        self.params_to_optimize  = ['quad_offset_bydiag', 'quad_rotation'] # , 'quad_offset', 'beamcenter'
         
         # for objective_type : peak_height
         self.peak_weight         = 0.0

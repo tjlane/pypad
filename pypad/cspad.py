@@ -340,7 +340,8 @@ class BasisGrid(object):
 pixel_size = 0.10992 # sort of a universal constant, in mm
 _array_sizes = {'quad_rotation'       : (4,),
                 'quad_offset'         : (4,2),
-                'quad_offset_bydiag'  : (4,2)}
+                'quad_offset_bydiag'  : (4,2),
+                'beamcenter'          : (2,)}
 
 class CSPad(object):
     """
@@ -769,6 +770,8 @@ class CSPad(object):
             if value.shape == _array_sizes[param_name]:
                 if param_name == 'quad_offset_bydiag':
                     self._set_offset_bydiag(value)
+                elif param_name == 'beamcenter':
+                    self._set_beamcenter(value)
                 else:
                     self.__dict__[param_name] = value
             else:
@@ -813,16 +816,18 @@ class CSPad(object):
         return
         
     @property
-    def quad_offset_together(self):
+    def beamcenter(self):
         """
         Move all the quads together, effectively moving the beam intersection
         with the detector.
         """
-        raise NotImplementedError()
-        return 
+        return self.quad_offset[:,:2].mean(axis=0)
         
-    def _set_offset_together(self):
-        raise NotImplementedError()
+    def _set_beamcenter(self, offset):
+        """
+        Offset is a 2-element array of floats
+        """
+        self.quad_offset[:,:2] += offset[None,:]
         return
     
 
