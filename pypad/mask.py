@@ -467,23 +467,25 @@ class MaskGUI(object):
             raise ValueError("`raw_image` must have shape: (4, 16, 185, 194)")
             
         if mask == None:
-            
-            self.mask = PadMask()
-            
-            # inject a new mask type into our PadMask obj
-            m = self.mask._blank_mask()
-            self.mask._inject_mask('manual', m)
-
-            # deal with negative values
-            self.mask._inject_mask('negatives', m.copy())
-            self.mask._masks['negatives'][raw_image <= 0.0] = 0
-            print "Masked: %d negative pixels" % np.sum(np.logical_not(self.mask._masks['negatives']))
-            
+            self.mask = PadMask()            
         elif isinstance(mask, PadMask):
             self.mask = mask
             
         else:
             raise TypeError('`mask` argument must be a pypad.mask.PadMask object')
+        
+        
+        # inject a new mask type into our PadMask obj
+        m = self.mask._blank_mask()
+        
+        if not 'manual' in self.mask._masks.keys():
+            self.mask._inject_mask('manual', m)
+
+        # deal with negative values
+        if not 'negatives' in self.mask._masks.keys():
+            self.mask._inject_mask('negatives', m.copy())
+            self.mask._masks['negatives'][raw_image <= 0.0] = 0
+            print "Masked: %d negative pixels" % np.sum(np.logical_not(self.mask._masks['negatives']))
         
         
         # we're going to plot the log of the image, so do that up front
