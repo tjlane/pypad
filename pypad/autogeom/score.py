@@ -1,4 +1,3 @@
-k
 # THIS FILE IS PART OF PyPad, AND IS GOVERENED BY A PERMISSIBILITY LICENSE 
 # GOVERNING ITS USE AND DISTRIBUTION. YOU SHOULD HAVE RECIEVED A COPY OF THIS
 # LICENSE WITH THE SOFTWARE; IF NOT PROVIDED, WRITE TO <tjlane@stanford.edu>.
@@ -304,27 +303,6 @@ class PowderReference(object):
                                    self.distance_offset )
         expected = self.expected
         
-        ### Old algorithm by TJ ###
-        # (1) match observed peaks to their closest expected peak
-        # (2) for expected peaks with more than one match, keep only the tallest
-        #     peak
-        
-#        observed_matches = np.zeros( len(observed), dtype=np.int32 )
-#        m_observed = np.zeros_like(expected)
-#        
-#        # match each observed value with its closest expected value
-#        for i in range(len(observed)):
-#            match_index     = np.argmin( np.abs(expected - observed[i]) )
-#            observed_matches[i] = match_index
-#        
-#        # for each expected value, if has multi matches, choose best
-#        for i in range(self.num_millers):
-#            w = (observed_matches == i)
-#            if np.sum(w) > 1:
-#                mx = np.argmax( self.sample_peak_heights[sample_index][w] )
-#                m_observed[i] = observed[ np.where(observed_matches == i)[0][mx] ]
-        
-        
         ### New algorithm by Jonas ###
         # Will optimize the observed peak indices that corresponds to the expected peaks
         # based on the proximity of the peak position in q weighted by its peak intensity.
@@ -505,12 +483,24 @@ class PowderReference(object):
         # --- plot the right image
         n_bins = 800
         
+        bin_centers, a = self.cspad.intensity_profile(img, n_bins=n_bins)
+        q_bin_centers = self.reciprocal(bin_centers, d)
+        self._axR.plot(q_bin_centers, a / a.max(), color='orange', lw=4)
+        
         for i in range(4):
             bin_centers, a = self.cspad.intensity_profile(img, n_bins=n_bins, quad=i)
             a /= a.max()
-            a += 1.0 * i
+            a += 1.0 * i + 1.0
             q_bin_centers = self.reciprocal(bin_centers, d)
             self._axR.plot(q_bin_centers, a, color=plot.quad_colors[i], lw=2)
+
+        self._axR.text(0.5, -0.2, 'All Quads')
+        self._axR.text(0.5,  0.8, 'Quad 0')
+        self._axR.text(0.5,  1.8, 'Quad 1')
+        self._axR.text(0.5,  2.8, 'Quad 2')
+        self._axR.text(0.5,  3.8, 'Quad 3')
+        
+        self._axR.set_ylim([-0.3, 5.3])
 
         self._axR.vlines(self.expected, 0, a.max()*1.2, color='k', linestyles='dashed')
         # self._axR.vlines(self.observed[index,:], 0, a.max(), color='r', linestyles='dashed')

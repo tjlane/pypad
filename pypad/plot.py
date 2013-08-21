@@ -17,7 +17,7 @@ A library for plotting pretty images of all kinds.
 import numpy as np
 
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button
+from matplotlib.widgets import Button, Slider
 import matplotlib.patches as plt_patches
 
 quad_colors = ['k', 'g', 'purple', 'b']
@@ -240,3 +240,196 @@ class ToggleButton(Button, object):
         else:
             return False
         
+
+class TwoPanelCSPAD(object):
+    """
+    This is a base for a class that displays the CSPAD in the left hand panel,
+    and the radial projections on the right hand side.
+    """
+    
+    def __init__(self, image, cspad):
+        
+        self.image = image
+        self.cspad = cspad
+        
+        # initialize the plot
+        self.fig = plt.figure(figsize=(12,7))
+        self.axL = plt.subplot(121)
+        self.axR = plt.subplot(122)
+        
+        self.fig.canvas.mpl_connect('scroll_event', self.on_scroll)
+        
+        # actually show the image!
+        self.im = imshow_cspad( self.cspad(self.image), ax=self.axL, 
+                                scrollable=True )
+        self.update_image()
+        
+        return
+    
+
+    def show(self):
+        """ display the image and wait for the user to quit out of it """
+        plt.show()
+        return
+        
+        
+    def draw_cspad(self, image):
+        """
+        draw the lefthand panel
+        """
+        
+        self.im.set_data(self.cspad(self.image))
+        
+        # plot beam center
+        beam_center = plt_patches.Circle((1000,1000), 2, fill=True, lw=1, color='w')
+        self.axL.add_patch(beam_center)
+    
+        return
+    
+
+    def draw_projection(self, image):
+        """
+        Draw a radial projection of the intensities, in the rightmost panel.
+        """
+        
+        self.axR.cla()
+        
+        n_bins = 800
+        
+        # plot all quads
+        bin_centers, a = self.cspad.intensity_profile(image, n_bins=n_bins)
+        self.axR.plot(bin_centers, a / a.max(), color='orange', lw=4)
+        
+        # plot each quad individually
+        for i in range(4):
+            bin_centers, a = self.cspad.intensity_profile(image, n_bins=n_bins, quad=i)
+            a /= a.max()
+            a += 1.0 * i + 1.0
+            self.axR.plot(bin_centers, a, color=quad_colors[i], lw=2)
+        
+        self.axR.set_xlabel('Radius [mm]')
+        self.axR.set_ylabel('Intensity')
+        self.axR.get_yaxis().set_ticks([])
+        
+        self.axR.set_ylim([-0.3, 5.3])
+        
+        self.axR.text(100, -0.2, 'All Quads')
+        self.axR.text(100,  0.8, 'Quad 0')
+        self.axR.text(100,  1.8, 'Quad 1')
+        self.axR.text(100,  2.8, 'Quad 2')
+        self.axR.text(100,  3.8, 'Quad 3')
+        
+        return
+    
+
+    def update_image(self, val=None):
+        """
+        If a slider gets moved, update the panels
+        """
+                
+        self.draw_cspad(self.image)
+        self.draw_projection(self.image)
+        plt.draw()
+        
+        return
+                
+        
+    def on_scroll(self, event):
+        """
+        when we scroll, zoom in on the CSPAD intensities
+        """
+        
+        lims = self.im.get_clim()
+        speed = 1.2
+
+        if event.button == 'up':
+            colmax = lims[1] / speed
+        elif event.button == 'down':
+            colmax = lims[1] * speed
+
+        self.im.set_clim(lims[0], colmax)
+        plt.draw()
+        
+        
+class ManipTwoPanelCSPAD(TwoPanelCSPAD):
+    """
+    A TwoPanelCSPAD object with some additional interactive features,
+    specifically:
+    
+    -- a dilation slider
+    -- the ability to set the beam center by right-clicking
+    """
+    
+    def __init__(self, image, cspad):
+        
+        super(ManipTwoPanelCSPAD, self).__init__(image, cspad)
+        
+        plt.subplots_adjust(bottom=0.25)
+        
+        # initial values
+        self.dilation     = 0.0
+        self.center       = [0.0, 0.0]
+        
+        self.axcolor = 'lightgoldenrodyellow'
+                
+        # build the dilation slider
+        self.ax_dilt = plt.axes([0.20, 0.10, 0.60, 0.03], axisbg=self.axcolor)
+        self.dilation_slider = Slider(self.ax_dilt, 'Dilate [mm]', 0.0, 10.0, valinit=5.0)
+        self.dilation_slider.on_changed(self.update_image)
+        
+        self.fig.canvas.mpl_connect('button_press_event', self.on_click)
+        
+        self.update_image()
+        
+        return
+    
+        
+    def update_image(self, val=None):
+        
+        # apply any dilation
+        if hasattr(self, 'dilation_slider'):
+            delta_dilation = self.dilation_slider.val - self.dilation
+            self.cspad.dilate(delta_dilation)
+            self.dilation = self.dilation_slider.val
+            if np.abs(delta_dilation) > 1e-8:
+                print "Dilation set to: %.2f" % self.dilation
+        
+        super(ManipTwoPanelCSPAD, self).update_image(val)
+        
+        return
+    
+        
+    def on_click(self, event):
+        """
+        If the user clicks on the image
+        """
+        if event.inaxes and (event.button is not 1):
+
+            # clicks on left panel -- set beam center
+            # the center is always at (1000, 1000): so translate the entire 
+            # cspad to move the center
+            if event.inaxes == self.axL:
+                self.center[0] += 1000.0 - event.xdata
+                self.center[1] += 1000.0 - event.ydata
+                delta_center = (1000.0 - event.xdata, 1000.0 - event.ydata)
+                print "Shifting center in x/y by: (%.2f, %.2f)" % delta_center
+                
+                offset = np.array(delta_center)[None,:] * 0.10992 # pxl --> mm
+                
+                if np.any( np.abs(self.cspad.quad_offset + offset) > 15.0 ):
+                    print "Warning: center move placed image outside reasonable"
+                    print "bounds: try again with."
+                else:
+                    self.cspad.quad_offset += offset                    
+                    self.update_image(event)
+                
+            # clicks on right panel -- set opt limits
+            elif event.inaxes == self.axR:
+                v_line = event.xdata
+                print "Set peak limit at: %f" % v_line
+                self.regions.append(v_line)
+                self.update_image(event)
+                    
+        return
+
+  

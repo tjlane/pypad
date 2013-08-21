@@ -50,7 +50,7 @@ def load_raw_image(filename, image_in_file=0):
     print "Loading: %s" % filename
     
     if filename.endswith('.h5'):
-        f = h5py.File(filename)
+        f = h5py.File(filename, 'r')
 
         # psana format
         if ('data%d' % image_in_file) in f.keys():
