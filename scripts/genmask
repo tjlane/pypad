@@ -42,7 +42,6 @@ img = read.load_raw_image(args.image)
 
 if args.reload:
     old_mask = mask.PadMask.load(args.reload)
-    print old_mask
 else:
     old_mask = None
     
