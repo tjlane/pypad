@@ -348,21 +348,8 @@ class CSPad(object):
     CSPad geometry. It contains an interface to read the optical metrologies
     performed at LCLS by the CSPAD group, and can write many file formats.
     
-    Further, this class lets you visualize data on a specific geometry.
-    Imagine you have a 'raw_image', an np array from psana with the measured
-    intensities for each pixel. You also have a directory 'my_params', which
-    contains a directory structure like 
-    
-    my_params/
-      rotation/
-        0-end.data
-      tilt/
-        0-end.data
-      ...    
-    
-    Then, you should be able to turn those mysterious parameters into a CSPad
-    geometry by doing something like this:
-    
+    Further, this class lets you visualize data on a specific geometry, e.g.
+        
     >>> from pypad import cspad, plot
     >>> geom = cspad.CSPad('path/to/metrology.txt')
     >>> assembled_image = geom(raw_image)
