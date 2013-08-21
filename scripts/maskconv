@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+
+# THIS FILE IS PART OF PyPad, AND IS GOVERENED BY A PERMISSIBILITY LICENSE 
+# GOVERNING ITS USE AND DISTRIBUTION. YOU SHOULD HAVE RECIEVED A COPY OF THIS
+# LICENSE WITH THE SOFTWARE; IF NOT PROVIDED, WRITE TO <tjlane@stanford.edu>.
+#
+# AUTHORS:
+# TJ Lane <tjlane@stanford.edu>
+# Jonas Sellberg <jonas.a.sellberg@gmail.com>
+#
+# Apr 30, 2013
+
+"""
+Convert a mask between formats: pypad, Odin, Cheetah, etc.
+"""
+
+import os
+import argparse
+
+from pypad import mask
+
+parser = argparse.ArgumentParser(description='''Convert a mask between formats: pypad, Odin, Cheetah, etc.''')
+                                 
+parser.add_argument('mask',
+                    help='''A PadMask, in {.mask, .h5} format''')
+parser.add_argument('-o', '--output', default='my_mask.mask',
+                    help='''The name of the file to write, containing the final 
+                            mask. Default: my_mask.mask''')
+parser.add_argument('-f', '--format', default='pypad', 
+                    choices=['pypad', 'odin', 'cheetah'],
+                    help='''The file format to write. Default: pypad.''')
+args = parser.parse_args()
+
+
+m = mask.PadMask.load(args.mask)
+m.save(args.output, fmt=args.format)
+
+
