@@ -29,11 +29,21 @@ parser.add_argument('image', help='''An image to display, to aid masking.
 parser.add_argument('-o', '--output', default='my_mask.mask',
                     help='''The name of the file to write, containing the final 
                             mask. Default: my_mask.mask''')
-parser.add_argument('-f', '--format', default='pypad', choices=['pypad', 'odin', 'cheetah'],
-                    help='''The file format to write.''')
+parser.add_argument('-f', '--format', default='pypad', 
+                    choices=['pypad', 'odin', 'cheetah'],
+                    help='''The file format to write. Default: pypad.''')
+parser.add_argument('-r', '--reload',
+                    help='''Reload an old mask and continue working on it. Can 
+                            be pypad (.mask) or cheetah (.h5) format.''')
 
 args = parser.parse_args()
 
 img = read.load_raw_image(args.image)
-msk = mask.MaskGUI(img, filename=args.output, fmt=args.format)
 
+if args.reload:
+    old_mask = mask.PadMask.load(args.reload)
+    print old_mask
+else:
+    old_mask = None
+    
+msk = mask.MaskGUI(img, mask=old_mask, filename=args.output, fmt=args.format)

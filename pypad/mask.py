@@ -23,6 +23,7 @@ from matplotlib.nxutils import points_inside_poly
 from matplotlib.widgets import Button
 
 from pypad import utils
+from pypad import read
 from pypad.plot import ToggleButton
 
 
@@ -95,7 +96,7 @@ class PadMask(object):
         return
     
         
-    def _inject_mask(self, mask_name, mask):
+    def _inject_mask(self, mask_name, mask, override_previous=False):
         """
         Add a new kind of mask to this mask object. Provides some typechecking.
         
@@ -109,7 +110,10 @@ class PadMask(object):
         if not mask.dtype == np.bool:
             mask = mask.astype(np.bool)
             
-        self._masks[mask_name] = mask
+        if (not mask_name in self._masks.keys()) or override_previous:
+            self._masks[mask_name] = mask
+        else:
+            raise KeyError('Mask object already has `%s` mask.' % mask_name)
         
         return
         
@@ -216,7 +220,7 @@ class PadMask(object):
         ind = (image > upper) + (image < lower)
         m[ind] = 0
         
-        self._inject_mask('threshold', m)
+        self._inject_mask('threshold', m, override_previous=True)
         
         return
     
@@ -249,7 +253,7 @@ class PadMask(object):
                             m[i,j,p-1:p+2,p] = 0
                             m[i,j,p,p-1:p+2] = 0
                     
-        self._inject_mask('nonbonded', m)
+        self._inject_mask('nonbonded', m, override_previous=True)
         
         return
     
@@ -286,7 +290,7 @@ class PadMask(object):
                 # # mask a bar along y in the middle of the 2x1
                 # m[i,j,:,194-n:194+n] = np.bool(False)
         
-        self._inject_mask('border', m)
+        self._inject_mask('border', m, override_previous=True)
         
         return
     
@@ -304,7 +308,7 @@ class PadMask(object):
             self.automask[:,col]=1
             col+= 194
             
-        self._inject_mask('row13', m)
+        self._inject_mask('row13', m, override_previous=True)
     
     # ----------
         
@@ -374,8 +378,7 @@ class PadMask(object):
         elif fmt in ['cheetah', 'twod']:
             if not filename.endswith('.h5'):
                 filename += '.h5'
-                
-            # need jonas to dbl check this is right for Cheetah
+            
             f = h5py.File(filename, 'w')
             f['/data/data'] = self.mask2d
             f.close()
@@ -392,7 +395,10 @@ class PadMask(object):
     @classmethod    
     def load(cls, filename):
         """
-        Load a saved mask
+        Load a saved mask. Can be one of many formats:
+        
+            -- pypad .mask
+            -- cheetah .h5
         
         Parameters
         ----------
@@ -400,16 +406,31 @@ class PadMask(object):
             The name of the file to read.
         """
         
-        if not filename.endswith('.mask'):
-            raise IOError('Can only read files with .mask format -- got: %s' % filename)
-            
         m = cls()
         
-        f = h5py.File(filename, 'r')
-        for k in f:
-            m._masks[k] = np.array(f[k])
-        f.close()
+        if filename.endswith('.mask'):
+            f = h5py.File(filename, 'r')
+            for k in f:
+                m._masks[k] = np.array(f[k])
+            f.close()
+            
+        elif filename.endswith('.h5'):
+            
+            try:
+                f = h5py.File(filename, 'r')
+                d = np.array( f['/data/data'] )
+                assert d.shape == (1480, 1552)
+                f.close()
+            except:
+                raise IOError('Cannot read data inside: %s. Either data is '
+                              'corrupt or not in cheetah format [in /data/data'
+                              ' and shape (1480, 1552)]' % filename)
+            
+            m._masks['cheetah'] = np.array( read.enforce_raw_img_shape(d) )
         
+        else:
+            raise IOError('Can only read files with {.mask, .h5} format -- got: %s' % filename)
+            
         return m
     
     
@@ -446,22 +467,23 @@ class MaskGUI(object):
             raise ValueError("`raw_image` must have shape: (4, 16, 185, 194)")
             
         if mask == None:
+            
             self.mask = PadMask()
+            
+            # inject a new mask type into our PadMask obj
+            m = self.mask._blank_mask()
+            self.mask._inject_mask('manual', m)
+
+            # deal with negative values
+            self.mask._inject_mask('negatives', m.copy())
+            self.mask._masks['negatives'][raw_image <= 0.0] = 0
+            print "Masked: %d negative pixels" % np.sum(np.logical_not(self.mask._masks['negatives']))
+            
         elif isinstance(mask, PadMask):
             self.mask = mask
+            
         else:
             raise TypeError('`mask` argument must be a pypad.mask.PadMask object')
-        
-        
-        # inject a new mask type into our PadMask obj
-        m = self.mask._blank_mask()
-        self.mask._inject_mask('manual', m)
-        
-        
-        # deal with negative values
-        self.mask._inject_mask('negatives', m.copy())
-        self.mask._masks['negatives'][raw_image <= 0.0] = 0
-        print "Masked: %d negative pixels" % np.sum(np.logical_not(self.mask._masks['negatives']))
         
         
         # we're going to plot the log of the image, so do that up front
