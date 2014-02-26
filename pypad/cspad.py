@@ -27,7 +27,7 @@ from os.path import join as pjoin
 import numpy as np
 import scipy.ndimage.interpolation as interp
 import matplotlib.pyplot as plt
-from matplotlib.nxutils import points_inside_poly
+#from matplotlib.nxutils import points_inside_poly
 
 from pypad import utils
 from pypad import read
@@ -396,6 +396,11 @@ class CSPad(object):
         
         self._param_list = _array_sizes.keys()
         self.pixel_size  = pixel_size
+        
+        self._ip_settings = {'n_bins'          : None,
+                             'quad'            : None,
+                             'geometry'        : None,
+                             'bin_assignments' : None}
         
         if not quad_offset.shape == _array_sizes['quad_offset']:
             raise ValueError('quad_offset must have shape (4,2), got: %s' % str(quad_offset.shape))
@@ -912,41 +917,81 @@ class CSPad(object):
             The average intensity in the bin.
         """
         
-        # compute radii
-        pp = self.pixel_positions
+        # if the following things haven't changed, we want to recall the old
+        # self._bin_assignements and just use those rather than computing them
+        # again
+        # -- the geometry
+        # -- the arguments
         
+        if ((self._ip_settings['n_bins'] == n_bins) and \
+            (self._ip_settings['quad'] == quad)):
+            args_same = True
+        else:
+            args_same = False
+            
+        
+        if not self._ip_settings['geometry'] == None:
+            geometry_same = True
+            for i,param in enumerate(self._param_list):
+                if not np.all(self._ip_settings['geometry'][i] == self.get_param(param)):
+                    geometry_same = False
+                    break
+        else:
+            geometry_same = False
+            
+        
+        # figure out the number of bins to use
+        if n_bins != None:
+            bin_factor = float(n_bins) / radii.max()
+        else:
+            bin_factor = 25.0 # works well in tests
+
+
+        # choose & format the intensity data the way we want
         if quad == 'all':
-            radii = np.sqrt( np.power(pp[0],2) + np.power(pp[1],2) )
             intensities = raw_image
         elif type(quad) == int:
-            radii = np.sqrt( np.power(pp[0,quad], 2) + np.power(pp[1,quad], 2) )
             intensities = raw_image[quad,:,:,:]
         else:
             raise ValueError('`quad` must be {0,1,2,3} or "all", got %s' % str(quad))
-
-        # histogram -- we have two methods : one for binary images
-        if intensities.dtype == np.bool:
+        intensities = intensities.astype(np.float32)
             
-            bin_factor = 100.0 # HARDCODED -- seems to work well
-            bin_assignments = np.floor( radii * bin_factor ).astype(np.int32)
+            
+        # choose what pixels go into what bins
+        if (args_same and geometry_same):
+            print('lazily using previously computed bin assignments')
+            pass # be lazy
+            
+        else: # work to find the bin assignments we need
         
-            assert bin_assignments.shape == radii.shape
-            assert intensities.shape     == radii.shape
+            print('(re)computing radial integration bin assignments')
+        
+            # compute radii
+            pp = self.pixel_positions
+        
+            if quad == 'all':
+                radii = np.sqrt( np.power(pp[0],2) + np.power(pp[1],2) )
+            elif type(quad) == int:
+                radii = np.sqrt( np.power(pp[0,quad], 2) + np.power(pp[1,quad], 2) )
+            else:
+                raise ValueError('`quad` must be {0,1,2,3} or "all", got %s' % str(quad))
+                
+            self._ip_settings['bin_assignments'] = np.floor( radii * bin_factor ).astype(np.int32)
+            assert self._ip_settings['bin_assignments'].shape == radii.shape
+            assert intensities.shape == radii.shape
             
-            bin_values  = np.bincount( bin_assignments[intensities].flatten() ).astype(np.float32)
-            bin_values /= (np.bincount( bin_assignments.flatten() ) + 1e-100).astype(np.float)[:bin_values.shape[0]]
-            bin_centers = np.arange(bin_values.shape[0]) / bin_factor
             
-        else:
-            if n_bins == None : n_bins = int( np.sqrt(np.product(raw_image.shape)) )
-            
-            # New algorithm by Jonas to calculate angular average instead of angular sum
-            
-            bin_values, bin_edges = np.histogram( radii, weights=intensities, bins=n_bins )
-            bin_normalizations = np.histogram( radii, bins=n_bins )
-            
-            bin_values = bin_values / (bin_normalizations[0] + 1e-300)
-            bin_centers = np.array([(bin_edges[i] + bin_edges[i+1])/2 for i in range(len(bin_values))])
+
+
+        # accumulate & normalize
+        bin_values = np.bincount(self._ip_settings['bin_assignments'].flatten(), weights=intensities.flatten())
+        bin_values /= (np.bincount( self._ip_settings['bin_assignments'].flatten() ) + 1e-100).astype(np.float)[:bin_values.shape[0]]
+        bin_centers = np.arange(bin_values.shape[0]) / bin_factor
+        
+        # store the values we used for next time
+        self._ip_settings['n_bins']   = n_bins
+        self._ip_settings['quad']     = quad
+        self._ip_settings['geometry'] = [self.get_param(param) for param in self._param_list]
         
         assert bin_centers.shape == bin_values.shape
         return bin_centers, bin_values
