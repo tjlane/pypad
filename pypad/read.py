@@ -77,7 +77,7 @@ def load_raw_image(filename, image_in_file=0):
         f.close()
 
     elif filename.endswith('.cxi'):
-        f = h5py.File(filename)
+        f = h5py.File(filename, 'r')
         try:
             ds = f['/entry_1/instrument_1/detector_1/data']
             raw_image = ds[image_in_file]
