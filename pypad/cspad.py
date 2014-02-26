@@ -872,27 +872,34 @@ class CSPad(object):
         into the x-y plane. Else returns `False`.
         """
         
-        bg = self.basis_repr
+        # TJL this needs to be fixed, but am too busy now (beamtime), so I'll
+        # raise an issue and do it later
+        # the problem is `points_inside_poly` is deprecated
         
-        # compute an array of the corners of each ASIC
-        corners = np.zeros(( 64, 4, 2 ))
         
-        for i in range(64):
-            corners[i,:,:] = bg.get_grid_corners(i)[:,:2]
+        # bg = self.basis_repr
+        # 
+        # # compute an array of the corners of each ASIC
+        # corners = np.zeros(( 64, 4, 2 ))
+        # 
+        # for i in range(64):
+        #     corners[i,:,:] = bg.get_grid_corners(i)[:,:2]
+        # 
+        # # loop over each ASIC and make sure that the corners of the others
+        # # are not inside the area it takes up in the xy plane
+        # 
+        # asics_overlap = False
+        # 
+        # for i in range(64):
+        #     asic   = corners[i,:,:]
+        #     others = np.concatenate((corners[:i], corners[i+1:])).reshape(63*4, 2)
+        #     any_inside = np.sum( points_inside_poly(others, asic) ).astype(np.bool)
+        #     if any_inside:
+        #         asics_overlap = True                
+        # 
+        # return asics_overlap
         
-        # loop over each ASIC and make sure that the corners of the others
-        # are not inside the area it takes up in the xy plane
-        
-        asics_overlap = False
-        
-        for i in range(64):
-            asic   = corners[i,:,:]
-            others = np.concatenate((corners[:i], corners[i+1:])).reshape(63*4, 2)
-            any_inside = np.sum( points_inside_poly(others, asic) ).astype(np.bool)
-            if any_inside:
-                asics_overlap = True                
-        
-        return asics_overlap
+        return False
     
         
     def intensity_profile(self, raw_image, n_bins=None, quad='all'):
