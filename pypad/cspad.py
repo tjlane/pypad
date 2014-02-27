@@ -1223,7 +1223,7 @@ class CSPad(object):
             An CSPad object.
         """
 
-        f = h5py.File(filename)
+        f = h5py.File(filename, 'r')
 
         if not f.keys() == ['x', 'y', 'z']:
             raise IOError('File: %s is not a valid pixel map, should contain fields'
