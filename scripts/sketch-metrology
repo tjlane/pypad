@@ -32,8 +32,12 @@ args = parser.parse_args()
 if args.metrology == 'default':
     cs1 = cspad.CSPad.default()
 else:
-    cs1 = cspad.CSPad.load(args.metrology, mettype=args.type)
+    if args.type == 'cxi':
+        cs1 = cspad.CSPad.load(args.metrology)
+        if type(args.metrology) == str:
+            cs1.dilate(5.0)
+    elif args.type == 'xpp':
+        cs1 = cspad.XppCSPad.load(args.metrology)
 
-if type(args.metrology) == str:    
-    cs1.dilate(5.0)
 sketch_2x1s(cs1.pixel_positions)
+
