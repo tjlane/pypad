@@ -54,7 +54,10 @@ def parse_n_load():
     
     # if we got a parameter dir, assemble the image
     if args.metrology:
-        cs1 = cspad.CSPad.load(args.metrology, mettype=args.type)
+        if args.type == 'cxi':
+            cs1 = cspad.CSPad.load(args.metrology)
+        elif args.type == 'xpp':
+            cs1 = cspad.XppCSPad.load(args.metrology)
     else:
         cs1 = cspad.CSPad.default()
         

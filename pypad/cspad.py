@@ -805,7 +805,7 @@ class CSPad(object):
         """
         Offset is a 2-element array of floats
         """
-        self.quad_offset[:,:2] += offset[None,:]
+        self.quad_offset[:,:2] += offset[None,:] - self.quad_offset[:,:2]
         return
     
 
@@ -861,7 +861,6 @@ class CSPad(object):
         # TJL this needs to be fixed, but am too busy now (beamtime), so I'll
         # raise an issue and do it later
         # the problem is `points_inside_poly` is deprecated
-        
         
         # bg = self.basis_repr
         # 
@@ -933,13 +932,6 @@ class CSPad(object):
             geometry_same = False
             
         
-        # figure out the number of bins to use
-        if n_bins != None:
-            bin_factor = float(n_bins) / radii.max()
-        else:
-            bin_factor = 25.0 # works well in tests
-
-
         # choose & format the intensity data the way we want
         if quad == 'all':
             intensities = raw_image
@@ -952,12 +944,13 @@ class CSPad(object):
             
         # choose what pixels go into what bins
         if (args_same and geometry_same):
-            print('lazily using previously computed bin assignments')
+            #print('lazily using previously computed bin assignments')
+            bin_factor = self._ip_settings['bin_factor']
             pass # be lazy
             
         else: # work to find the bin assignments we need
         
-            print('(re)computing radial integration bin assignments')
+            #print('(re)computing radial integration bin assignments')
         
             # compute radii
             pp = self.pixel_positions
@@ -968,6 +961,13 @@ class CSPad(object):
                 radii = np.sqrt( np.power(pp[0,quad], 2) + np.power(pp[1,quad], 2) )
             else:
                 raise ValueError('`quad` must be {0,1,2,3} or "all", got %s' % str(quad))
+
+            # figure out the number of bins to use
+            if n_bins != None:
+                bin_factor = float(n_bins) / radii.max()
+            else:
+                bin_factor = 25.0 # works well in tests
+            self._ip_settings['bin_factor'] = bin_factor
                 
             self._ip_settings['bin_assignments'] = np.floor( radii * bin_factor ).astype(np.int32)
             assert self._ip_settings['bin_assignments'].shape == radii.shape

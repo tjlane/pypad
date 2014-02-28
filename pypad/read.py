@@ -87,6 +87,9 @@ def load_raw_image(filename, image_in_file=0):
         
     elif filename.endswith('.npz'):
         raw_image = np.load(filename)['arr_%d' % image_in_file]
+
+    elif filename.endswith('.npy'):
+        raw_image = np.load(filename)
         
     elif filename.endswith('txt'):
         raw_image = np.loadtxt(filename)

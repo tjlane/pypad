@@ -42,6 +42,8 @@ def parse():
                                 metrology.''')
     parser.add_argument('-o', '--output', default='my_cspad.cspad', type=str,
                         help='The file optimized CSPAD to (default: my_cspad.cspad)')
+    parser.add_argument('-t', '--type', help='''The metrology type.''',
+                        default='cxi', choices=['cxi', 'xpp'])
                         
     args = parser.parse_args()
     
@@ -67,7 +69,10 @@ def main():
     
     # load the initial CSPad object to start from
     if args.metrology:
-        cs1 = cspad.CSPad.load(args.metrology)
+        if args.type == 'cxi':
+            cs1 = cspad.CSPad.load(args.metrology)
+        elif args.type == 'xpp':
+            cs1 = cspad.XppCSPad.load(args.metrology)
     else:
         cs1 = cspad.CSPad.default()
     

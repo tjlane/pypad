@@ -275,7 +275,7 @@ class Optimizer(object):
         # new objective function : overlap integral
         if self.objective_type == 'overlap':
             
-            bins = bin_centers
+            bins = len(bin_centers)
             quad_profiles = []
 
             for i in range(4):
