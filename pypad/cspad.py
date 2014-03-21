@@ -1285,7 +1285,7 @@ class CSPad(object):
     @classmethod
     def load_dtc(cls, filename):
         """
-        Load an Odin detector into a CSPad object
+        Load an Thor detector into a CSPad object
 
         Parameters
         ----------
@@ -1299,20 +1299,20 @@ class CSPad(object):
         """
         
         try:
-            from odin import xray
+            from thor import xray
         except ImportError as e:
-            raise ImportError('Cannot find Odin. You must have Odin installed to '
-                              'export to Odin. Download and install Odin from '
-                              'https://github.com/tjlane/odin')
+            raise ImportError('Cannot find Thor. You must have Thor installed to '
+                              'export to Thor. Download and install Thor from '
+                              'https://github.com/tjlane/thor')
         
         dtc = xray.Detector.load(filename)
         
-        # we have to convert from an odin-type basis grid
+        # we have to convert from an thor-type basis grid
         pypad_bg = BasisGrid()
-        odin_bg  = dtc._basis_grid
+        thor_bg  = dtc._basis_grid
         
-        for i in range(odin_bg.num_grids):
-            p, s, f, shp = odin_bg.get_grid(i)
+        for i in range(thor_bg.num_grids):
+            p, s, f, shp = thor_bg.get_grid(i)
             pypad_bg.add_grid(p, s, f, shp)
             
         return cls(pypad_bg)
@@ -1346,7 +1346,7 @@ class CSPad(object):
         geom_txt = f.read()
         f.close()
 
-        # initialize an odin BasisGrid object -- will add ASICs to this
+        # initialize an thor BasisGrid object -- will add ASICs to this
         bg = BasisGrid()
         shp = (185, 194) # this never changes for the CSPAD
 
@@ -1407,7 +1407,7 @@ class CSPad(object):
                     raise IOError('Geometry file incomplete -- cant parse one or '
                                   'more corner fields for QUAD %d / ASIC %d' % (q, a))
 
-                # finally, add the ASIC to the odin basis grid
+                # finally, add the ASIC to the thor basis grid
                 bg.add_grid(p, s, f, shp)
 
         if verbose: print " ... successfully converted geometry."
@@ -1420,8 +1420,8 @@ class CSPad(object):
         return
     
         
-    def to_odin(self, energy, distance_offset, filename):
-        export.to_odin(self, energy, distance_offset, filename)
+    def to_thor(self, energy, distance_offset, filename):
+        export.to_thor(self, energy, distance_offset, filename)
         return
         
     
@@ -1484,7 +1484,7 @@ class CSPad(object):
             ---------               ---------
             Optical Metrology       .txt
             Serialized CSPad        .cspad
-            Odin Detector           .dtc
+            Thor Detector           .dtc
             Cheetah PixMap          .h5
             CrystFEL Geom           .geom
         

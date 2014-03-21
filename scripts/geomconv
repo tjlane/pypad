@@ -11,7 +11,7 @@
 # Apr 30, 2013
 
 """
-Convert either a CSPad object to another file format: Odin, Cheetah, psana, etc.
+Convert either a CSPad object to another file format: Thor, Cheetah, psana, etc.
 """
 
 import os
@@ -27,17 +27,17 @@ parser.add_argument('geometry', default=None,
 parser.add_argument('-o', '--output', required=True,
                     help='''The name of the file to write, containing the final mask.''')
 parser.add_argument('-f', '--format', required=True, 
-                    choices=['odin', 'cheetah', 'crystfel', 'text'],
+                    choices=['thor', 'cheetah', 'crystfel', 'text'],
                     help='''The file format to write.''')
 args = parser.parse_args()
 
 
 geom = cspad.CSPad.load(args.geometry)
 
-if args.format == 'odin':
-    energy = float( raw_input('Energy to set the Odin detector to [eV]: ') )
+if args.format == 'thor':
+    energy = float( raw_input('Energy to set the Thor detector to [eV]: ') )
     dist   = float( raw_input('Distance offset (along the z-direction) [mm]: '))
-    geom.to_odin(energy, dist, args.output)
+    geom.to_thor(energy, dist, args.output)
 elif args.format == 'cheetah':
     geom.to_cheetah(args.output)
 elif args.format == 'crystfel':

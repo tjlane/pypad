@@ -19,8 +19,8 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 import matplotlib.colors as col
-from matplotlib.nxutils import points_inside_poly
 from matplotlib.widgets import Button
+from matplotlib.path import Path
 
 from pypad import utils
 from pypad import read
@@ -657,7 +657,9 @@ class MaskGUI(object):
            
                 # wrap around to close polygon
                 self.xy = np.vstack(( self.xy, self.xy[0,:] ))
-                inds = self.points[points_inside_poly(self.points+0.5, self.xy)]
+                path = Path(self.xy)
+                in_area = path.contains_points(self.points+0.5)
+                inds = self.points[in_area]
             
                 #print self.xy
                 #print inds

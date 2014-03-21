@@ -73,7 +73,7 @@ def to_cheetah(geometry, filename="pixelmap-cheetah-raw.h5"):
     return
 
     
-def to_odin(geometry, energy, distance_offset, filename):
+def to_thor(geometry, energy, distance_offset, filename):
     """
     Generate an ODIN detector object and write it to disk.
     
@@ -94,29 +94,29 @@ def to_odin(geometry, energy, distance_offset, filename):
     """
     
     try:
-        from odin import xray
+        from thor import xray
     except ImportError as e:
         print e
-        raise ImportError('Cannot find Odin. You must have Odin installed to '
-                          'export to Odin. Download and install Odin from '
-                          'https://github.com/tjlane/odin')
+        raise ImportError('Cannot find Thor. You must have Thor installed to '
+                          'export to Thor. Download and install Thor from '
+                          'https://github.com/tjlane/thor')
         
-    # we have to generate an odin-type basis grid -- maintains code separation
+    # we have to generate an thor-type basis grid -- maintains code separation
     pypad_bg = geometry.basis_repr
-    odin_bg  = xray.BasisGrid()
+    thor_bg  = xray.BasisGrid()
     for i in range(pypad_bg.num_grids):
         p, s, f, shp = pypad_bg.get_grid(i)
         p[2] += distance_offset # translate to make the origin the interaction site
-        odin_bg.add_grid(p, s, f, shp)
+        thor_bg.add_grid(p, s, f, shp)
     
         
     # recall that pypad assumes the beam is along the z-direction (CXI conven.)
-    energy /= 1000.0 # convert to keV : pypad is eV, Odin is keV
+    energy /= 1000.0 # convert to keV : pypad is eV, Thor is keV
     b = xray.Beam(1e11, energy=energy) # 1e11 photons per shot
-    d = xray.Detector(odin_bg, b)
+    d = xray.Detector(thor_bg, b)
     d.save(filename)
     
-    return
+    return d
     
     
 def to_crystfel(geometry, filename, intensity_file_type='cheetah'):
