@@ -11,7 +11,7 @@
 # Apr 30, 2013
 
 """
-Convert a mask between formats: pypad, Odin, Cheetah, etc.
+Convert a mask between formats: pypad, Thor, Cheetah, etc.
 """
 
 import os
@@ -19,7 +19,7 @@ import argparse
 
 from pypad import mask
 
-parser = argparse.ArgumentParser(description='''Convert a mask between formats: pypad, Odin, Cheetah, etc.''')
+parser = argparse.ArgumentParser(description='''Convert a mask between formats: pypad, Thor, Cheetah, etc.''')
                                  
 parser.add_argument('mask',
                     help='''A PadMask, in {.mask, .h5} format''')
@@ -27,7 +27,7 @@ parser.add_argument('-o', '--output', default='my_mask.mask',
                     help='''The name of the file to write, containing the final 
                             mask. Default: my_mask.mask''')
 parser.add_argument('-f', '--format', default='pypad', 
-                    choices=['pypad', 'odin', 'cheetah'],
+                    choices=['pypad', 'thor', 'cheetah'],
                     help='''The file format to write. Default: pypad.''')
 args = parser.parse_args()
 

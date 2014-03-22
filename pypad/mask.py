@@ -336,7 +336,7 @@ class PadMask(object):
                    mask. Not read by other software (suffix: .mask).
                    
         -- cheetah : Stores the mask as a two-dimensional array in an HDF5 format.
-                     Easily read into Cheetah and Odin (suffix: .h5).
+                     Easily read into Cheetah and Thor (suffix: .h5).
         
         Parameters
         ----------
@@ -344,7 +344,7 @@ class PadMask(object):
             The name of the file to write. This function will append an 
             appropriate suffix if none is provided.
             
-        fmt : str, {'pypad', 'cheetah', 'odin'}
+        fmt : str, {'pypad', 'cheetah', 'thor'}
             The format to save in. See above for documentation.
         """
         
@@ -358,18 +358,18 @@ class PadMask(object):
             f.close()
             
         
-        elif fmt == 'odin':
+        elif fmt == 'thor':
             if not filename.endswith('.h5'):
                 filename += '.h5'
             
             try:
-                from odin import parse
+                from thor import parse
             except ImportError:
-                raise ImportError('Cannot find Odin. You must have Odin installed to '
-                                  'export to Odin. Download and install Odin from '
-                                  'https://github.com/tjlane/odin')
+                raise ImportError('Cannot find Thor. You must have Thor installed to '
+                                  'export to Thor. Download and install Thor from '
+                                  'https://github.com/tjlane/thor')
             
-            m_array = parse.cheetah_intensities_to_odin( self.mask2d )
+            m_array = parse.cheetah_intensities_to_thor( self.mask2d )
             f = h5py.File(filename, 'w')
             f['/mask'] = m_array
             f.close()
@@ -386,7 +386,7 @@ class PadMask(object):
             
         else:
             raise IOError('Unrecognized format for PadMask: %s. Should be one of'
-                          ' {"pypad", "odin", "cheetah", "twod"}' % fmt)
+                          ' {"pypad", "thor", "cheetah", "twod"}' % fmt)
         
         print "Wrote: %s" % filename
         return
