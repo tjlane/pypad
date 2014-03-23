@@ -1416,9 +1416,9 @@ class CSPad(object):
         return
     
         
-    def to_thor(self, energy, distance_offset, filename):
-        export.to_thor(self, energy, distance_offset, filename)
-        return
+    def to_thor(self, energy, distance_offset, filename=None):
+        dtc = export.to_thor(self, energy, distance_offset, filename)
+        return dtc
         
     
     def to_crystfel(self, filename):

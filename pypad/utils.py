@@ -24,6 +24,101 @@ import matplotlib.pyplot as plt
 from pypad import read
 
 
+def update_average(n, A, B):
+    '''
+    updates a numpy matrix A that represents an average over the previous n-1 shots
+    by including B into the average, B being the nth shot
+    '''
+    if n == 0:
+        A += B
+        return
+    else:
+        A *= (n-1)/float(n)
+        A += (1.0/float(n))*B
+        return
+
+
+def normalize(q_values, intensities, q_min=0.5, q_max=3.5):
+    assert q_values.shape == intensities.shape
+    inds = (q_values > q_min) * (q_values < q_max)
+    factor = float(np.sum(intensities[inds])) / float(np.sum(inds))
+    return intensities / factor
+
+
+class RadialAverager(object):
+    
+    def __init__(self, q_values, mask, n_bins=101):
+        """
+        Parameters
+        ----------
+        q_values : np.ndarray (float)
+            For each pixel, this is the momentum transfer value of that pixel
+        mask : np.ndarray (int)
+            A boolean (int) saying if each pixel is masked or not
+        n_bins : int
+            The number of bins to employ. If `None` guesses a good value.
+        """
+        
+        self.q_values = read.enforce_raw_img_shape(q_values)
+        self.mask = read.enforce_raw_img_shape(mask).astype(np.int)
+        self.n_bins = n_bins
+        
+        # figure out the number of bins to use
+        if n_bins != None:
+            self.n_bins = n_bins
+            self._bin_factor = float(self.n_bins-1) / self.q_values.max()
+        else:
+            self._bin_factor = 25.0
+            self.n_bins = (self.q_values.max() * self._bin_factor) + 1
+        
+        self._bin_assignments = np.floor( q_values * self._bin_factor ).astype(np.int32)
+        self._normalization_array = (np.bincount( self._bin_assignments.flatten(), weights=self.mask.flatten() ) \
+                                    + 1e-100).astype(np.float)
+
+        assert self.n_bins == self._bin_assignments.max() + 1
+        self._normalization_array = self._normalization_array[:self.n_bins]
+        
+        return
+    
+    def __call__(self, image):
+        """
+        Bin pixel intensities by their momentum transfer.
+        
+        Parameters
+        ----------            
+        image : np.ndarray
+            The intensity at each pixel, same shape as pixel_pos
+
+
+        Returns
+        -------
+        bin_centers : ndarray, float
+            The q center of each bin.
+
+        bin_values : ndarray, int
+            The average intensity in the bin.
+        """
+
+        image = read.enforce_raw_img_shape(image)
+        
+        if not (image.shape == self.q_values.shape):
+            raise ValueError('`image` and `q_values` must have the same shape')
+        if not (image.shape == self.mask.shape):
+            raise ValueError('`image` and `mask` must have the same shape')
+
+        weights = image.flatten() * self.mask.flatten()
+        bin_values = np.bincount(self._bin_assignments.flatten(), weights=weights)
+        bin_values /= self._normalization_array
+   
+        assert bin_values.shape[0] == self.n_bins 
+    
+        return bin_values
+
+    @property
+    def bin_centers(self):
+        return np.arange(self.n_bins) / self._bin_factor
+
+
 def arctan3(y, x):
     """
     Compute the inverse tangent. Like arctan2, but returns a value in [0,2pi].

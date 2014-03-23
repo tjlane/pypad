@@ -73,7 +73,7 @@ def to_cheetah(geometry, filename="pixelmap-cheetah-raw.h5"):
     return
 
     
-def to_thor(geometry, energy, distance_offset, filename):
+def to_thor(geometry, energy, distance_offset, filename=None):
     """
     Generate an ODIN detector object and write it to disk.
     
@@ -90,7 +90,8 @@ def to_thor(geometry, energy, distance_offset, filename):
         directly using a pypad.autogeom.score.PowderReference instance.
         
     filname : str
-        The name of file to write. Will end in '.dtc'
+        The name of file to write. Will end in '.dtc'. If `None`, don't
+        save the file.
     """
     
     try:
@@ -114,7 +115,8 @@ def to_thor(geometry, energy, distance_offset, filename):
     energy /= 1000.0 # convert to keV : pypad is eV, Thor is keV
     b = xray.Beam(1e11, energy=energy) # 1e11 photons per shot
     d = xray.Detector(thor_bg, b)
-    d.save(filename)
+    if filename:
+        d.save(filename)
     
     return d
     
