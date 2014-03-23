@@ -52,6 +52,7 @@ def get_geometry(experiment, run, camera, energy, distance, dilation,
     geom.dilate(delta_dilt)
 
     dtc = geom.to_thor(energy, corr_dist) # eV, mm
+    #print camera, corr_dist, delta_dilt, energy, dtc.q_max
 
     return dtc, geom, mask
 

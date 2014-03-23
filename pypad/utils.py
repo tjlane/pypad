@@ -66,16 +66,18 @@ class RadialAverager(object):
         # figure out the number of bins to use
         if n_bins != None:
             self.n_bins = n_bins
-            self._bin_factor = float(self.n_bins-1) / self.q_values.max()
+            self._bin_factor = float(self.n_bins-0.5) / self.q_values.max()
         else:
             self._bin_factor = 25.0
             self.n_bins = (self.q_values.max() * self._bin_factor) + 1
         
         self._bin_assignments = np.floor( q_values * self._bin_factor ).astype(np.int32)
-        self._normalization_array = (np.bincount( self._bin_assignments.flatten(), weights=self.mask.flatten() ) \
-                                    + 1e-100).astype(np.float)
+        self._normalization_array = (np.bincount( self._bin_assignments.flatten(),
+                                     weights=self.mask.flatten() ) \
+                                     + 1e-100).astype(np.float)
 
-        assert self.n_bins == self._bin_assignments.max() + 1
+        #print self.n_bins, self._bin_assignments.max() + 1 
+        assert self.n_bins == self._bin_assignments.max() + 1, 'bin mismatch in init'
         self._normalization_array = self._normalization_array[:self.n_bins]
         
         return
@@ -110,7 +112,8 @@ class RadialAverager(object):
         bin_values = np.bincount(self._bin_assignments.flatten(), weights=weights)
         bin_values /= self._normalization_array
    
-        assert bin_values.shape[0] == self.n_bins 
+        assert bin_values.shape[0] == self.n_bins, 'bin number mismatch (%d, %d)' \
+                                                   % (bin_values.shape[0], self.n_bins)
     
         return bin_values
 
