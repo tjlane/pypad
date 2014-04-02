@@ -323,6 +323,185 @@ def to_text(geometry, filename):
     print "Wrote CSPAD to text at: %s" % filename
     
     return
+    
+    
+def to_psana(geometry):
+    """
+    Convert a cspad object to the tilts & centers representation used by psana.
+    
+    Writes two files to disk, one each for tilts and centers
+    
+    Parameters
+    ----------
+    geometry : cspad.CSPad
+        The detector geometry to write to disk
+    """
+    
+    bg = geometry.basis_repr
+    pc = PsanaConverter( np.array(bg._ps),
+                         np.array(bg._ss),
+                         np.array(bg._fs) )
+                         
+    return
+    
+
+class PsanaConverter(object):
+    """
+    Contributed by M. Dubrovin
+    
+        convertTJPars
+        
+       This script get CSPAD alignment parameters from file produced by TJ Lane
+       and converts them in CSPAD geometry alignment types "center_global" and "tilt".
+
+       Remarks on conversion algorithm
+       -------------------------------
+       TJ uses coordinate system:
+       (wiev from the back side of the detector to IP)
+
+            ^ Y
+            | 
+         Q1 | Q0
+       -----+-----> X
+         Q2 | Q3
+            |
+
+       Offline geometry alignment parameters are defined for coordinate system:
+       (wiev from IP to the front side of the detector)
+
+       ^ Y
+       |     | 
+       |  Q0 | Q1
+       | ----+----
+       |  Q3 | Q2
+       |     |
+       +-----------> X
+
+       At conversion the mirror reflection x -> -x, z -> -z, tilt -> -tilt
+       and arbitrary offset are applied.
+
+       Units were also changed, mm -> pixels
+    """
+    
+    # This code is super hack-y and could really use a clean up. Such is life
+    # at the LCLS...
+
+    def __init__(self, p_vectors, s_vectors, f_vectors):
+        """
+        
+        Parameters
+        ----------
+        {p/s/f}_vectors : np.ndarray
+            A (64,3) array of the vectors of interest.
+        """
+        
+        
+        #print 'ConvertOpticalToStandard'
+
+        self.orient2x1 = [   0,   0, -90, -90, 180, 180, -90, -90,
+                           -90, -90, 180, 180,  90,  90, 180, 180, 
+                           180, 180,  90,  90,   0,   0,  90,  90, 
+                            90,  90,   0,   0, -90, -90,   0,   0 ] 
+
+        self.pixelSize  = 109.92 
+        self.pixelLong  = 274.8 
+        R = self.pixelLong / self.pixelSize # = 2.5 SHARP!!!
+        print 'R=', R
+        # Distance-to-center from pixel (0,0) factors in units of 109.92 
+        # Assuming ASIC has 185 x 194 pixels
+        self.fcl = float(192.5 + R) # for long  side of 2x1
+        self.fcs = float(184/2)     # for short side of 2x1
+
+        print 'Distance-to-center from pixel (0,0) factors in units of 109.92:', \
+              '\nfcl=%10.5f \nfcs=%10.5f' % (self.fcl, self.fcs)
+
+        self.tp = p_vectors
+        self.tl = s_vectors
+        self.ts = f_vectors
+
+        self.ta_s = np.degrees(np.arctan2(self.ts[:,0],self.ts[:,1]))
+        self.ta_l = np.degrees(np.arctan2(self.tl[:,0],self.tl[:,1]))
+
+        self.procTilts()
+        self.procCenters()
+        self.saveCentersInFile()
+        self.saveTiltsInFile()
+
+
+    def procTilts(self): 
+
+        self.ttilt2x1 = np.zeros( (32), dtype=np.float32 )
+
+        print 'procTilts: iASIC, i2x1, scalar_prod(vs*vl), angle_s, angle_l, orientation, tilt[degree]'
+        for i, (vs, vl, angle_s, angle_l) in enumerate(zip(self.ts, self.tl, self.ta_s, self.ta_l)) :
+            if i%2 != 0 : continue
+            ind2x1 = i/2
+
+            angle = angle_l
+            if angle < -170 : angle += 360
+            tilt = angle - self.orient2x1[ind2x1]
+            self.ttilt2x1[ind2x1] = tilt
+            print '%2d %2d vs*vl=%12.8f %12.5f %12.5f %5.0f %10.5f ' % (i, ind2x1, sum(vs*vl), angle_s, angle_l, self.orient2x1[ind2x1], tilt)
+
+        print 'Averaged tilt [degree] of 2x1 in quads:' 
+        for q in range(4):
+            print 'Quad:%2d, <tilt>=%10.5f' % (q, np.mean(self.ttilt2x1[q*8:q*8+8]))
+
+
+    def _get_formatted_array(self, arr, format='%7.2f,') :
+        arr4x8 = arr
+        arr4x8.shape = (4,8)
+        txt = ''
+        for row in range(4) :
+            for col in range(8) :
+                txt += format % (arr4x8[row][col])
+                txt += '\n'
+        return txt
+        
+    
+    def _save_text_file(self, fname, text) :
+        print 'Save text file: ' + fname + '\n'
+        f=open(fname,'w')
+        f.write( text )
+        f.close()
+
+
+    def saveTiltsInFile(self): 
+        tilt_arr = -self.ttilt2x1 # - for MIRROR reflection
+        txt = self._get_formatted_array(tilt_arr, format='%10.5f') 
+        print '\ntilt:\n', txt
+        self._save_text_file('tilt-0-end.data', txt)
+        
+
+    def procCenters(self): 
+
+        self.tcenter2x1 = np.zeros( (32,3), dtype=np.float32 )
+
+        print 'procCenters: i, vc [mm]'
+        for i,(vp,vs,vl) in enumerate(zip(self.tp, self.ts, self.tl)) :
+            if i%2 != 0 : continue
+            ind2x1 = i/2
+
+            vc = vp + vl*self.fcl + vs*self.fcs
+            self.tcenter2x1[ind2x1] = vc
+            
+            print '%2d  %10.5f  %10.5f  %10.5f' % (ind2x1, vc[0], vc[1], vc[2])
+
+
+    def saveCentersInFile(self): 
+        arr_xc = -self.tcenter2x1[:,0] * 1e3/self.pixelSize # - for MIRROR reflection
+        arr_yc =  self.tcenter2x1[:,1] * 1e3/self.pixelSize
+        arr_zc = -self.tcenter2x1[:,2] * 1e3/self.pixelSize # - for MIRROR reflection
+
+        arr_xc += 70 - arr_xc.min() # OFFSET
+        arr_yc += 90 - arr_yc.min() # OFFSET
+
+        txt  =        self._get_formatted_array(arr_xc, format='%10.2f')
+        txt += '\n' + self._get_formatted_array(arr_yc, format='%10.2f')        
+        txt += '\n' + self._get_formatted_array(arr_zc, format='%10.2f')        
+
+        print '\ncenter_global:\n', txt
+        self._save_text_file('center_global-0-end.data', txt)
 
 
 
