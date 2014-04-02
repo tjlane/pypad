@@ -683,8 +683,6 @@ class CSPad(object):
         center = np.mean(xyz_2x1, axis=0) / 1000.
         offset = (np.linalg.norm(diagonal) - h) / 2. # this is a magnitude
         p0 = r + offset * self._unit(diagonal)
-        
-        # keep this
         p1 = p0 + shape[1] * f + 0.27480 * self._unit(f) # for 3px gap
             
             

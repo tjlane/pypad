@@ -157,9 +157,10 @@ class Optimizer(object):
         
         if len(self.radius_range) > 0:
             include = np.zeros( len(bin_values), dtype=np.bool)
-            for i in range( len(self.radius_range)/2 ):
-                include += (bin_centers > self.radius_range[i]) * \
-                           (bin_centers < self.radius_range[i+1])
+            for i in range(0, len(self.radius_range), 2):
+                inds = (bin_centers > self.radius_range[i]) * \
+                       (bin_centers < self.radius_range[i+1])
+                include[inds] = np.bool(True)
 
             if np.sum(include) == 0:
                 raise RuntimeError('`radius_range` slices were not big enough to '
