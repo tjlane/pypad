@@ -652,12 +652,8 @@ class CSPad(object):
                                       (xyz_2x1[3,:] - xyz_2x1[0,:]) )
             
             diagonal = (xyz_2x1[3,:] - xyz_2x1[1,:]) / 1000.
-            center = np.sum(xyz_2x1, axis=0) / 1000.
-            offset = (np.linalg.norm(diagonal) - h) / 2.
+            r = xyz_2x1[1,:] / 1000.
             
-            p0 = xyz_2x1[1,:] / 1000. + offset * self._unit(center)
-            p1 = p0 + shape[1] * f + 0.27480 * self._unit(f) # for 3px gap
-
 
         elif two_by_one_index in [2,3,6,7]:
 
@@ -667,11 +663,7 @@ class CSPad(object):
                                       (xyz_2x1[0,:] - xyz_2x1[1,:]) )
                                       
             diagonal = (xyz_2x1[0,:] - xyz_2x1[2,:]) / 1000.
-            center = np.sum(xyz_2x1, axis=0) / 1000.
-            offset = (np.linalg.norm(diagonal) - h) / 2.
-
-            p0 = xyz_2x1[2,:] / 1000. +  offset * self._unit(center)
-            p1 = p0 + shape[1] * f + 0.27480 * self._unit(f) # for 3px gap
+            r = xyz_2x1[2,:] / 1000.
 
 
         elif two_by_one_index in [4,5]:
@@ -682,15 +674,18 @@ class CSPad(object):
                                       (xyz_2x1[1,:] - xyz_2x1[2,:]) )
 
             diagonal = (xyz_2x1[1,:] - xyz_2x1[3,:]) / 1000.
-            center = np.sum(xyz_2x1, axis=0) / 1000.
-            offset = (np.linalg.norm(diagonal) - h) / 2.
-
-            p0 = xyz_2x1[3,:] / 1000. +  offset * self._unit(center)
-            p1 = p0 + shape[1] * f + 0.27480 * self._unit(f) # for 3px gap
-
+            r = xyz_2x1[3,:] / 1000.
+            
 
         else:
             raise ValueError('two_by_one_index must be in 0...7')
+            
+        center = np.mean(xyz_2x1, axis=0) / 1000.
+        offset = (np.linalg.norm(diagonal) - h) / 2. # this is a magnitude
+        p0 = r + offset * self._unit(diagonal)
+        
+        # keep this
+        p1 = p0 + shape[1] * f + 0.27480 * self._unit(f) # for 3px gap
             
             
         # --- perform some quality control checks ---
