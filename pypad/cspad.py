@@ -1423,6 +1423,11 @@ class CSPad(object):
         export.to_text(self, filename)
         return
     
+
+    def to_ami(self, filename):
+        export.to_ami(self, filename)
+        return
+    
         
     # Below: save/load methods. The saving here is quite lazy on my part, and
     # will be totally incomprehensable to anyone who tries to read the file...
