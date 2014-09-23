@@ -96,10 +96,10 @@ def load_raw_image(filename, image_in_file=0):
         
     elif filename.endswith('.shot'):
         try:
-            from odin import xray
+            from thor import xray
         except ImportError as e:
             raise ImportError('To read `.shot` files, you must first install '
-                              'odin: https://github.com/tjlane/odin')
+                              'thor: https://github.com/tjlane/thor')
         ss = xray.Shotset.load(filename)
         raw_image = ss.average_intensity
         
