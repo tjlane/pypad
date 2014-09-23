@@ -361,17 +361,44 @@ class PadMask(object):
         elif fmt == 'thor':
             if not filename.endswith('.h5'):
                 filename += '.h5'
+
+
+            # super ghetto, but it was the easy way out. sorry.
+            # this converts first to cheetah 2d format, then
+            # to Thor 1d format. I used it b/c I could be sure it
+            # worked just by c/p code...
+
+            itx = self.mask2d
+
+            if not itx.shape == (1480, 1552):
+                 raise ValueError('`itx` argument array incorrect shape! Must be:'
+                                 ' (1480, 1552), got %s.' % str(itx.shape))
+
+            flat_itx = np.zeros(1480 * 1552, dtype=itx.dtype)
+
+            for q in range(4):
+                for twoXone in range(8):
+
+                    # extract the cheetah itx
+                    x_start = 388 * q
+                    x_stop = 388 * (q+1)
+
+                    y_start = 185 * twoXone
+                    y_stop = 185 * (twoXone + 1)
+
+                    # each sec is a ASIC, both belong to the same 2x1
+                    sec1, sec2 = np.hsplit(itx[y_start:y_stop,x_start:x_stop], 2)
+
+                    # determine the positions of the flat array to put intens data in
+                    n_ASIC_pixels = 185 * 194
+                    flat_start = (q * 8 + twoXone) * (n_ASIC_pixels * 2) # 2x1 index X px in 2x1
+
+                    # inject them into the thor array
+                    flat_itx[flat_start:flat_start+n_ASIC_pixels] = sec1.flatten()
+                    flat_itx[flat_start+n_ASIC_pixels:flat_start+n_ASIC_pixels*2] = sec2.flatten()
             
-            try:
-                from thor import parse
-            except ImportError:
-                raise ImportError('Cannot find Thor. You must have Thor installed to '
-                                  'export to Thor. Download and install Thor from '
-                                  'https://github.com/tjlane/thor')
-            
-            m_array = parse.cheetah_intensities_to_thor( self.mask2d )
             f = h5py.File(filename, 'w')
-            f['/mask'] = m_array
+            f['/mask'] = flat_itx
             f.close()
 
             
