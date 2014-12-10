@@ -13,6 +13,9 @@ cs1 = cspad.CSPad.load("examples/my_cspad.cspad")
 cs2 = cspad.CSPad.default()
 cs3 = cspad.CSPad.default()
 cs3.quad_rotation[0] = 10.
+cs3.quad_rotation[1] = 0.
+cs3.quad_rotation[2] = 2.
+cs3.quad_rotation[3] = -10.
 
 raw_image = read.load_raw_image("examples/gold-minus490mm.h5")
 
