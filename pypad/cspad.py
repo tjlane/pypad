@@ -876,7 +876,7 @@ class CSPad(object):
         return asics_overlap
     
         
-    def intensity_profile(self, raw_image, n_bins=None, quad='all'):
+    def intensity_profile(self, raw_image, image_mask=None, n_bins=None, quad='all'):
         """
         Bin pixel intensities by their radius.
 
@@ -884,8 +884,13 @@ class CSPad(object):
         ----------            
         raw_image : np.ndarray
             The intensity at each pixel, same shape as pixel_pos
+        
+        image_mask : ndarray
+             The mask for the image, same shape as pixel_pos
+        
         n_bins : int
             The number of bins to employ. If `None` guesses a good value.
+            
         quad : int
             Bin only for a single quad. "all" means all quads.
 
@@ -924,13 +929,21 @@ class CSPad(object):
         # choose & format the intensity data the way we want
         if quad == 'all':
             intensities = raw_image
+            if image_mask is not None:
+                mask = image_mask
+            else:
+                mask = np.ones(intensities.shape)
         elif type(quad) == int:
             intensities = raw_image[quad,:,:,:]
+            if image_mask is not None:
+                mask = image_mask[quad,:,:,:]
+            else:
+                mask = np.ones(intensities.shape)
         else:
             raise ValueError('`quad` must be {0,1,2,3} or "all", got %s' % str(quad))
         intensities = intensities.astype(np.float32)
-            
-            
+        mask = mask.astype(np.bool)
+        
         # choose what pixels go into what bins
         if (args_same and geometry_same):
             #print('lazily using previously computed bin assignments')
@@ -961,10 +974,10 @@ class CSPad(object):
             self._ip_settings['bin_assignments'] = np.floor( radii * bin_factor ).astype(np.int32)
             assert self._ip_settings['bin_assignments'].shape == radii.shape
             assert intensities.shape == radii.shape
-
+        
         # accumulate & normalize
-        bin_values = np.bincount(self._ip_settings['bin_assignments'].flatten(), weights=intensities.flatten())
-        bin_values /= (np.bincount( self._ip_settings['bin_assignments'].flatten() ) + 1e-100).astype(np.float)[:bin_values.shape[0]]
+        bin_values = np.bincount(self._ip_settings['bin_assignments'][mask].flatten(), weights=intensities[mask].flatten())
+        bin_values /= (np.bincount( self._ip_settings['bin_assignments'][mask].flatten() ) + 1e-100).astype(np.float)[:bin_values.shape[0]]
         bin_centers = np.arange(bin_values.shape[0]) / bin_factor
         
         # store the values we used for next time

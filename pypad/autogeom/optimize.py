@@ -120,12 +120,25 @@ class Optimizer(object):
         return
 
     
-    def __call__(self, raw_image, return_maxima_locations=False):
+    def __call__(self, raw_image, image_mask=None, return_maxima_locations=False):
         """
         Takes a raw_image and produces an optimized CSPad geometry.
+        
+        Parameters
+        ----------
+        raw_image : ndarray
+            The intensity at each pixel, same shape as used in the CSPad object (4, 16, 185, 194)
+        
+        image_mask : ndarray
+            The mask for the image, same shape as used in the CSPad object (4, 16, 185, 194)
         """
-                                        
-        self.optimize_geometry(raw_image)
+
+        assert raw_image.shape == (4,16,185,194)
+        
+        if image_mask is not None:
+            assert image_mask.shape == (4,16,185,194)
+        
+        self.optimize_geometry(raw_image, image_mask)
         
         if return_maxima_locations:
             if self.use_filter:
@@ -217,7 +230,7 @@ class Optimizer(object):
         return param_dict
     
     
-    def _objective(self, param_vals, raw_image):
+    def _objective(self, param_vals, raw_image, image_mask=None):
         """
         The objective function for finding a good center. Minimize this.
         
@@ -229,6 +242,12 @@ class Optimizer(object):
             
         list_of_params : list of str
             A list of which parameters are contained in `params_to_opt`.
+        
+        raw_image : ndarray
+            The intensity at each pixel, same shape as used in the CSPad object (4, 16, 185, 194)
+        
+        image_mask : ndarray
+            The mask for the image, same shape as used in the CSPad object (4, 16, 185, 194)
         
         Returns
         -------
@@ -246,7 +265,7 @@ class Optimizer(object):
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
         
         # compute the radial profile
-        bc, bv = self.cspad.intensity_profile(raw_image, n_bins=None)
+        bc, bv = self.cspad.intensity_profile(raw_image, image_mask, n_bins=None)
         if self.radius_range == None:
             bin_centers, bin_values = bc, bv
         else:
@@ -309,19 +328,19 @@ class Optimizer(object):
         return obj
     
         
-    def optimize_geometry(self, raw_image):
+    def optimize_geometry(self, raw_image, image_mask=None):
         """
-        Find the center of `image`, which contains one or more concentric rings.
+        Optimize geometry of `image`, which contains one or more concentric rings.
+        The optimization can find the center, optimize quad positions and quad rotations.
 
         Parameters
         ----------
         raw_image : ndarray
-            The image, in pyana/psana's raw format.
-
-        use_edge_mask : bool
-            Whether or not to apply an edge mask noise filter before finding
-            the center. Highly recommended.
-
+            The intensity at each pixel, same shape as used in the CSPad object (4, 16, 185, 194)
+        
+        image_mask : ndarray
+            The mask for the image, same shape as used in the CSPad object (4, 16, 185, 194)
+        
         Returns
         -------
         params_dict : dict
@@ -368,12 +387,12 @@ class Optimizer(object):
             
             
         # benchmark our starting condition
-        init_objective = float( self._objective(initial_guesses, image) )
+        init_objective = float( self._objective(initial_guesses, image, image_mask) )
         time0 = time.clock()
 
         # run minimization -- downhill simplex
         opt_params = optimize.fmin_powell(self._objective, initial_guesses, 
-                                   args=(image,), xtol=1e-3, ftol=1e-3,
+                                   args=(image,image_mask,), xtol=1e-3, ftol=1e-3,
                                    disp=0)
         
         # un-ravel & inject the param values in the CSPad object                           
@@ -381,7 +400,7 @@ class Optimizer(object):
         self.cspad.set_many_params(param_dict.keys(), param_dict.values())
         
         # print some diagnostics
-        final_objective = self._objective(opt_params, image)
+        final_objective = self._objective(opt_params, image, image_mask)
         print ""
         print "Optimization terminated normally"
         print "--------------------------------"

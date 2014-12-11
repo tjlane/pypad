@@ -20,6 +20,7 @@ import argparse
 from pypad import cspad
 from pypad import utils
 from pypad import read
+from pypad import mask
 from pypad.autogeom import score
 from pypad.autogeom import optimize as opt
 
@@ -40,6 +41,9 @@ def parse():
                                 optical metrology (see documentation) or a saved 
                                 pypad.CSPad object. If not passed uses a default
                                 metrology.''')
+    parser.add_argument('-k', '--mask',
+                        help='''Load a mask of pixels to exclude from optimization.
+                        Can be pypad (.mask) or cheetah (.h5) format.''', default=None)
     parser.add_argument('-o', '--output', default='my_cspad.cspad', type=str,
                         help='The file optimized CSPAD to (default: my_cspad.cspad)')
     parser.add_argument('-t', '--type', help='''The metrology type.''',
@@ -67,6 +71,14 @@ def main():
     optimization_params = yaml.load(f)
     f.close()
     
+    # load the pixel mask if it exists
+    if args.mask:
+        m1 = mask.PadMask.load(args.mask)
+        print "Loaded mask: %s" % args.mask
+        mask_image = m1.mask
+    else:
+        mask_image = None
+    
     # load the initial CSPad object to start from
     if args.metrology:
         if args.type == 'cxi':
@@ -78,7 +90,7 @@ def main():
     
     # generate the image optimizer and run it
     optizor = opt.Optimizer(cs1, **optimization_params)
-    opt_cspad = optizor(cal_image)
+    opt_cspad = optizor(cal_image, mask_image)
     
     # save the final parameters to disk
     opt_cspad.save(args.output)
