@@ -467,6 +467,7 @@ class CSPad(object):
         assembled_image : ndarray, float
             The assembled image.
         """
+        raw_image = read.enforce_raw_img_shape(raw_image)
         if not raw_image.shape == (4,16,185,194):
             raise ValueError('CSPad cannot assemble image: wrong shape. Raw '
                              'image must be shape (4,16,185,194), which is '

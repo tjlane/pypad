@@ -8,6 +8,7 @@ import os
 import numpy as np
 
 import cspad
+from mask import PadMask
 from read import enforce_raw_img_shape
 
 
@@ -44,7 +45,22 @@ def get_geometry(experiment, run, camera, energy, distance, dilation,
 
     prefix = '/reg/d/psdm/%s/%s/res/geometries/%s/' % (experiment[:3], experiment, camera)
     geom = cspad.CSPad.load( os.path.join(prefix, 'current.cspad') )
-    mask = np.load( os.path.join(prefix, 'mask.npy') )
+
+    try:
+        padmask = PadMask.load(os.path.join(prefix, 'current.mask'))
+        m = padmask.mask
+
+        asic_pix = 185 * 194
+        mask = np.zeros(4 * 16 * asic_pix, dtype=np.int8)
+
+        for i in range(4):
+            for j in range(16):
+                s = (i*16 + j) * asic_pix
+                e = (i*16 + j + 1) * asic_pix
+                mask[s:e] = m[i,j,:,:].flatten()
+
+    except:
+        mask = np.load( os.path.join(prefix, 'mask.npy') )
 
     corr_dist  = distance + distance_correction
     delta_dilt = dilation - calibration_dilation
@@ -99,5 +115,24 @@ def interp_to_polar(raw_image, q_values, dtc, num_phi=1024, mask=None):
     r = ss.to_rings(q_values, num_phi=num_phi)
 
     return r.polar_intensities[0] * r.polar_mask
+
+
+def thor_to_psana(thor_fmt_intensities):
+
+    if thor_fmt_intensities.shape == (4, 16, 185, 194):
+        ii = thor_fmt_intensities
+    elif thor_fmt_intensities.shape == (2296960,):
+        ii = thor_fmt_intensities.reshape((4, 16, 185, 194))
+    else:
+        raise ValueError('did not understand intensity shape: '
+                         '%s' % str(thor_fmt_intensities.shape))
+
+    ix = np.zeros((32, 185, 388), dtype=thor_fmt_intensities.dtype)
+    for i in range(4):
+        for j in range(8):
+            a = i * 8 + j
+            ix[a,:,:] = np.hstack(( ii[i,j*2,:,:], ii[i,j*2+1,:,:] ))
+
+    return ix
 
 
