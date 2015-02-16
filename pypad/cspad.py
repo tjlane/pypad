@@ -1094,9 +1094,12 @@ class CSPad(object):
                 gap = np.zeros( (185,3), dtype=raw_image.dtype )
                 two_by_one_img = np.hstack( (raw_image[quad_index,two_by_one*2,:,:], gap, 
                                              raw_image[quad_index,two_by_one*2+1,:,:]) )
-                                             
+                
                 # flip x data to conform w/CXI convention
+                two_by_one_img = two_by_one_img[::-1,:]
+                
                 # note that which dim is x changes w/two_by_one and quad_index
+                """
                 if quad_index in [0,2]:
                     if two_by_one in [2,3,6,7]:
                         two_by_one_img = two_by_one_img[:,::-1]
@@ -1107,11 +1110,12 @@ class CSPad(object):
                         two_by_one_img = two_by_one_img[::-1,:]
                     elif two_by_one in [0,1,4,5]:
                         two_by_one_img = two_by_one_img[:,::-1]
-                
+                """
                 
                 # here the rotation is off between dtc/cspad by 180 in some quads
+                # JAS: updated rotation to asic_rot - 180 instead of -asic_rot to get proper rotation of asics in assembled image
                 two_by_one_img = interp.rotate(two_by_one_img,
-                                               -self._asic_rotation(quad_index, two_by_one*2),
+                                               self._asic_rotation(quad_index, two_by_one*2) - 180,
                                                output=two_by_one_img.dtype,
                                                reshape=True)
                 
@@ -1128,14 +1132,14 @@ class CSPad(object):
                 
                 center = ( np.concatenate([corners0[:,0], corners1[:,0]]).mean(),
                            np.concatenate([corners0[:,1], corners1[:,1]]).mean() )
-                 
+                
                 # find the bottom left corner (note x is cols, so swap inds)         
                 c = (center[0] / self.pixel_size - two_by_one_img.shape[1] / 2.,
                      center[1] / self.pixel_size - two_by_one_img.shape[0] / 2.,)
-
+                
                 # the center will be at 1000, 1000 by convention
-                cs = int(c[0]) + 1000
-                rs = int(c[1]) + 1000
+                cs = int(round(c[0])) + 1000
+                rs = int(round(c[1])) + 1000
 
                 if (rs < 0) or (rs+two_by_one_img.shape[0] > bounds):
                     raise ValueError('rs: out of bounds in rows. CSPAD geometry '
@@ -1149,8 +1153,14 @@ class CSPad(object):
                                      'assembled on. It is likely that your CSPAD '
                                      'geometry is wacky in some respect -- use '
                                      '`sketch-metrology` script to check.')
-
+                
+                # keep copy of assembled image to make sure that only non-zero values are copied
+                old_assembled_image = assembled_image.copy()
                 assembled_image[rs:rs+two_by_one_img.shape[0],cs:cs+two_by_one_img.shape[1]] = two_by_one_img
+                # if zeros are copied into existing data due to rotation reshape, keep old image data
+                overwritten_indices = np.where(assembled_image - old_assembled_image < 0)
+                assembled_image[overwritten_indices] = old_assembled_image[overwritten_indices]
+                del old_assembled_image
         
         
         # swap x-axis to conform to CXI convention
