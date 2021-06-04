@@ -7,9 +7,9 @@ Utilities for interfacing with psana
 import os
 import numpy as np
 
-import cspad
-from mask import PadMask
-from read import enforce_raw_img_shape
+from . import cspad
+from .mask import PadMask
+from .read import enforce_raw_img_shape
 
 
 def get_geometry(experiment, run, camera, energy, distance, dilation,
@@ -103,7 +103,7 @@ def interp_to_polar(raw_image, q_values, dtc, num_phi=1024, mask=None):
     try:
         import thor
     except ImportError as e:
-        print e
+        print(e)
         raise ImportError('Thor must be installed to employ the interp_to_polar'
                           'function...')
 

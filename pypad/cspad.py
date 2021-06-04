@@ -18,7 +18,7 @@ explicit pixel positions.
 
 import sys
 import os
-import cPickle
+import pickle
 import h5py
 import re
 from glob import glob
@@ -388,7 +388,7 @@ class CSPad(object):
         self.verbose = verbose
         self.metrology = metrology
         
-        self._param_list = _array_sizes.keys()
+        self._param_list = list(_array_sizes.keys())
         self.pixel_size  = pixel_size
         
         self._ip_settings = {'n_bins'          : None,
@@ -409,7 +409,7 @@ class CSPad(object):
         
         # read the optical metrology
         if type(metrology) == str:
-            print "Loading metrology from: %s" % metrology
+            print("Loading metrology from: %s" % metrology)
             qms = self._read_metrology(metrology)
 
                     
@@ -448,7 +448,7 @@ class CSPad(object):
         self._base_quad_rotation = [90.0, 0.0, 270.0, 180.0]
         
         for q in range(4):
-            if self.verbose: print "\nParsing: quad %d" % q
+            if self.verbose: print("\nParsing: quad %d" % q)
             for two_by_one in range(8):
                 asic_geoms = self._twobyone_to_bg(qms[q], q, two_by_one)
                 for asic in range(2):
@@ -489,8 +489,8 @@ class CSPad(object):
         """
         
         if np.abs(dilation) > 10.0:
-            print("Warning: the maximum possible dialtion at CXI as of Apr 2013"
-                  " was 10.0mm. You asked for a dilation of %f mm" % dilation)
+            print(("Warning: the maximum possible dialtion at CXI as of Apr 2013"
+                  " was 10.0mm. You asked for a dilation of %f mm" % dilation))
         
         dilation_offset = np.zeros((4, 2))
         step_size = dilation / 2.0 # this gets applied to both sizes
@@ -561,9 +561,9 @@ class CSPad(object):
         
         if not np.abs(value) <= tol:
             if self.verbose:
-                print "WARNING: Metrology quality control failed for 2x1: %d" % two_by_one_index
-                print '--> s/f vectors are not orthogonal :: enforcing orthogonality!'
-                print "    Angle: %f // tol: %f" % (value, tol)
+                print("WARNING: Metrology quality control failed for 2x1: %d" % two_by_one_index)
+                print('--> s/f vectors are not orthogonal :: enforcing orthogonality!')
+                print("    Angle: %f // tol: %f" % (value, tol))
             passed = False
         else:
             passed = True
@@ -1225,7 +1225,7 @@ class CSPad(object):
 
         f = h5py.File(filename, 'r')
 
-        if not f.keys() == ['x', 'y', 'z']:
+        if not list(f.keys()) == ['x', 'y', 'z']:
             raise IOError('File: %s is not a valid pixel map, should contain fields'
                           ' ["x", "y", "z"] exlusively' % filename)
 
@@ -1341,7 +1341,7 @@ class CSPad(object):
             raise IOError('Can only read flat text files with extension `.geom`.'
                           ' Got: %s' % filename)
 
-        if verbose: print "Converting CSPAD geometry in: %s ..." % filename
+        if verbose: print("Converting CSPAD geometry in: %s ..." % filename)
         f = open(filename, 'r')
         geom_txt = f.read()
         f.close()
@@ -1355,7 +1355,7 @@ class CSPad(object):
         # right now this appears to be the only z-information in the geometry...
         re_pz = re.search('coffset = (\d+.\d+..\d+)', geom_txt)
         if re_pz == None:
-            print "WARNING: Could not find `coffset` field, defaulting z-offset to 0.0"
+            print("WARNING: Could not find `coffset` field, defaulting z-offset to 0.0")
             p_z = 0.0
         else:
             p_z = float(re_pz.group(1)) / 1000.0 # m --> mm
@@ -1365,7 +1365,7 @@ class CSPad(object):
             for a in range(16):
 
                 if verbose:
-                    print "Reading geometry for: QUAD %d / ASIC %d" % (q, a)
+                    print("Reading geometry for: QUAD %d / ASIC %d" % (q, a))
 
                 try:
 
@@ -1383,7 +1383,7 @@ class CSPad(object):
                     s = s * (pixel_size / np.linalg.norm(s))
                     
                 except AttributeError as e:
-                    print e
+                    print(e)
                     raise IOError('Geometry file incomplete -- cant parse one or '
                                   'more basis vector fields (ss/fs) QUAD %d / ASIC %d' % (q, a))
 
@@ -1403,14 +1403,14 @@ class CSPad(object):
                     p = np.array([p_x, p_y, p_z])
 
                 except AttributeError as e:
-                    print e
+                    print(e)
                     raise IOError('Geometry file incomplete -- cant parse one or '
                                   'more corner fields for QUAD %d / ASIC %d' % (q, a))
 
                 # finally, add the ASIC to the thor basis grid
                 bg.add_grid(p, s, f, shp)
 
-        if verbose: print " ... successfully converted geometry."
+        if verbose: print(" ... successfully converted geometry.")
         
         return cls(bg)
     
@@ -1440,7 +1440,7 @@ class CSPad(object):
         
     def _to_serial(self):
         """ serialize the object to an array """
-        s = np.array( cPickle.dumps(self) )
+        s = np.array( pickle.dumps(self) )
         s.shape=(1,) # a bit nasty...
         return s
     
@@ -1450,7 +1450,7 @@ class CSPad(object):
         """ recover a CSPad object from a serialized array """
         if serialized.shape == (1,):
             serialized = serialized[0]
-        return cPickle.loads( str(serialized) )
+        return pickle.loads( str(serialized) )
     
 
     def save(self, filename):
@@ -1470,7 +1470,7 @@ class CSPad(object):
         hdf['/cspad'] = self._to_serial()
         hdf.close()
         
-        print 'Wrote %s to disk.' % filename
+        print('Wrote %s to disk.' % filename)
 
         return
     
@@ -1687,7 +1687,7 @@ class XppCSPad(CSPad):
 
 
         else:
-            print two_by_one_index, corner[two_by_one_index]
+            print(two_by_one_index, corner[two_by_one_index])
             #raise ValueError('two_by_one_index must be in 0...7')
             
             

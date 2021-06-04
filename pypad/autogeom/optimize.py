@@ -91,11 +91,11 @@ class Optimizer(object):
         # -------------------------------------------------------------------- #
         
         # parse kwargs into self -- this will replace the defaults above
-        print ""
+        print("")
         for key in kwargs:
             if hasattr(self, key):
                 self.__dict__[key] = kwargs[key]
-                print "Set parameter : %s \t--> %s" % (key, str(kwargs[key]))
+                print("Set parameter : %s \t--> %s" % (key, str(kwargs[key])))
             else:
                 raise ValueError('Invalid Parameter: %s' % key)
                 
@@ -243,7 +243,7 @@ class Optimizer(object):
         
         # un-ravel & inject the param values in the geometry object
         param_dict = self._unravel_params(param_vals)
-        self.cspad.set_many_params(param_dict.keys(), param_dict.values())
+        self.cspad.set_many_params(list(param_dict.keys()), list(param_dict.values()))
         
         # compute the radial profile
         bc, bv = self.cspad.intensity_profile(raw_image, n_bins=None)
@@ -269,7 +269,7 @@ class Optimizer(object):
         # test to see if any ASICS are overlapping, and if they are return a big
         # number so the optimizer avoids those regions
         if self.cspad.do_asics_overlap:
-            print "Move caused ASIC overlap: rejecting it"
+            print("Move caused ASIC overlap: rejecting it")
             return 1.0e300
         
 
@@ -304,7 +304,7 @@ class Optimizer(object):
         
         # ----------------------------------------------------------------------
         
-        print "objective value: %.4e" % obj
+        print("objective value: %.4e" % obj)
         
         return obj
     
@@ -328,11 +328,11 @@ class Optimizer(object):
             Dict of the pyana parameters used to optimize the geometry.
         """
 
-        print ""
-        print "Beginning optimization..."
-        print "Optimizing:", self.params_to_optimize
-        print "Objective function:  %s" % self.objective_type
-        print ""
+        print("")
+        print("Beginning optimization...")
+        print("Optimizing:", self.params_to_optimize)
+        print("Objective function:  %s" % self.objective_type)
+        print("")
 
         initial_guesses = np.concatenate([ self.cspad.get_param(p).flatten() \
                                            for p in self.params_to_optimize ])
@@ -341,12 +341,12 @@ class Optimizer(object):
         # check to make sure the parameters are more or less on the same abs
         # scale -- this can help ensure the optimizer works as advertised
         if ( ( np.abs(initial_guesses).std() / np.abs(initial_guesses).mean()) > 5.0):
-            print "\nWARNING:"
-            print "  There is a large variation in the magnitudes of the intial"
-            print "  parameters passed to the optimization routine. Consider an"
-            print "  appropriate scaling to equilize the scale of each."
-            print "Parameters:", initial_guesses
-            print ""
+            print("\nWARNING:")
+            print("  There is a large variation in the magnitudes of the intial")
+            print("  parameters passed to the optimization routine. Consider an")
+            print("  appropriate scaling to equilize the scale of each.")
+            print("Parameters:", initial_guesses)
+            print("")
 
         # turn on interactive plotting -- this is the only way I've gotten it 
         # to work
@@ -378,19 +378,19 @@ class Optimizer(object):
         
         # un-ravel & inject the param values in the CSPad object                           
         param_dict = self._unravel_params(opt_params)
-        self.cspad.set_many_params(param_dict.keys(), param_dict.values())
+        self.cspad.set_many_params(list(param_dict.keys()), list(param_dict.values()))
         
         # print some diagnostics
         final_objective = self._objective(opt_params, image)
-        print ""
-        print "Optimization terminated normally"
-        print "--------------------------------"
-        print "Final objective value:      %.4e" % final_objective
-        print "Objective function change:  %.4e" % (final_objective - init_objective)
-        print "Time to reach solution:     %.2g min" % ((time.clock()-time0) / 60.0)
+        print("")
+        print("Optimization terminated normally")
+        print("--------------------------------")
+        print("Final objective value:      %.4e" % final_objective)
+        print("Objective function change:  %.4e" % (final_objective - init_objective))
+        print("Time to reach solution:     %.2g min" % ((time.clock()-time0) / 60.0))
         #print "Final parameters:"
         #pprint(param_dict)
-        print ""
+        print("")
 
                                           
         # turn off interactive plotting

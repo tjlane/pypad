@@ -377,7 +377,7 @@ def _assemble_implicit(xyz, raw_image, num_x=2000, num_y=2000):
     
     flat_image = raw_image.flatten()
     
-    print "interpolating"
+    print("interpolating")
     grid_z = interpolate.griddata(points, flat_image, (grid_x,grid_y), 
                                   method='nearest', fill_value=0.0)
     

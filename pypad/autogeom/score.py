@@ -115,7 +115,7 @@ class PowderReference(object):
         self.sample_peak_heights.append( a[max_inds] )
         self.sample_distances.append(float(distance))
         
-        print "    found: %d peaks" % len(real_peak_locations)
+        print("    found: %d peaks" % len(real_peak_locations))
         
         return
     
@@ -142,23 +142,23 @@ class PowderReference(object):
         params = yaml.load(f)
         f.close()
         
-        print "Loaded: %s" % filename
+        print("Loaded: %s" % filename)
         
         geom = cspad.CSPad.load( params['geometry'] )
         
         for x in ['lattice', 'millers', 'samples']:
-            if not x in params.keys():
+            if not x in list(params.keys()):
                 raise IOError('Could not find required input field: '
                               '`%s` in %s' % (x, filename))
   
         kwargs = {}
-        if 'energy' in params.keys():
+        if 'energy' in list(params.keys()):
             kwargs['energy_guess'] = float(params['energy'])
-        if 'opt_energy' in params.keys():
+        if 'opt_energy' in list(params.keys()):
             kwargs['opt_energy'] = bool(params['opt_energy'])
-        if 'initial_offset' in params.keys():
+        if 'initial_offset' in list(params.keys()):
             kwargs['distance_offset_guess'] = float(params['initial_offset'])
-        if 'unit_cell' in params.keys():
+        if 'unit_cell' in list(params.keys()):
             kwargs['unit_cell'] = params['unit_cell']
         
         return cls(params['lattice'], params['millers'], params['samples'], 
@@ -243,7 +243,7 @@ class PowderReference(object):
             # lattice spacing
             try:
                 if (len(self.lattice_spacing) > 1):
-                    print "WARNING: edge lengths a = b = c in cubic unit cells, ignoring", self.lattice_spacing[1:]
+                    print("WARNING: edge lengths a = b = c in cubic unit cells, ignoring", self.lattice_spacing[1:])
                 a = self.lattice_spacing[0]
             except TypeError:
                 a = self.lattice_spacing
@@ -257,11 +257,11 @@ class PowderReference(object):
             # lattice spacing
             try:
                 if (len(self.lattice_spacing) > 2):
-                    print "WARNING: edge lengths a = b in cubic unit cells, ignoring", self.lattice_spacing[2:]
+                    print("WARNING: edge lengths a = b in cubic unit cells, ignoring", self.lattice_spacing[2:])
                 a = self.lattice_spacing[0]
                 c = self.lattice_spacing[1]
             except TypeError:
-                print "ERROR: need to specify two edge lengths in hexagonal unit cells, aborting."
+                print("ERROR: need to specify two edge lengths in hexagonal unit cells, aborting.")
                 sys.exit(1)
             
             # reciprocal unit vectors
@@ -270,7 +270,7 @@ class PowderReference(object):
             b3 = np.array([0, 0, 2.0*np.pi/c])
             
         else:
-            print "ERROR: unknown unit cell `%s`, aborting." % self.unit_cell
+            print("ERROR: unknown unit cell `%s`, aborting." % self.unit_cell)
             sys.exit(1)
         
         # calculate reciprocal lattice vector for each set of Miller indices,
@@ -316,7 +316,7 @@ class PowderReference(object):
         assert len(expected) == self.num_millers
         
         opt = 1e30
-        for i in utils.multi_for(map( xrange, np.arange(self.num_millers), np.ones(self.num_millers, dtype=np.int32 )*len(observed) - np.arange(self.num_millers)[::-1] )):
+        for i in utils.multi_for(list(map( xrange, np.arange(self.num_millers), np.ones(self.num_millers, dtype=np.int32 )*len(observed) - np.arange(self.num_millers)[::-1] ))):
             # only try peak index combinations where all indices are different
             if len(i) == len(set(i)):
                 indices = [x for x in i] # can't access indices with tuple, need to make it into a list
@@ -407,15 +407,15 @@ class PowderReference(object):
         x0 = (self.distance_offset, self.energy)
         opt = optimize.leastsq(objective, x0, full_output=1)
         
-        print
-        print " --- Optimized Energy & Detector Distance --- "
-        print " Detector offset: %.3f mm " % opt[0][0]
-        print " Energy:          %.4f keV" % (opt[0][1] / 1000.0,)
-        print
-        print " Total Residuals: %f inv. Angstroms" % float( np.sum(np.abs( opt[2]['fvec'] )) )
-        print " Residuals for each peak:"
-        print opt[2]['fvec']
-        print 
+        print()
+        print(" --- Optimized Energy & Detector Distance --- ")
+        print(" Detector offset: %.3f mm " % opt[0][0])
+        print(" Energy:          %.4f keV" % (opt[0][1] / 1000.0,))
+        print()
+        print(" Total Residuals: %f inv. Angstroms" % float( np.sum(np.abs( opt[2]['fvec'] )) ))
+        print(" Residuals for each peak:")
+        print(opt[2]['fvec'])
+        print() 
         
         return
         
@@ -449,18 +449,18 @@ class PowderReference(object):
         self._axR.cla()
         
         if (index < 0) or (index >= self.num_samples):
-            print "Cannot access sample: %d" % index
-            print "Total %d samples available" %  self.num_samples
+            print("Cannot access sample: %d" % index)
+            print("Total %d samples available" %  self.num_samples)
             return
         
-        print
-        print "Plotting calibration sample: %d" % index
-        print "  (may take a moment)"
+        print()
+        print("Plotting calibration sample: %d" % index)
+        print("  (may take a moment)")
         
         # load up the calibration sample requested
         fn = self.calibration_samples[index]['filename']
         d  = self.calibration_samples[index]['distance'] + self.distance_offset
-        print "  distance: %.2f mm" % d
+        print("  distance: %.2f mm" % d)
         
         # -- plot left panel, the assemled image with ring predictions overlaid
         img = read.load_raw_image(fn)
@@ -509,7 +509,7 @@ class PowderReference(object):
         self._axR.set_ylabel('Intensity')
         
         plt.show()
-        print
+        print()
         
         return
         

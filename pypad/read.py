@@ -47,20 +47,20 @@ def load_raw_image(filename, image_in_file=0):
     if not os.path.exists(filename):
         raise IOError('File: %s does not exist' % filename)
     
-    print "Loading: %s" % filename
+    print("Loading: %s" % filename)
     
     if filename.endswith('.h5'):
         f = h5py.File(filename, 'r')
 
         # psana format
-        if ('data%d' % image_in_file) in f.keys():
+        if ('data%d' % image_in_file) in list(f.keys()):
             try:
                 raw_image = np.array( f[('/data%d/raw' % image_in_file)] )
             except:
                 raise IOError('Was expecting psana format, but: /dataX/raw not found!')
             
         # old cheetah format
-        elif 'data' in f.keys():
+        elif 'data' in list(f.keys()):
             try:
                 raw_image = np.array( f['/data/data'] )
             except:
@@ -105,7 +105,7 @@ def load_raw_image(filename, image_in_file=0):
         
     elif filename.endswith('.mat'):
         mat = spio.loadmat(filename)
-        if not 'img_avg' in mat.keys():
+        if not 'img_avg' in list(mat.keys()):
             raise IOError('Could not find `img_avg` key in .mat file: %s!' % filename)
         else:
             raw_image = mat['img_avg']

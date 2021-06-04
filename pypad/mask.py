@@ -43,7 +43,7 @@ class PadMask(object):
     
     @property
     def mask(self):
-        m = np.product( np.array(self._masks.values()), axis=0 )
+        m = np.product( np.array(list(self._masks.values())), axis=0 )
         assert m.shape == (4,16,185,194)
         return m
     
@@ -76,7 +76,7 @@ class PadMask(object):
         
     @property
     def types_applied(self):
-        return self._masks.keys()
+        return list(self._masks.keys())
     
     
     def remove_mask(self, mask_name):
@@ -86,12 +86,12 @@ class PadMask(object):
         
         if mask_name == 'base': # this one is special
             self._masks['base'] = self._blank_mask()
-        elif not mask_name in self._masks.keys():
+        elif not mask_name in list(self._masks.keys()):
             raise KeyError('Mask: %s not applied' % mask_name)
         else:
             x = self._masks.pop(mask_name)
             
-        print "Removed mask: %s" % mask_name
+        print("Removed mask: %s" % mask_name)
             
         return
     
@@ -110,7 +110,7 @@ class PadMask(object):
         if not mask.dtype == np.bool:
             mask = mask.astype(np.bool)
             
-        if (not mask_name in self._masks.keys()) or override_previous:
+        if (not mask_name in list(self._masks.keys())) or override_previous:
             self._masks[mask_name] = mask
         else:
             raise KeyError('Mask object already has `%s` mask.' % mask_name)
@@ -205,7 +205,7 @@ class PadMask(object):
             Values lower than this are masked.
         """
         
-        print "Masking pixels outside of [%s,%s]" % (str(lower), str(upper))
+        print("Masking pixels outside of [%s,%s]" % (str(lower), str(upper)))
         
         if (upper == None) and (lower == None):
             raise ValueError('Either `upper` or `lower` (or both) must be specified')
@@ -236,7 +236,7 @@ class PadMask(object):
             responses.
         """
         
-        print "Masking nonbonded pixels"
+        print("Masking nonbonded pixels")
         
         m = self._blank_mask()
         
@@ -268,7 +268,7 @@ class PadMask(object):
             The size of the border region to mask.
         """
         
-        print "Masking %d pixels around the border of each 2x1" % num_pixels
+        print("Masking %d pixels around the border of each 2x1" % num_pixels)
         
         n = int(num_pixels)        
         m = self._blank_mask()
@@ -297,10 +297,10 @@ class PadMask(object):
         
     def mask_row13(self):
         
-        print "Masking row 13"
+        print("Masking row 13")
         
         #raise NotImplementedError()
-        print "Warning: row 13 masking is untested, tell the dev team if you need it."
+        print("Warning: row 13 masking is untested, tell the dev team if you need it.")
         
         #this is for masking out row13 of the CSPAD
         col=181
@@ -318,8 +318,8 @@ class PadMask(object):
         """
         
         for mask in args:
-            for mtype in mask._masks.keys():
-                if mtype in self._masks.keys():
+            for mtype in list(mask._masks.keys()):
+                if mtype in list(self._masks.keys()):
                     self._masks[mtype] = np.logical_not( np.logical_or(self._masks[mtype], 
                                                            mask._masks[mtype]) )
                 else:
@@ -353,7 +353,7 @@ class PadMask(object):
                 filename += '.mask'
             
             f = h5py.File(filename, 'w')
-            for k in self._masks.keys():
+            for k in list(self._masks.keys()):
                 f['/' + k] = self._masks[k]
             f.close()
             
@@ -415,7 +415,7 @@ class PadMask(object):
             raise IOError('Unrecognized format for PadMask: %s. Should be one of'
                           ' {"pypad", "thor", "cheetah", "twod"}' % fmt)
         
-        print "Wrote: %s" % filename
+        print("Wrote: %s" % filename)
         return
     
     
@@ -505,14 +505,14 @@ class MaskGUI(object):
         # inject a new mask type into our PadMask obj
         m = self.mask._blank_mask()
         
-        if not 'manual' in self.mask._masks.keys():
+        if not 'manual' in list(self.mask._masks.keys()):
             self.mask._inject_mask('manual', m)
 
         # deal with negative values
-        if not 'negatives' in self.mask._masks.keys():
+        if not 'negatives' in list(self.mask._masks.keys()):
             self.mask._inject_mask('negatives', m.copy())
             self.mask._masks['negatives'][raw_image <= 0.0] = 0
-            print "Masked: %d negative pixels" % np.sum(np.logical_not(self.mask._masks['negatives']))
+            print("Masked: %d negative pixels" % np.sum(np.logical_not(self.mask._masks['negatives'])))
         
         
         # we're going to plot the log of the image, so do that up front
@@ -609,16 +609,16 @@ class MaskGUI(object):
         
         
     def _set_threshold(self):
-        print "\n --- Enter threshold values --- "
-        self.lower_thld = float( raw_input('Enter lower threshold: ') )
-        self.upper_thld = float( raw_input('Enter upper threshold: ') )
+        print("\n --- Enter threshold values --- ")
+        self.lower_thld = float( input('Enter lower threshold: ') )
+        self.upper_thld = float( input('Enter upper threshold: ') )
         self.b4.onstate_exargs[ self.mask_threshold_cid ] = (self.raw_image_4d, self.upper_thld, self.lower_thld)
         return
     
 
     def _set_borderwidth(self):
-        print "\n --- Enter the desired border width --- "
-        raw_in = raw_input('Size of border (in pixels) [1]: ')
+        print("\n --- Enter the desired border width --- ")
+        raw_in = input('Size of border (in pixels) [1]: ')
         if raw_in == '':
             self.borderwidth = 1
         else:
@@ -665,7 +665,7 @@ class MaskGUI(object):
         # if the left button is pressed
         elif event.inaxes and (event.button is 1):
             self.single_px = (int(x_coord), int(y_coord))
-            print "Selected: (%s, %s)" % self.single_px        
+            print("Selected: (%s, %s)" % self.single_px)        
         
         return
 
@@ -676,7 +676,7 @@ class MaskGUI(object):
         if event.key in ['m', 'u']:
             
             if self.xy == None:
-                print "No area selected, mask not changed."
+                print("No area selected, mask not changed.")
             else:
             
                 # print "Masking region inside:"
@@ -693,13 +693,13 @@ class MaskGUI(object):
 
                 # if we're going to mask, mask
                 if event.key == 'm':
-                    print 'Masking convex area...'
+                    print('Masking convex area...')
                     x = self._conv_2dinds_to_4d(inds)
                     self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 0
                 
                 # if we're unmasking, unmask
                 elif event.key == 'u':
-                    print 'Unmasking convex area...'
+                    print('Unmasking convex area...')
                     x = self._conv_2dinds_to_4d(inds)
                     self.mask._masks['manual'][x[:,0],x[:,1],x[:,2],x[:,3]] = 1
             
@@ -711,7 +711,7 @@ class MaskGUI(object):
 
         # reset all masks
         elif event.key == 'r':
-            print 'Unmasking all'
+            print('Unmasking all')
             self.mask._masks['manual'] = self.mask._blank_mask()
             self.update_image()
             self._reset()
@@ -725,15 +725,15 @@ class MaskGUI(object):
                 x = self._conv_2dinds_to_4d( np.array(self.single_px)[None,:] )
                 x = x.flatten()
                 if self.mask.mask[x[0],x[1],x[2],x[3]] == 0:
-                    print "Unmasking single pixel:", self.single_px
+                    print("Unmasking single pixel:", self.single_px)
                     self.mask._masks['manual'][x[0],x[1],x[2],x[3]] = 1
                 else:
-                    print "Masking single pixel:", self.single_px
+                    print("Masking single pixel:", self.single_px)
                     self.mask._masks['manual'][x[0],x[1],x[2],x[3]] = 0
                     
             else:
-                print "No single pixel selected to toggle. Click a pixel and"
-                print "    press `t` to toggle the mask on that pixel."
+                print("No single pixel selected to toggle. Click a pixel and")
+                print("    press `t` to toggle the mask on that pixel.")
             
             self.update_image()
             self._reset()
@@ -742,7 +742,7 @@ class MaskGUI(object):
             
         # clear mouse selection
         elif event.key == 'x':
-            print "Reset selections"
+            print("Reset selections")
             self._reset()
             
            
@@ -754,7 +754,7 @@ class MaskGUI(object):
           
         # exit w/o saving
         elif event.key == 'q':
-            print 'Exiting without saving...'
+            print('Exiting without saving...')
             plt.close()
             return
           
@@ -823,45 +823,45 @@ class MaskGUI(object):
         
     def print_gui_help(self):
         
-        print
-        print
-        print "   --- WELCOME TO PYPAD's INTERACTIVE MASKING ENVIRONMENT --- "
-        print
-        print " Green pixels are masked."
-        print
-        print " Keystrokes"
-        print " ----------"
-        print " m : mask               u : unmask            r : reset "
-        print " x : clear selection    w : save & exit       t : toggle pixel"
-        print " q : exit w/o saving"
-        print
-        print " Mouse"
-        print " -----"
-        print " Right click on three or more points to draw a polygon around a"
-        print " set of pixels. Then press `m` or `u` to mask or unmask that area."
-        print
-        print " You can also mask/unmask single pixels by clicking on them with"
-        print " the mouse and pressing `t` to toggle the mask state."
-        print
-        print " Toggle Buttons (left)"
-        print " ---------------------"
-        print " nonbonded : Mask nonbonded pixels, and their nearest neighbours."
-        print "             These pixels aren't even connected to the detector."
-        print 
-        print " row 13    : In some old experiments, row 13 on one ASIC was "
-        print "             busted -- mask that (will be clear if this is needed)"
-        print 
-        print " threshold : You will be prompted for an upper and lower limit --"
-        print "             pixels outside that range are masked. Units are ADUs"
-        print "             and you can set only a lower/upper limit by passing"
-        print "             'None' for one option."
-        print 
-        print " borders   : Mask the borders of each ASIC. These often give"
-        print "             anomoulous responses. Recommended to mask one pixel"
-        print "             borders at least."
-        print ""
-        print "                          ----- // -----"
-        print
+        print()
+        print()
+        print("   --- WELCOME TO PYPAD's INTERACTIVE MASKING ENVIRONMENT --- ")
+        print()
+        print(" Green pixels are masked.")
+        print()
+        print(" Keystrokes")
+        print(" ----------")
+        print(" m : mask               u : unmask            r : reset ")
+        print(" x : clear selection    w : save & exit       t : toggle pixel")
+        print(" q : exit w/o saving")
+        print()
+        print(" Mouse")
+        print(" -----")
+        print(" Right click on three or more points to draw a polygon around a")
+        print(" set of pixels. Then press `m` or `u` to mask or unmask that area.")
+        print()
+        print(" You can also mask/unmask single pixels by clicking on them with")
+        print(" the mouse and pressing `t` to toggle the mask state.")
+        print()
+        print(" Toggle Buttons (left)")
+        print(" ---------------------")
+        print(" nonbonded : Mask nonbonded pixels, and their nearest neighbours.")
+        print("             These pixels aren't even connected to the detector.")
+        print() 
+        print(" row 13    : In some old experiments, row 13 on one ASIC was ")
+        print("             busted -- mask that (will be clear if this is needed)")
+        print() 
+        print(" threshold : You will be prompted for an upper and lower limit --")
+        print("             pixels outside that range are masked. Units are ADUs")
+        print("             and you can set only a lower/upper limit by passing")
+        print("             'None' for one option.")
+        print() 
+        print(" borders   : Mask the borders of each ASIC. These often give")
+        print("             anomoulous responses. Recommended to mask one pixel")
+        print("             borders at least.")
+        print("")
+        print("                          ----- // -----")
+        print()
         
         
         

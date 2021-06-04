@@ -181,13 +181,13 @@ class ToggleButton(Button, object):
             
         # call either the on or off function
         if not self.on:
-            for cid, func in self.onstate_observers.iteritems():
+            for cid, func in self.onstate_observers.items():
                 if len(self.onstate_exargs[cid]) > 0:
                     func(*self.onstate_exargs[cid])
                 else:
                     func()
         else:
-            for cid, func in self.offstate_observers.iteritems():
+            for cid, func in self.offstate_observers.items():
                 if len(self.offstate_exargs[cid]) > 0:
                     func(*self.offstate_exargs[cid])
                 else:
@@ -392,7 +392,7 @@ class ManipTwoPanelCSPAD(TwoPanelCSPAD):
             self.cspad.dilate(delta_dilation)
             self.dilation = self.dilation_slider.val
             if np.abs(delta_dilation) > 1e-8:
-                print "Dilation set to: %.2f" % self.dilation
+                print("Dilation set to: %.2f" % self.dilation)
         
         super(ManipTwoPanelCSPAD, self).update_image(val)
         
@@ -412,13 +412,13 @@ class ManipTwoPanelCSPAD(TwoPanelCSPAD):
                 self.center[0] += 1000.0 - event.xdata
                 self.center[1] += 1000.0 - event.ydata
                 delta_center = (1000.0 - event.xdata, 1000.0 - event.ydata)
-                print "Shifting center in x/y by: (%.2f, %.2f)" % delta_center
+                print("Shifting center in x/y by: (%.2f, %.2f)" % delta_center)
                 
                 offset = np.array(delta_center)[None,:] * 0.10992 # pxl --> mm
                 
                 if np.any( np.abs(self.cspad.quad_offset + offset) > 15.0 ):
-                    print "Warning: center move placed image outside reasonable"
-                    print "bounds: try again with."
+                    print("Warning: center move placed image outside reasonable")
+                    print("bounds: try again with.")
                 else:
                     self.cspad.quad_offset += offset                    
                     self.update_image(event)
@@ -426,7 +426,7 @@ class ManipTwoPanelCSPAD(TwoPanelCSPAD):
             # clicks on right panel -- set opt limits
             elif event.inaxes == self.axR:
                 v_line = event.xdata
-                print "Set peak limit at: %f" % v_line
+                print("Set peak limit at: %f" % v_line)
                 self.regions.append(v_line)
                 self.update_image(event)
                     
